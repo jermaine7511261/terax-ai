@@ -13,7 +13,15 @@ export type ProviderId =
   | "openai-compatible"
   | "lmstudio"
   | "mlx"
-  | "ollama";
+  | "ollama"
+  // OpenCode extended providers
+  | "azure"
+  | "aws-bedrock"
+  | "together"
+  | "perplexity"
+  | "cohere"
+  | "ai-gateway"
+  | "models-dev";
 
 export type ProviderInfo = {
   id: ProviderId;
@@ -117,6 +125,56 @@ export const PROVIDERS: readonly ProviderInfo[] = [
     keyringAccount: "",
     keyPrefix: null,
     consoleUrl: "https://ollama.com/download",
+  },
+  {
+    id: "azure",
+    label: "Azure OpenAI",
+    keyringAccount: "azure-api-key",
+    keyPrefix: null,
+    consoleUrl: "https://portal.azure.com/",
+  },
+  {
+    id: "aws-bedrock",
+    label: "AWS Bedrock",
+    keyringAccount: "aws-bedrock-api-key",
+    keyPrefix: null,
+    consoleUrl: "https://console.aws.amazon.com/bedrock/",
+  },
+  {
+    id: "together",
+    label: "Together AI",
+    keyringAccount: "together-api-key",
+    keyPrefix: "tgp-",
+    consoleUrl: "https://api.together.xyz/settings/api-keys",
+  },
+  {
+    id: "perplexity",
+    label: "Perplexity",
+    keyringAccount: "perplexity-api-key",
+    keyPrefix: "pplx-",
+    consoleUrl: "https://www.perplexity.ai/settings/api",
+  },
+  {
+    id: "cohere",
+    label: "Cohere",
+    keyringAccount: "cohere-api-key",
+    keyPrefix: null,
+    consoleUrl: "https://dashboard.cohere.com/api-keys",
+  },
+  {
+    id: "ai-gateway",
+    label: "AI Gateway",
+    keyringAccount: "ai-gateway-api-key",
+    keyPrefix: null,
+    consoleUrl: "https://console.ai-gateway.dev/",
+    keyOptional: true,
+  },
+  {
+    id: "models-dev",
+    label: "Models.dev",
+    keyringAccount: "models-dev-api-key",
+    keyPrefix: "md-",
+    consoleUrl: "https://models.dev/keys",
   },
 ] as const;
 

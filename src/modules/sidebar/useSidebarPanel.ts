@@ -37,7 +37,7 @@ function readSidebarWidth(): number {
 function readSidebarView(): SidebarViewId {
   try {
     const stored = window.localStorage.getItem(SIDEBAR_VIEW_STORAGE_KEY);
-    if (stored === "explorer" || stored === "source-control") return stored;
+    if (stored === "explorer" || stored === "source-control" || stored === "memory" || stored === "skills" || stored === "cron" || stored === "profile" || stored === "honcho" || stored === "snapshot" || stored === "gateway") return stored;
   } catch {
     // ignore
   }

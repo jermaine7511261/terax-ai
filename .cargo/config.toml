@@ -1,0 +1,13 @@
+# OpenAgent build config — MSVC target (VS Build Tools)
+
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]
+
+# MinGW fallback
+[target.x86_64-pc-windows-gnu]
+linker = "C:\\Users\\Admin\\mingw64\\bin\\gcc.exe"
+ar = "C:\\Users\\Admin\\mingw64\\bin\\ar.exe"
+
+[env]
+# Only override CC for build scripts (minimal — MSVC auto-detects its own tools)
+CC_x86_64-pc-windows-gnu = "C:\\Users\\Admin\\mingw64\\bin\\gcc.exe"

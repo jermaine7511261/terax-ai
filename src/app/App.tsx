@@ -63,6 +63,13 @@ import {
   SourceControlPanel,
   useSourceControlContext,
 } from "@/modules/source-control";
+import { MemoryPanel } from "@/modules/memory";
+import { SkillsHub } from "@/modules/skills";
+import { CronPanel } from "@/modules/cron";
+import { ProfilePanel } from "@/modules/profile";
+import { HonchoPanel } from "@/modules/honcho";
+import { SnapshotPanel } from "@/modules/snapshot";
+import { GatewayPanel } from "@/modules/gateway-ws";
 import {
   SpaceSwitcher,
   useSpacePersistence,
@@ -1269,7 +1276,7 @@ export default function App() {
                         onAttachToAgent={handleAttachFileToAgent}
                         pathDropTarget={terminalPathDropTarget}
                       />
-                    ) : (
+                    ) : sidebarView === "source-control" ? (
                       <SourceControlPanel
                         open
                         sourceControl={sourceControl}
@@ -1278,6 +1285,22 @@ export default function App() {
                         onOpenFile={handleOpenFile}
                         onNavigateToPath={cdInNewTab}
                       />
+                    ) : sidebarView === "memory" ? (
+                      <MemoryPanel />
+                    ) : sidebarView === "skills" ? (
+                      <SkillsHub />
+                    ) : sidebarView === "cron" ? (
+                      <CronPanel />
+                    ) : sidebarView === "profile" ? (
+                      <ProfilePanel />
+                    ) : sidebarView === "honcho" ? (
+                      <HonchoPanel />
+                    ) : sidebarView === "snapshot" ? (
+                      <SnapshotPanel />
+                    ) : sidebarView === "gateway" ? (
+                      <GatewayPanel />
+                    ) : (
+                      <div className="p-4 text-gray-500 text-sm">Select a view</div>
                     )}
                   </div>
                   <SidebarRail

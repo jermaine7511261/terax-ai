@@ -25,6 +25,13 @@ export const EMPTY_PROVIDER_KEYS: ProviderKeys = {
   lmstudio: null,
   mlx: null,
   ollama: null,
+  azure: null,
+  "aws-bedrock": null,
+  together: null,
+  perplexity: null,
+  cohere: null,
+  "ai-gateway": null,
+  "models-dev": null,
 };
 
 export async function getKey(provider: ProviderId): Promise<string | null> {

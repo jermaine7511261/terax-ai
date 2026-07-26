@@ -197,6 +197,77 @@ export async function buildLanguageModel(
       })(resolvedModelId);
       break;
     }
+    case "azure": {
+      const { createOpenAICompatible } =
+        await import("@ai-sdk/openai-compatible");
+      built = createOpenAICompatible({
+        name: "azure",
+        baseURL: "https://YOUR_RESOURCE.openai.azure.com/openai/deployments/MODEL_NAME",
+        apiKey: key,
+      })(resolvedModelId);
+      break;
+    }
+    case "aws-bedrock": {
+      const { createOpenAICompatible } =
+        await import("@ai-sdk/openai-compatible");
+      built = createOpenAICompatible({
+        name: "aws-bedrock",
+        baseURL: "https://bedrock-runtime.REGION.amazonaws.com",
+        apiKey: key,
+      })(resolvedModelId);
+      break;
+    }
+    case "together": {
+      const { createOpenAICompatible } =
+        await import("@ai-sdk/openai-compatible");
+      built = createOpenAICompatible({
+        name: "together",
+        baseURL: "https://api.together.xyz/v1",
+        apiKey: key,
+      })(resolvedModelId);
+      break;
+    }
+    case "perplexity": {
+      const { createOpenAICompatible } =
+        await import("@ai-sdk/openai-compatible");
+      built = createOpenAICompatible({
+        name: "perplexity",
+        baseURL: "https://api.perplexity.ai",
+        apiKey: key,
+      })(resolvedModelId);
+      break;
+    }
+    case "cohere": {
+      const { createOpenAICompatible } =
+        await import("@ai-sdk/openai-compatible");
+      built = createOpenAICompatible({
+        name: "cohere",
+        baseURL: "https://api.cohere.ai/compat/v1",
+        apiKey: key,
+      })(resolvedModelId);
+      break;
+    }
+    case "ai-gateway": {
+      const { createOpenAICompatible } =
+        await import("@ai-sdk/openai-compatible");
+      built = createOpenAICompatible({
+        name: "ai-gateway",
+        baseURL: compatURL || "https://gateway.ai.cloudflare.com/v1",
+        apiKey: key || undefined,
+      })(resolvedModelId);
+      break;
+    }
+    case "models-dev": {
+      const { createOpenAICompatible } =
+        await import("@ai-sdk/openai-compatible");
+      built = createOpenAICompatible({
+        name: "models-dev",
+        baseURL: "https://api.models.dev/v1",
+        apiKey: key,
+      })(resolvedModelId);
+      break;
+    }
+
     case "ollama": {
       const { createOpenAICompatible } =
         await import("@ai-sdk/openai-compatible");
@@ -341,6 +412,7 @@ const EMPTY_USAGE: AgentUsage = {
 export type RunAgentOptions = {
   keys: ProviderKeys;
   modelId?: string;
+  sessionId?: string;
   customInstructions?: string;
   agentPersona?: { name: string; instructions: string } | null;
   toolContext: ToolContext;
@@ -364,6 +436,13 @@ export type RunAgentOptions = {
   projectMemory?: string | null;
   uiMessages: UIMessage[];
   abortSignal?: AbortSignal;
+  onLearningReview?: (info: {
+    sessionId: string;
+    modelId: string;
+    turnIndex: number;
+    toolsUsed: string[];
+    errors: string[];
+  }) => void;
 };
 
 export async function runAgentStream(opts: RunAgentOptions) {
@@ -420,6 +499,9 @@ export async function runAgentStream(opts: RunAgentOptions) {
   );
 
   let stepsSeen = 0;
+  let toolsUsedThisRun: string[] = [];
+  let errorsThisRun: string[] = [];
+
   return streamText({
     model,
     system: prompt.system,
@@ -430,6 +512,16 @@ export async function runAgentStream(opts: RunAgentOptions) {
     abortSignal: opts.abortSignal,
     onStepFinish: (step) => {
       stepsSeen++;
+      if (step.toolCalls) {
+        for (const tc of step.toolCalls) {
+          const name = typeof tc === "object" && tc !== null && "toolName" in tc
+            ? (tc as { toolName: string }).toolName
+            : String(tc);
+          if (!toolsUsedThisRun.includes(name)) {
+            toolsUsedThisRun.push(name);
+          }
+        }
+      }
       if (opts.onStep) {
         const last = step.toolCalls?.[step.toolCalls.length - 1];
         if (last) {
@@ -464,6 +556,16 @@ export async function runAgentStream(opts: RunAgentOptions) {
         hitStepCap: stepsSeen >= MAX_AGENT_STEPS,
         finishReason,
       });
+      // Trigger background learning review
+      if (opts.onLearningReview && opts.sessionId) {
+        opts.onLearningReview({
+          sessionId: opts.sessionId,
+          modelId: opts.modelId ?? DEFAULT_MODEL_ID,
+          turnIndex: stepsSeen,
+          toolsUsed: toolsUsedThisRun,
+          errors: errorsThisRun,
+        });
+      }
     },
   });
 }

@@ -36,6 +36,7 @@ import {
   TERMINAL_SCROLLBACK_PRESETS,
 } from "@/modules/settings/store";
 import { useTheme } from "@/modules/theme";
+import { useI18n } from "@/i18n/useI18n";
 import {
   ComputerIcon,
   Moon02Icon,
@@ -160,14 +161,21 @@ export function GeneralSection() {
             </button>
           ))}
         </div>
-        <p className="text-[11px] text-muted-foreground">
-          For theme, background and customization, see the{" "}
+        <p className="text-[11px] text-muted-foreground">For theme, background and customization, see the{" "}
           <strong className="font-medium text-foreground">Themes</strong> tab.
         </p>
       </div>
 
       <div className="flex flex-col gap-2">
-        <Label>Zoom</Label>
+            <Label>Language / 语言</Label>
+            <div className="flex flex-col gap-3 rounded-lg border border-border/60 p-3">
+              <SwitchLocale />
+              <p className="text-[11px] text-muted-foreground">中文 / English</p>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <Label>Zoom</Label>
         <div className="flex flex-col gap-3 rounded-lg border border-border/60 p-3">
           <div className="flex items-center justify-between gap-3">
             <span className="text-[11.5px] text-muted-foreground">
@@ -463,6 +471,18 @@ export function GeneralSection() {
           </SettingRow>
         </div>
       </div>
+    </div>
+  );
+}
+
+function SwitchLocale() {
+  const { locale } = useI18n();
+  return (
+    <div className="flex gap-2">
+      <button onClick={() => { localStorage.setItem("openagent-locale","zh"); window.location.reload(); }}
+        className={`px-3 py-1 rounded text-sm ${locale === "zh" ? "bg-emerald-700 text-white" : "bg-gray-700 text-gray-300"}`}>中文</button>
+      <button onClick={() => { localStorage.setItem("openagent-locale","en"); window.location.reload(); }}
+        className={`px-3 py-1 rounded text-sm ${locale === "en" ? "bg-emerald-700 text-white" : "bg-gray-700 text-gray-300"}`}>English</button>
     </div>
   );
 }

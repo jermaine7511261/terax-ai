@@ -25,4 +25,9 @@ stats.html
 *.sln
 *.sw?
 
-*.tsbuildinfo
+*.tsbuildinfoprivate.key
+private.key.pub
+*.exe
+target/
+dist-web/
+test-results.json

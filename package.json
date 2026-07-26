@@ -1,7 +1,7 @@
 {
-  "name": "terax",
+  "name": "openagent",
   "private": true,
-  "version": "0.8.6",
+  "version": "0.0.1",
   "license": "Apache-2.0",
   "type": "module",
   "packageManager": "pnpm@11.9.0+sha512.bd682d5d03fe525ef7c9fd6780c6884d1e756ac4c9c9fe00c538782824310dcf90e3ddc4f53835f06dfaebd5085e41855e0bcbb3b60de2ac5bbab89e5036f03b",
@@ -16,6 +16,9 @@
     "tauri": "tauri",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:integration": "vitest run tests/integration",
+    "test:perf": "node scripts/perf-benchmark.mjs",
     "check-types": "tsc --noEmit",
     "lint": "biome lint ./src",
     "lint:fix": "biome lint --write ./src",
@@ -24,7 +27,9 @@
     "analyze:bundle": "ANALYZE=true vite build",
     "analyze:eager": "node scripts/eager-graph.mjs src/main.tsx && node scripts/eager-graph.mjs src/settings/main.tsx",
     "size": "size-limit",
-    "knip": "knip"
+    "knip": "knip",
+    "dev:web": "vite --config vite.config.web.ts",
+    "build:web": "tsc --noEmit && vite build --config vite.config.web.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.94",
@@ -95,6 +100,7 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "codemirror-languageserver": "^1.22.0",
+    "mermaid": "^11.6.0",
     "radix-ui": "^1.6.2",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",

@@ -1,19 +1,16 @@
 [package]
-name = "terax"
-version = "0.8.6"
-description = "Terax — an open-source AI-native terminal emulator"
-authors = ["crynta"]
+name = "openagent"
+version = "0.0.1"
+description = "OpenAgent — an open-source AI-native development workspace"
+authors = ["OpenAgent"]
 license = "Apache-2.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [lib]
-# The `_lib` suffix may seem redundant but it is necessary
-# to make the lib name unique and wouldn't conflict with the bin name.
-# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
-name = "terax_lib"
+name = "openagent_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
+
+
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
@@ -39,15 +36,26 @@ tauri-plugin-store = "2"
 tauri-plugin-process = "2"
 tauri-plugin-notification = "2"
 reqwest = { version = "0.12", default-features = false, features = [
-	"rustls-tls",
-	"stream",
+    "rustls-tls",
+    "stream",
+    "blocking",
+    "json",
 ] }
 bytes = "1"
 futures-util = "0.3"
-tokio = { version = "1", default-features = false, features = ["rt"] }
+tokio = { version = "1", default-features = false, features = [
+    "rt",
+    "macros",
+    "sync",
+    "io-util",
+] }
 tempfile = "3"
 notify = "8.2.0"
 which = "8.0.4"
+regex = "1"
+shellexpand = "3"
+similar = "2"
+rusqlite = { version = "0.40", features = ["bundled"] }
 
 [dev-dependencies]
 proptest = "1"
@@ -55,36 +63,42 @@ tempfile = "3"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
+nono = "0.53"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 keyring = { version = "3.6", default-features = false, features = [
-	"apple-native",
+    "apple-native",
 ] }
 objc2 = "0.6"
 objc2-foundation = { version = "0.3", features = ["NSString", "NSUserDefaults"] }
 
-# WebKitGTK can't read external clipboard copies; mac/win webviews can.
 [target.'cfg(target_os = "linux")'.dependencies]
 tauri-plugin-clipboard-manager = "2"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 keyring = { version = "3.6", default-features = false, features = [
-	"windows-native",
+    "windows-native",
 ] }
 windows-sys = { version = "0.61", features = [
-	"Win32_Foundation",
-	"Win32_Security",
-	"Win32_System_Console",
-	"Win32_System_JobObjects",
-	"Win32_System_ProcessStatus",
-	"Win32_System_Threading",
-	"Win32_System_Diagnostics_ToolHelp",
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_System_Console",
+    "Win32_System_JobObjects",
+    "Win32_System_ProcessStatus",
+    "Win32_System_Threading",
+    "Win32_System_Diagnostics_ToolHelp",
 ] }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-autostart = "2"
 tauri-plugin-updater = "2"
 tauri-plugin-window-state = "2"
+
+[package.metadata]
+tauri-app = { appName = "openagent" }
+
+[package.metadata.tauri-winres]
+product-version = "0.8.6"
 
 [profile.dev]
 incremental = true

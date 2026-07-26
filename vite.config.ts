@@ -102,7 +102,11 @@ export default defineConfig(async ({ mode }): Promise<UserConfig> => ({
           if (id.includes("@ai-sdk/xai")) return "ai-xai";
           if (id.includes("@ai-sdk/")) return "ai-sdk-shared";
 
-          if (id.includes("/xterm/") || id.includes("@xterm/")) return "xterm";
+          if (id.includes("@xterm/")) return "xterm";
+          if (id.includes("/xterm/")) return "xterm";
+          if (id.includes("@xterm/addon-search")) return "xterm-search";
+          if (id.includes("@xterm/addon-serialize")) return "xterm-serialize";
+          if (id.includes("@xterm/addon-web-links")) return "xterm-links";
           // Lang packs and legacy modes are dynamically imported by
           // languageResolver; give each its own named chunk so they load on
           // demand instead of being glued into the codemirror core chunk.
@@ -123,6 +127,11 @@ export default defineConfig(async ({ mode }): Promise<UserConfig> => ({
             return "codemirror";
           if (id.includes("/streamdown/") || id.includes("@streamdown/"))
             return "streamdown";
+          if (id.includes("/sonner/")) return "sonner";
+          if (id.includes("/zustand/")) return "zustand";
+          if (id.includes("/cmdk/")) return "cmdk";
+          if (id.includes("/motion/") || id.includes("framer-motion")) return "motion";
+          if (id.includes("react-resizable-panels")) return "panels";
           if (
             id.includes("/react-dom/") ||
             id.includes("/react/") ||

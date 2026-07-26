@@ -75,6 +75,13 @@ const PROVIDER_ICON = {
   lmstudio: ComputerIcon,
   mlx: AppleIcon,
   ollama: ServerStack01Icon,
+  azure: GlobeIcon,
+  "aws-bedrock": ComputerIcon,
+  together: GlobeIcon,
+  perplexity: Search01Icon,
+  cohere: PlugIcon,
+  "ai-gateway": BrainIcon,
+  "models-dev": ServerStack01Icon,
 } as const satisfies Record<ProviderId, typeof ChatGptIcon>;
 
 export function AiOpenButton({ onOpen }: { onOpen: () => void }) {

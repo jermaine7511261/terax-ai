@@ -12,6 +12,7 @@ import {
   Grok02Icon,
   MistralIcon,
   PlugIcon,
+  SearchDollarIcon,
   ServerStack01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -30,6 +31,13 @@ const ICON_BY_PROVIDER = {
   lmstudio: ComputerIcon,
   mlx: AppleIcon,
   ollama: ServerStack01Icon,
+  azure: GlobeIcon,
+  "aws-bedrock": ComputerIcon,
+  together: GlobeIcon,
+  perplexity: SearchDollarIcon,
+  cohere: PlugIcon,
+  "ai-gateway": ComputerIcon,
+  "models-dev": ServerStack01Icon,
 } as const satisfies Record<ProviderId, typeof ChatGptIcon>;
 
 type Props = {

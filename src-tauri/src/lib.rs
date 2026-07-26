@@ -1,9 +1,42 @@
 pub mod modules;
 
-use modules::{agent, fs, git, history, lsp, net, pty, secrets, shell, workspace};
+use modules::{agent, agent_core, agent_learn, backend, billing, checkpoint, compress, cron, credential_pool, errors, fs, gateway_bridge, gateway_ws, git, history, honcho, hub, lsp, mcp, memory, moa, net, plugin, pty, sandbox, secrets, sessions, shell, shell_hooks, skills, tool_guard, web_search, workspace};
 use std::path::PathBuf;
 use std::sync::Mutex;
 use tauri::{Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder};
+use modules::agent_learn::LearningEngine;
+use modules::checkpoint::CheckpointManager;
+use modules::backend::BackendManager;
+use modules::billing::BillingEngine;
+use modules::circuit::CircuitBoard;
+use modules::codebase_graph::CodebaseGraph;
+use modules::compress::SessionCompressor;
+use modules::hunker::HunkTracker;
+use modules::tts::TtsEngine;
+use modules::worktree::Worktree;
+use modules::credential_pool::CredentialPool;
+use modules::errors::ErrorClassifier;
+use modules::cron::CronEngine;
+use modules::gateway_bridge::GatewayBridge;
+use modules::gateway_ws::GatewayWs;
+use modules::honcho::HonchoEngine;
+use modules::hub::SkillsHub;
+use modules::mcp::McpManager;
+use modules::moa::MoaEngine;
+use modules::memory::MemoryDb;
+use modules::honcho::MemorySnapshotManager;
+use modules::codebase_graph;
+use modules::circuit;
+use modules::hunker;
+use modules::tts;
+use modules::worktree;
+use modules::plugin::PluginEngine;
+use modules::sandbox::Sandbox;
+use modules::sessions::SessionManager;
+use modules::shell_hooks::ShellHooksEngine;
+use modules::tool_guard::ToolGuard;
+use modules::web_search::WebSearch;
+use modules::skills::SkillsEngine;
 #[cfg(target_os = "macos")]
 use tauri::{PhysicalPosition, WindowEvent};
 use tauri_plugin_window_state::StateFlags;
@@ -126,7 +159,7 @@ async fn open_settings_window(app: tauri::AppHandle, tab: Option<String>) -> Res
     #[cfg(any(target_os = "linux", target_os = "windows"))]
     let builder = builder.decorations(false).transparent(true);
 
-    let window = builder.build().map_err(|e| e.to_string())?;
+    let _window = builder.build().map_err(|e| e.to_string())?;
 
     // Some Linux compositors (GNOME/Mutter with CSD-by-default) ignore the
     // builder-time decorations flag — re-assert it after realize.
@@ -200,12 +233,12 @@ pub fn run() {
                 .build(),
         )
         .plugin(tauri_plugin_opener::init())
-        .setup(|_app| {
+        .setup(|app| {
             // macOS skips parent() for the settings window, so tie its lifecycle
             // to the main window here instead. Other platforms keep parent().
             #[cfg(target_os = "macos")]
-            if let Some(main) = _app.get_webview_window("main") {
-                let handle = _app.handle().clone();
+            if let Some(main) = app.get_webview_window("main") {
+                let handle = app.handle().clone();
                 main.on_window_event(move |event| {
                     if matches!(
                         event,
@@ -216,6 +249,58 @@ pub fn run() {
                         }
                     }
                 });
+            }
+            // Initialize memory (FTS5) and skills engines
+            if let Ok(dir) = app.path().app_data_dir() {
+                std::fs::create_dir_all(&dir).ok();
+                let db_path = dir.join("terax-memory.db");
+                match MemoryDb::new(&db_path) {
+                    Ok(db) => { app.manage(db); },
+                    Err(e) => { log::error!("failed to init memory db: {e}"); }
+                }
+                let engine = SkillsEngine::new();
+                let _ = engine.init(&dir);
+                app.manage(engine);
+                let learn = LearningEngine::new();
+                let _ = learn.init(&dir);
+                app.manage(learn);
+                app.manage(SessionManager::new());
+                app.manage(BackendManager::new());
+                app.manage(CronEngine::new());
+                let sh = SkillsHub::new();
+                let _ = sh.init(&dir);
+                app.manage(sh);
+                app.manage(PluginEngine::new());
+                app.manage(GatewayBridge::new());
+                app.manage(McpManager::new());
+                app.manage(Sandbox::new());
+                let cm = CheckpointManager::new();
+                cm.init(&dir);
+                app.manage(cm);
+                app.manage(MoaEngine::new());
+                app.manage(CredentialPool::new());
+                app.manage(BillingEngine::new());
+                app.manage(ErrorClassifier::new());
+                app.manage(GatewayWs::new());
+                app.manage(ToolGuard::new());
+                // Agent Core — autonomous AI agent engine
+                app.manage(agent_core::AgentEngine::new(
+                    &dir.to_string_lossy(),
+                ));
+                app.manage(HonchoEngine::new());
+                app.manage(MemorySnapshotManager::new());
+                app.manage(WebSearch::new());
+                app.manage(ShellHooksEngine::new());
+                app.manage(SessionCompressor::new(128_000));
+                app.manage(CircuitBoard::new());
+                app.manage(HunkTracker::new());
+                app.manage(TtsEngine::new());
+                let cg = CodebaseGraph::new();
+                cg.init(&dir);
+                app.manage(cg);
+                let wt = Worktree::new();
+                wt.init(&dir);
+                app.manage(wt);
             }
             Ok(())
         })
@@ -318,6 +403,158 @@ pub fn run() {
             history::history_commands,
             history::history_record,
             history::history_list,
+            memory::memory_search,
+            memory::memory_add,
+            memory::memory_save_session,
+            memory::memory_search_sessions,
+            skills::skills_list,
+            skills::skills_get,
+            skills::skills_create,
+            skills::skills_delete,
+            skills::skills_use,
+            agent_learn::learn_record_turn,
+            agent_learn::learn_build_review_context,
+            agent_learn::learn_store_review_result,
+            agent_learn::learn_get_review_results,
+            agent_learn::learn_run_curator,
+            mcp::mcp_list_servers,
+            mcp::mcp_register_server,
+            mcp::mcp_unregister_server,
+            mcp::mcp_list_tools,
+            sandbox::sandbox_get_config,
+            sandbox::sandbox_set_config,
+            sandbox::sandbox_can_read,
+            sandbox::sandbox_can_write,
+            sandbox::sandbox_can_network,
+            checkpoint::checkpoint_create,
+            checkpoint::checkpoint_list,
+            checkpoint::checkpoint_restore,
+            checkpoint::checkpoint_delete,
+            honcho::profile_get,
+            honcho::profile_save,
+            honcho::profile_get_markdown,
+            honcho::profile_record_goal,
+            honcho::honcho_observe,
+            honcho::honcho_insights,
+            honcho::ms_create,
+            honcho::ms_list,
+            honcho::ms_delete,
+            backend::backend_list,
+            backend::backend_register,
+            backend::backend_remove,
+            backend::backend_execute,
+            backend::backend_status,
+            backend::backend_status_all,
+            cron::cron_list,
+            cron::cron_add,
+            cron::cron_update,
+            cron::cron_delete,
+            cron::cron_logs,
+            cron::cron_tick,
+            gateway_bridge::gateway_list,
+            gateway_bridge::gateway_save,
+            gateway_bridge::gateway_delete,
+            gateway_bridge::gateway_messages,
+            hub::hub_refresh,
+            hub::hub_search,
+            hub::hub_install,
+            hub::hub_uninstall,
+            hub::hub_list_installed,
+            hub::hub_get_installed,
+            hub::hub_toggle,
+            plugin::plugin_register,
+            plugin::plugin_unregister,
+            plugin::plugin_list,
+            plugin::plugin_get,
+            plugin::plugin_toggle,
+            plugin::plugin_collect_tools,
+            moa::moa_register,
+            moa::moa_unregister,
+            moa::moa_list,
+            moa::moa_select,
+            credential_pool::cp_list_sources,
+            credential_pool::cp_register_source,
+            credential_pool::cp_remove_source,
+            credential_pool::cp_resolve,
+            credential_pool::cp_set_in_memory,
+            credential_pool::cp_invalidate,
+            compress::compress_analyze,
+            compress::compress_set_strategy,
+            compress::compress_estimate_tokens,
+            gateway_ws::ws_start,
+            gateway_ws::ws_stop,
+            gateway_ws::ws_stop_all,
+            gateway_ws::ws_status,
+            gateway_ws::ws_send,
+            gateway_ws::ws_messages,
+            web_search::ws_search,
+            web_search::ws_fetch,
+            web_search::ws_set_backend,
+            tool_guard::guard_check,
+            tool_guard::guard_list_rules,
+            tool_guard::guard_add_rule,
+            tool_guard::guard_remove_rule,
+            tool_guard::guard_toggle_rule,
+            tool_guard::guard_stats,
+            gateway_bridge::gateway_list,
+            shell_hooks::hooks_register,
+            shell_hooks::hooks_unregister,
+            shell_hooks::hooks_run,
+            shell_hooks::hooks_toggle,
+            billing::billing_record,
+            billing::billing_summary,
+            billing::billing_get_budget,
+            billing::billing_set_budget,
+            billing::billing_recent,
+            billing::billing_calculate_cost,
+            errors::errors_classify,
+            errors::errors_stats,
+            errors::errors_recent,
+            errors::errors_mark_recovered,
+            errors::errors_auto_fix,
+            sessions::sess_create,
+            sessions::sess_list,
+            sessions::sess_get,
+            sessions::sess_delete,
+            sessions::sess_set_active,
+            sessions::sess_get_active,
+            sessions::sess_update_status,
+            sessions::sess_cleanup,
+            codebase_graph::cg_index,
+            codebase_graph::cg_remove,
+            codebase_graph::cg_search,
+            codebase_graph::cg_references,
+            codebase_graph::cg_file,
+            codebase_graph::cg_all,
+            codebase_graph::cg_stats,
+            worktree::wt_snapshot,
+            worktree::wt_diff,
+            worktree::wt_pending,
+            worktree::wt_clear,
+            hunker::hunk_record,
+            hunker::hunk_list,
+            hunker::hunk_get,
+            hunker::hunk_apply,
+            hunker::hunk_delete,
+            hunker::hunk_cleanup,
+            circuit::cb_list,
+            circuit::cb_get,
+            circuit::cb_register,
+            circuit::cb_call_allowed,
+            circuit::cb_record_success,
+            circuit::cb_record_failure,
+            circuit::cb_reset,
+            tts::tts_speak,
+            tts::tts_set_backend,
+            tts::tts_get_backend,
+            tts::tts_voices,
+            tts::tts_clear_cache,
+            agent_core::agent_core_start,
+            agent_core::agent_core_step,
+            agent_core::agent_core_status,
+            agent_core::agent_core_stop,
+            agent_core::agent_core_list,
+            agent_core::agent_core_delete,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
