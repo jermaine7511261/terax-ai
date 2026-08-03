@@ -2,7 +2,7 @@
 //! the agent handler, and fans out outbound sends. Mirrors Hermes
 //! `gateway/platform_registry.py` + the `GatewayRunner` event loop.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc;
 
@@ -23,6 +23,8 @@ struct Inner {
     adapters: Mutex<HashMap<PlatformId, Arc<dyn PlatformAdapter>>>,
     sessions: SessionRouter,
     handler: Mutex<Option<EventHandler>>,
+    on_pending: Mutex<Option<Arc<dyn Fn(String) + Send + Sync>>>,
+    connected: Mutex<HashSet<PlatformId>>,
 }
 
 impl GatewayRegistry {
@@ -32,6 +34,8 @@ impl GatewayRegistry {
                 adapters: Mutex::new(HashMap::new()),
                 sessions: SessionRouter::new(),
                 handler: Mutex::new(None),
+                on_pending: Mutex::new(None),
+                connected: Mutex::new(HashSet::new()),
             }),
         }
     }
@@ -46,6 +50,12 @@ impl GatewayRegistry {
 
     pub fn set_handler(&self, handler: EventHandler) {
         *self.inner.handler.lock().unwrap() = Some(handler);
+    }
+
+    /// Register a callback fired when a new un-authorized session appears
+    /// (so the frontend can surface an approval prompt).
+    pub fn set_on_pending(&self, cb: Arc<dyn Fn(String) + Send + Sync>) {
+        *self.inner.on_pending.lock().unwrap() = Some(cb);
     }
 
     pub fn registered_platforms(&self) -> Vec<PlatformId> {
@@ -87,6 +97,7 @@ impl GatewayRegistry {
             // Drop the lock before awaiting the adapter's connect future.
             adapter.connect(tx).await?;
         }
+        self.inner.connected.lock().unwrap().insert(id);
         let this = self.clone();
         tokio::spawn(async move {
             while let Some(ev) = rx.recv().await {
@@ -101,8 +112,18 @@ impl GatewayRegistry {
                     ev.chat_id.clone(),
                 );
                 this.inner.sessions.touch(&sk, &p, &ct, &cid);
-                if let Some(h) = &handler {
-                    h(ev);
+                // Auth gate (default-deny): only approved sessions may drive
+                // the agent. Unauthorized messages are queued for approval and
+                // dropped from the agent path.
+                if this.inner.sessions.is_authorized(&sk) {
+                    if let Some(h) = &handler {
+                        h(ev);
+                    }
+                } else {
+                    this.inner.sessions.request_approval(&sk);
+                    if let Some(cb) = this.inner.on_pending.lock().unwrap().as_ref() {
+                        cb(sk.clone());
+                    }
                 }
             }
         });
@@ -113,6 +134,11 @@ impl GatewayRegistry {
         if let Some(adapter) = self.inner.adapters.lock().unwrap().get(&id).cloned() {
             adapter.disconnect();
         }
+        self.inner.connected.lock().unwrap().remove(&id);
+    }
+
+    pub fn is_connected(&self, id: PlatformId) -> bool {
+        self.inner.connected.lock().unwrap().contains(&id)
     }
 
     pub async fn send_text(

@@ -1,44 +1,34 @@
 //! Tauri commands exposing the gateway to the settings/frontend layer.
 
 use serde::Serialize;
-use tauri::State;
+use tauri::{Manager, State};
 
-use super::adapter::{ChatTarget, PlatformAdapter};
-use super::adapters::{dingtalk, feishu, official_account, qq, wecom, weixin};
+use super::adapter::ChatTarget;
 use super::message::ChatType;
 use super::platform::PlatformId;
 use super::registry::GatewayRegistry;
 
 /// Reconfigure a platform from a JSON credentials blob. Rebuilds and
-/// re-registers the adapter so the new credentials take effect immediately.
+/// re-registers the adapter and persists the credentials to the OS keychain
+/// (service `yamet-ai`) so they survive restarts without touching disk.
 #[tauri::command]
-pub fn gateway_configure(
+pub async fn gateway_configure(
+    app: tauri::AppHandle,
     state: State<'_, GatewayRegistry>,
     platform: String,
     config_json: String,
 ) -> Result<(), String> {
+    let secrets_state = app.state::<crate::modules::secrets::SecretsState>();
+    crate::modules::secrets::secrets_set(
+        app.clone(),
+        secrets_state,
+        "yamet-ai".to_string(),
+        format!("gateway:{platform}"),
+        config_json.clone(),
+    )
+    .await?;
     let id: PlatformId = platform.parse().map_err(|e: String| e)?;
-    let adapter: Box<dyn PlatformAdapter> = match id {
-        PlatformId::DingTalk => Box::new(dingtalk::DingTalkAdapter::new(
-            serde_json::from_str(&config_json).map_err(|e| e.to_string())?,
-        )),
-        PlatformId::Feishu => Box::new(feishu::FeishuAdapter::new(
-            serde_json::from_str(&config_json).map_err(|e| e.to_string())?,
-        )),
-        PlatformId::WeCom => Box::new(wecom::WeComAdapter::new(
-            serde_json::from_str(&config_json).map_err(|e| e.to_string())?,
-        )),
-        PlatformId::Qq => Box::new(qq::QqAdapter::new(
-            serde_json::from_str(&config_json).map_err(|e| e.to_string())?,
-        )),
-        PlatformId::Weixin => Box::new(weixin::WeixinAdapter::new(
-            serde_json::from_str(&config_json).map_err(|e| e.to_string())?,
-        )),
-        PlatformId::OfficialAccount => Box::new(official_account::OfficialAccountAdapter::new(
-            serde_json::from_str(&config_json).map_err(|e| e.to_string())?,
-        )),
-    };
-    state.register(adapter);
+    state.register(super::adapters::build_adapter(id, &config_json)?);
     Ok(())
 }
 
@@ -50,6 +40,69 @@ pub struct PlatformStatus {
     pub connected: bool,
 }
 
+#[derive(Serialize)]
+pub struct SessionInfo {
+    pub session_key: String,
+    pub platform: String,
+    pub chat_type: String,
+    pub chat_id: String,
+    pub authorized: bool,
+    pub auto_approve: bool,
+    pub awaiting_approval: bool,
+    pub last_active_ms: u64,
+}
+
+/// List known gateway sessions with their authorization state.
+#[tauri::command]
+pub fn gateway_sessions(state: State<'_, GatewayRegistry>) -> Vec<SessionInfo> {
+    state
+        .sessions()
+        .all()
+        .into_iter()
+        .map(|s| SessionInfo {
+            session_key: s.session_key,
+            platform: s.platform,
+            chat_type: s.chat_type,
+            chat_id: s.chat_id,
+            authorized: s.authorized,
+            auto_approve: s.auto_approve,
+            awaiting_approval: s.awaiting_approval,
+            last_active_ms: s.last_active_ms,
+        })
+        .collect()
+}
+
+/// Approve a session (add to the whitelist) so it may drive the agent.
+#[tauri::command]
+pub fn gateway_authorize(
+    state: State<'_, GatewayRegistry>,
+    session_key: String,
+) -> Result<(), String> {
+    state.sessions().approve(&session_key);
+    Ok(())
+}
+
+/// Revoke a session (back to default-deny).
+#[tauri::command]
+pub fn gateway_revoke(
+    state: State<'_, GatewayRegistry>,
+    session_key: String,
+) -> Result<(), String> {
+    state.sessions().revoke(&session_key);
+    Ok(())
+}
+
+/// Toggle per-session auto-approve (bypasses the approval prompt).
+#[tauri::command]
+pub fn gateway_auto_approve(
+    state: State<'_, GatewayRegistry>,
+    session_key: String,
+    value: bool,
+) -> Result<(), String> {
+    state.sessions().set_auto_approve(&session_key, value);
+    Ok(())
+}
+
 #[tauri::command]
 pub fn gateway_platforms(state: State<'_, GatewayRegistry>) -> Vec<PlatformStatus> {
     let mut out: Vec<_> = state
@@ -59,7 +112,7 @@ pub fn gateway_platforms(state: State<'_, GatewayRegistry>) -> Vec<PlatformStatu
             id: id.as_str().to_string(),
             label: id.label().to_string(),
             configured: state.is_configured(*id),
-            connected: false,
+            connected: state.is_connected(*id),
         })
         .collect();
     out.sort_by(|a, b| a.id.cmp(&b.id));

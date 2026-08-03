@@ -309,6 +309,33 @@ fn header_map_to_strings(headers: &HeaderMap) -> HashMap<String, String> {
     out
 }
 
+const MAX_RESPONSE_BYTES: usize = 64 * 1024 * 1024;
+
+/// Read the response body, enforcing a hard size cap so a misbehaving
+/// provider cannot exhaust memory (ai_http_request feeds the AI layer).
+async fn read_body_limited(resp: reqwest::Response) -> Result<Vec<u8>, String> {
+    use futures_util::StreamExt;
+    if let Some(cl) = resp.content_length() {
+        if cl > MAX_RESPONSE_BYTES as u64 {
+            return Err(format!(
+                "response too large ({cl} bytes, limit {MAX_RESPONSE_BYTES})"
+            ));
+        }
+    }
+    let mut body = Vec::new();
+    let mut stream = resp.bytes_stream();
+    while let Some(chunk) = stream.next().await {
+        let c = chunk.map_err(|e| e.to_string())?;
+        if body.len() + c.len() > MAX_RESPONSE_BYTES {
+            return Err(format!(
+                "response exceeds {MAX_RESPONSE_BYTES} byte limit"
+            ));
+        }
+        body.extend_from_slice(&c);
+    }
+    Ok(body)
+}
+
 #[tauri::command]
 pub async fn ai_http_request(
     url: String,
@@ -328,11 +355,22 @@ pub async fn ai_http_request(
     let client = build_safe_client(allow_private, &[(host, safe_ips)])?;
 
     let req = build_request(&client, &method, parsed, headers, body)?;
-    let resp = req.send().await.map_err(|e| e.to_string())?;
+    let resp = tokio::time::timeout(
+        std::time::Duration::from_secs(60),
+        req.send(),
+    )
+    .await
+    .map_err(|_| "ai_http_request timed out waiting for response".to_string())?
+    .map_err(|e| e.to_string())?;
 
     let status = resp.status().as_u16();
     let headers = header_map_to_strings(resp.headers());
-    let body = resp.bytes().await.map_err(|e| e.to_string())?.to_vec();
+    let body = tokio::time::timeout(
+        std::time::Duration::from_secs(120),
+        read_body_limited(resp),
+    )
+    .await
+    .map_err(|_| "ai_http_request timed out reading response body".to_string())??;
     Ok(HttpResponse {
         status,
         headers,

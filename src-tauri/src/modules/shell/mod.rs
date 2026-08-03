@@ -99,6 +99,15 @@ fn run_blocking(
         .stderr(Stdio::piped());
     crate::modules::proc::hide_console(&mut cmd);
 
+    // Make the child a process-group leader so a timeout kill can take down
+    // its whole tree (no orphaned grandchildren, e.g. a dev server spawned by
+    // `pnpm dev` surviving after the parent shell is killed).
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        cmd.process_group(0);
+    }
+
     let child = Arc::new(SharedChild::spawn(&mut cmd).map_err(|e| {
         log::warn!("shell_run_command spawn failed: {e}");
         e.to_string()
@@ -125,6 +134,15 @@ fn run_blocking(
         Ok(Ok(status)) => (status.code(), false),
         Ok(Err(e)) => return Err(e.to_string()),
         Err(mpsc::RecvTimeoutError::Timeout) => {
+            // Kill the whole process tree, not just the shell itself.
+            #[cfg(unix)]
+            unsafe {
+                let _ = libc::kill(-(child.id() as libc::pid_t), libc::SIGKILL);
+            }
+            #[cfg(windows)]
+            {
+                let _ = crate::modules::proc::job::ProcessJob::create_for(child.id());
+            }
             let _ = child.kill();
             let _ = child.wait();
             (None, true)

@@ -206,7 +206,21 @@ pub fn run() {
             // adapter (configs are filled in from the settings UI at runtime).
             let gateway_registry = gateway::registry::GatewayRegistry::new();
             gateway::adapters::register_all(&gateway_registry);
+            // Restore credentials persisted in the OS keychain so configured
+            // platforms survive app restarts.
+            let app_handle = app.handle().clone();
+            tauri::async_runtime::block_on(async {
+                gateway::adapters::restore_from_keychain(&gateway_registry, &app_handle).await;
+            });
             app.manage(gateway_registry);
+            {
+                use tauri::Emitter;
+                let h = app.handle().clone();
+                let reg = app.state::<gateway::registry::GatewayRegistry>();
+                reg.set_on_pending(std::sync::Arc::new(move |sk| {
+                    let _ = h.emit("yamet:gateway-pending", sk);
+                }));
+            }
             // macOS skips parent() for the settings window, so tie its lifecycle
             // to the main window here instead. Other platforms keep parent().
             #[cfg(target_os = "macos")]
@@ -322,6 +336,10 @@ pub fn run() {
             gateway::commands::gateway_connect,
             gateway::commands::gateway_disconnect,
             gateway::commands::gateway_send,
+            gateway::commands::gateway_sessions,
+            gateway::commands::gateway_authorize,
+            gateway::commands::gateway_revoke,
+            gateway::commands::gateway_auto_approve,
             net::lm_ping,
             net::ai_http_request,
             net::ai_http_stream,
