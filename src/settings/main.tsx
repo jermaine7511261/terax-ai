@@ -1,5 +1,6 @@
 import "../styles/globals.css";
 
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { USE_CUSTOM_WINDOW_CONTROLS } from "@/lib/platform";
 import { ThemeProvider } from "@/modules/theme";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -13,9 +14,11 @@ if (USE_CUSTOM_WINDOW_CONTROLS) {
 ReactDOM.createRoot(
   document.getElementById("settings-root") as HTMLElement,
 ).render(
-  <ThemeProvider>
-    <SettingsApp />
-  </ThemeProvider>,
+  <ErrorBoundary>
+    <ThemeProvider>
+      <SettingsApp />
+    </ThemeProvider>
+  </ErrorBoundary>,
 );
 
 const showWindow = () => {

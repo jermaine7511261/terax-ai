@@ -1,6 +1,7 @@
 import {
   type AutocompleteProviderId,
   type CustomEndpoint,
+  compatModelIdForEndpoint,
   DEFAULT_AUTOCOMPLETE_MODEL,
   DEFAULT_CUSTOM_ENDPOINTS,
   DEFAULT_MODEL_ID,
@@ -368,6 +369,28 @@ export async function loadPreferences(): Promise<Preferences> {
   const entries = await store.entries();
   const map = new Map<string, unknown>(entries);
   const get = <T>(k: string): T | undefined => map.get(k) as T | undefined;
+
+  const loadedCustomEndpoints = (() => {
+    const stored = get<CustomEndpoint[]>(KEY_CUSTOM_ENDPOINTS);
+    if (stored && stored.length > 0) return stored;
+    const legacy = migrateLegacyCompatEndpoint(
+      get<string>(KEY_OPENAI_COMPAT_BASE_URL) ?? "",
+      get<string>(KEY_OPENAI_COMPAT_MODEL_ID) ?? "",
+      get<number>(KEY_OPENAI_COMPAT_CONTEXT_LIMIT) ?? 128_000,
+      crypto.randomUUID().slice(0, 8),
+    );
+    if (legacy.length > 0) return legacy;
+    return [...DEFAULT_CUSTOM_ENDPOINTS];
+  })();
+
+  // favorites/recents may hold compat- ids for user-defined OpenAI-compatible
+  // endpoints. `isKnownModelId` only knows the static MODELS table, so alone it
+  // would silently drop every custom model on reload. Accept any id that maps
+  // to a current endpoint as well.
+  const isLoadableModelId = (id: string): boolean =>
+    isKnownModelId(id) ||
+    loadedCustomEndpoints.some((e) => compatModelIdForEndpoint(e.id) === id);
+
   return {
     theme: get<ThemePref>(KEY_THEME) ?? DEFAULT_PREFERENCES.theme,
     themeId: get<string>(KEY_THEME_ID) ?? DEFAULT_PREFERENCES.themeId,
@@ -431,18 +454,7 @@ export async function loadPreferences(): Promise<Preferences> {
     openaiCompatibleContextLimit:
       get<number>(KEY_OPENAI_COMPAT_CONTEXT_LIMIT) ??
       DEFAULT_PREFERENCES.openaiCompatibleContextLimit,
-    customEndpoints: (() => {
-      const stored = get<CustomEndpoint[]>(KEY_CUSTOM_ENDPOINTS);
-      if (stored && stored.length > 0) return stored;
-      const legacy = migrateLegacyCompatEndpoint(
-        get<string>(KEY_OPENAI_COMPAT_BASE_URL) ?? "",
-        get<string>(KEY_OPENAI_COMPAT_MODEL_ID) ?? "",
-        get<number>(KEY_OPENAI_COMPAT_CONTEXT_LIMIT) ?? 128_000,
-        crypto.randomUUID().slice(0, 8),
-      );
-      if (legacy.length > 0) return legacy;
-      return [...DEFAULT_CUSTOM_ENDPOINTS];
-    })(),
+    customEndpoints: loadedCustomEndpoints,
     openrouterModelId:
       get<string>(KEY_OPENROUTER_MODEL_ID) ??
       DEFAULT_PREFERENCES.openrouterModelId,
@@ -455,10 +467,10 @@ export async function loadPreferences(): Promise<Preferences> {
       DEFAULT_PREFERENCES.whispercppBaseURL,
     favoriteModelIds: (
       get<string[]>(KEY_FAVORITE_MODELS) ?? DEFAULT_PREFERENCES.favoriteModelIds
-    ).filter(isKnownModelId),
+    ).filter(isLoadableModelId),
     recentModelIds: (
       get<string[]>(KEY_RECENT_MODELS) ?? DEFAULT_PREFERENCES.recentModelIds
-    ).filter(isKnownModelId),
+    ).filter(isLoadableModelId),
     vimMode: get<boolean>(KEY_VIM_MODE) ?? DEFAULT_PREFERENCES.vimMode,
     editorWordWrap:
       get<boolean>(KEY_EDITOR_WORD_WRAP) ?? DEFAULT_PREFERENCES.editorWordWrap,

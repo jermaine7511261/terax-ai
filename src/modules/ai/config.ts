@@ -265,6 +265,7 @@ export function resolveModel(
 }
 
 export function getModel(id: ModelId): ModelInfo {
+  if (isCompatModelId(id)) return getCompatModelInfo(id, []);
   const m = MODELS.find((x) => x.id === id);
   if (!m) throw new Error(`Unknown model: ${id}`);
   return m;

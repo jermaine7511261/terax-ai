@@ -183,6 +183,11 @@ export function ModelsSection() {
   };
 
   const addCustomEndpoint = async () => {
+    // Read from the live store (not the render closure) so a still-hydrating
+    // settings window never overwrites the defaults / configured endpoints with
+    // an empty draft. The render closure can be stale if the store hydrates
+    // after mount; getState() is always current.
+    const current = usePreferencesStore.getState().customEndpoints;
     const ep: CustomEndpoint = {
       id: crypto.randomUUID().slice(0, 8),
       name: "",
@@ -190,7 +195,7 @@ export function ModelsSection() {
       modelId: "",
       contextLimit: 128_000,
     };
-    await setCustomEndpoints([...customEndpoints, ep]);
+    await setCustomEndpoints([...current, ep]);
   };
 
   const updateCustomEndpoint = async (
