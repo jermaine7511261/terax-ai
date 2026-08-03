@@ -77,6 +77,20 @@ export function GatewaySection(): JSX.Element {
   const disconnect = (id: string) => {
     void invoke("gateway_disconnect", { platform: id }).then(refresh);
   };
+  const [testChatId, setTestChatId] = useState<Record<string, string>>({});
+  const [testText, setTestText] = useState<Record<string, string>>({});
+  const [testGroup, setTestGroup] = useState<Record<string, boolean>>({});
+  const sendTest = (id: string) => {
+    const chatId = (testChatId[id] ?? "").trim();
+    const text = (testText[id] ?? "").trim();
+    if (!chatId || !text) return;
+    void invoke("gateway_send", {
+      platform: id,
+      chatId,
+      text,
+      group: testGroup[id] ?? false,
+    });
+  };
 
   return (
     <div className="space-y-4">
@@ -139,6 +153,48 @@ export function GatewaySection(): JSX.Element {
                 <Button size="sm" onClick={() => void save(p.id)}>
                   {t("gateway.save")}
                 </Button>
+              </div>
+              <div className="mt-3 border-t border-border/40 pt-3 space-y-2">
+                <span className="text-sm font-medium">{t("gateway.sendTest")}</span>
+                <div className="flex items-center gap-2">
+                  <label className="w-32 shrink-0 text-sm">{t("gateway.chatId")}</label>
+                  <Input
+                    value={testChatId[p.id] ?? ""}
+                    onChange={(e) =>
+                      setTestChatId((prev) => ({ ...prev, [p.id]: e.target.value }))
+                    }
+                    className="flex-1"
+                    placeholder={t("gateway.chatIdHint")}
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="w-32 shrink-0 text-sm">{t("gateway.messageText")}</label>
+                  <Input
+                    value={testText[p.id] ?? ""}
+                    onChange={(e) => setTestText((prev) => ({ ...prev, [p.id]: e.target.value }))}
+                    className="flex-1"
+                  />
+                </div>
+                <div className="flex items-center justify-end gap-3">
+                  <label className="flex items-center gap-1 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={testGroup[p.id] ?? false}
+                      onChange={(e) =>
+                        setTestGroup((prev) => ({ ...prev, [p.id]: e.target.checked }))
+                      }
+                    />
+                    {t("gateway.groupChat")}
+                  </label>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => sendTest(p.id)}
+                    disabled={!p.configured}
+                  >
+                    {t("gateway.send")}
+                  </Button>
+                </div>
               </div>
             </div>
           )}
