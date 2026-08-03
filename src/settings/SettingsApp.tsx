@@ -6,6 +6,7 @@ import type { SettingsTab } from "@/modules/settings/openSettingsWindow";
 import { usePreferencesStore } from "@/modules/settings/preferences";
 import {
   AiScanIcon,
+  CloudIcon,
   InformationCircleIcon,
   KeyboardIcon,
   PaintBoardIcon,
@@ -19,6 +20,7 @@ import { type JSX, useEffect, useState } from "react";
 import { AboutSection } from "./sections/AboutSection";
 import { AgentsSection } from "./sections/AgentsSection";
 import { EditorSection } from "./sections/EditorSection";
+import { GatewaySection } from "./sections/GatewaySection";
 import { GeneralSection } from "./sections/GeneralSection";
 import { ModelsSection } from "./sections/ModelsSection";
 import { ShortcutsSection } from "./sections/ShortcutsSection";
@@ -35,6 +37,7 @@ const TABS: {
   { id: "shortcuts", icon: KeyboardIcon, component: ShortcutsSection },
   { id: "models", icon: AiScanIcon, component: ModelsSection },
   { id: "agents", icon: UserMultiple02Icon, component: AgentsSection },
+  { id: "gateway", icon: CloudIcon, component: GatewaySection },
   { id: "about", icon: InformationCircleIcon, component: AboutSection },
 ];
 
@@ -45,6 +48,7 @@ const VALID_TABS: SettingsTab[] = [
   "shortcuts",
   "models",
   "agents",
+  "gateway",
   "about",
 ];
 
