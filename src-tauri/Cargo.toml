@@ -44,10 +44,34 @@ reqwest = { version = "0.12", default-features = false, features = [
 ] }
 bytes = "1"
 futures-util = "0.3"
-tokio = { version = "1", default-features = false, features = ["rt"] }
+tokio = { version = "1", default-features = false, features = [
+	"rt",
+	"net",
+	"time",
+	"macros",
+	"sync",
+	"io-util",
+	"fs",
+	"process",
+] }
 tempfile = "3"
 notify = "8.2.0"
 which = "8.0.4"
+tokio-tungstenite = { version = "0.24", default-features = false, features = [
+	"rustls-tls-webpki-roots",
+] }
+aes = "0.8"
+cbc = { version = "0.1", features = ["alloc"] }
+cfb8 = "0.8"
+hmac = "0.12"
+sha2 = "0.10"
+sha1 = "0.10"
+md-5 = "0.10"
+rand = "0.8"
+base64 = "0.22"
+url = "2"
+hex = "0.4"
+chrono = { version = "0.4", features = ["clock", "serde"] }
 
 [dev-dependencies]
 proptest = "1"

@@ -1,5 +1,6 @@
 pub mod agent;
 pub mod fs;
+pub mod gateway;
 pub mod git;
 pub mod history;
 pub mod lsp;
