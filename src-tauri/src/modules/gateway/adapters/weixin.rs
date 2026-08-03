@@ -798,3 +798,63 @@ impl PlatformAdapter for WeixinAdapter {
         })
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::modules::gateway::message::ChatType;
+    use serde_json::json;
+
+    #[test]
+    fn is_stale_session_ret_only_for_rate_limit_unknown_error() {
+        assert!(is_stale_session_ret(Some(RATE_LIMIT_ERRCODE), None, Some("unknown error")));
+        assert!(is_stale_session_ret(None, Some(RATE_LIMIT_ERRCODE), Some("unknown error")));
+        assert!(!is_stale_session_ret(Some(RATE_LIMIT_ERRCODE), None, Some("request too frequent")));
+        assert!(!is_stale_session_ret(Some(SESSION_EXPIRED_ERRCODE), None, Some("unknown error")));
+        assert!(!is_stale_session_ret(None, None, Some("unknown error")));
+    }
+
+    #[test]
+    fn is_err_flags_nonzero_errcode() {
+        assert!(!is_err(Some(0)));
+        assert!(is_err(Some(1)));
+        assert!(!is_err(None));
+    }
+
+    #[test]
+    fn guess_chat_type_dm_when_own_message() {
+        let msg = json!({"from_user_id":"user_a","to_user_id":"me","msg_type":1});
+        let (ct, cid) = guess_chat_type(&msg, "me");
+        assert_eq!(ct, ChatType::Dm);
+        assert_eq!(cid, "user_a");
+    }
+
+    #[test]
+    fn guess_chat_type_group_with_room_id() {
+        let msg = json!({"room_id":"room123","from_user_id":"user_a","to_user_id":"me","msg_type":1});
+        let (ct, cid) = guess_chat_type(&msg, "me");
+        assert_eq!(ct, ChatType::Group);
+        assert_eq!(cid, "room123");
+    }
+
+    #[test]
+    fn guess_chat_type_group_inferred_from_other_recipient() {
+        let msg = json!({"from_user_id":"user_a","to_user_id":"other","msg_type":1});
+        let (ct, cid) = guess_chat_type(&msg, "me");
+        assert_eq!(ct, ChatType::Group);
+        assert_eq!(cid, "other");
+    }
+
+    #[test]
+    fn extract_text_returns_text_item() {
+        let items = json!([{"type":1,"text_item":{"text":"hello weixin"}}]);
+        assert_eq!(extract_text(&items), "hello weixin");
+    }
+
+    #[test]
+    fn extract_text_empty_when_no_text_item() {
+        let items = json!([{"type":2,"image_item":{"image":"x"}}]);
+        assert_eq!(extract_text(&items), "");
+    }
+}
