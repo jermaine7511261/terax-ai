@@ -1,8 +1,20 @@
 import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useI18n, type TranslationKey } from "@/lib/i18n";
 import { type JSX, useEffect, useState } from "react";
+
+type SessionInfo = {
+  session_key: string;
+  platform: string;
+  chat_type: string;
+  chat_id: string;
+  authorized: boolean;
+  auto_approve: boolean;
+  awaiting_approval: boolean;
+  last_active_ms: number;
+};
 
 type PlatformStatus = {
   id: string;
@@ -59,6 +71,25 @@ export function GatewaySection(): JSX.Element {
   };
   useEffect(() => {
     refresh();
+  }, []);
+
+  const [sessions, setSessions] = useState<SessionInfo[]>([]);
+  const refreshSessions = () => {
+    void invoke<SessionInfo[]>("gateway_sessions").then(setSessions);
+  };
+  useEffect(() => {
+    refreshSessions();
+  }, []);
+  useEffect(() => {
+    let un: (() => void) | undefined;
+    void getCurrentWebviewWindow()
+      .listen<string>("yamet:gateway-pending", () => refreshSessions())
+      .then((u) => {
+        un = u;
+      });
+    return () => {
+      un?.();
+    };
   }, []);
 
   const setField = (id: string, key: string, v: string) =>
@@ -200,6 +231,74 @@ export function GatewaySection(): JSX.Element {
           )}
         </div>
       ))}
+      <div className="space-y-2">
+        <h3 className="text-sm font-semibold">{t("gateway.sessionsTitle")}</h3>
+        <p className="text-xs text-muted-foreground">{t("gateway.sessionsHint")}</p>
+        {sessions.length === 0 && (
+          <p className="text-xs text-muted-foreground">{t("gateway.noSessions")}</p>
+        )}
+        {sessions.map((s) => (
+          <div
+            key={s.session_key}
+            className="flex items-center justify-between rounded-md border border-border/50 p-2 text-sm"
+          >
+            <div className="flex items-center gap-2">
+              <span className="font-medium">{s.platform}</span>
+              <span className="text-muted-foreground">{s.chat_id}</span>
+              <span
+                className={`text-xs ${
+                  s.authorized ? "text-emerald-500" : "text-amber-500"
+                }`}
+              >
+                {s.authorized
+                  ? t("gateway.approved")
+                  : t("gateway.awaitingApproval")}
+              </span>
+            </div>
+            <div className="flex gap-1">
+              {!s.authorized ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    void invoke("gateway_authorize", { session_key: s.session_key }).then(
+                      refreshSessions,
+                    )
+                  }
+                >
+                  {t("gateway.approve")}
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    void invoke("gateway_revoke", { session_key: s.session_key }).then(
+                      refreshSessions,
+                    )
+                  }
+                >
+                  {t("gateway.revoke")}
+                </Button>
+              )}
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() =>
+                  void invoke("gateway_auto_approve", {
+                    session_key: s.session_key,
+                    value: !s.auto_approve,
+                  }).then(refreshSessions)
+                }
+              >
+                {s.auto_approve
+                  ? `${t("gateway.autoApprove")} ✓`
+                  : t("gateway.autoApprove")}
+              </Button>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
