@@ -201,12 +201,17 @@ pub fn run() {
                 .build(),
         )
         .plugin(tauri_plugin_opener::init())
-        .setup(|_app| {
+        .setup(|app| {
+            // Instantiate the IM gateway registry and register every platform
+            // adapter (configs are filled in from the settings UI at runtime).
+            let gateway_registry = gateway::registry::GatewayRegistry::new();
+            gateway::adapters::register_all(&gateway_registry);
+            app.manage(gateway_registry);
             // macOS skips parent() for the settings window, so tie its lifecycle
             // to the main window here instead. Other platforms keep parent().
             #[cfg(target_os = "macos")]
-            if let Some(main) = _app.get_webview_window("main") {
-                let handle = _app.handle().clone();
+            if let Some(main) = app.get_webview_window("main") {
+                let handle = app.handle().clone();
                 main.on_window_event(move |event| {
                     if matches!(
                         event,
@@ -223,7 +228,6 @@ pub fn run() {
         .manage(pty::PtyState::default())
         .manage(shell::ShellState::default())
         .manage(secrets::SecretsState::default())
-        .manage(gateway::registry::GatewayRegistry::new())
         .manage(fs::watch::FsWatchState::default())
         .manage(history::HistoryState::default())
         .manage(lsp::LspState::default())

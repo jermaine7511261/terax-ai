@@ -6,6 +6,7 @@
 //! - a platform registry with lazy (feature-gated) loading.
 
 pub mod adapter;
+pub mod adapters;
 pub mod commands;
 pub mod crypto;
 pub mod message;

@@ -64,11 +64,11 @@ pub trait PlatformAdapter: Send + Sync {
     /// runs on its own task and delivers inbound events into `tx`.
     /// Implementations use interior mutability to track connection state, so
     /// this takes `&self` (avoids holding a lock across an await).
-    fn connect(&self, tx: EventTx) -> BoxFuture<'_, Result<(), String>>;
+    fn connect(&self, tx: EventTx) -> BoxFuture<'static, Result<(), String>>;
 
     /// Stop the connection loop (e.g. when the user disables the platform).
     fn disconnect(&self);
 
     /// Send a plain-text message to a target.
-    fn send_text(&self, target: &ChatTarget, text: &str) -> BoxFuture<'_, SendResult>;
+    fn send_text(&self, target: &ChatTarget, text: &str) -> BoxFuture<'static, SendResult>;
 }
