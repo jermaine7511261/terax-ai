@@ -101,17 +101,17 @@ The themes below frame every scope decision.
 
 ### Coming next
 
-- [ ] SSH support (PTY auth and known_hosts first; SFTP and port forwarding later)
+- [x] SSH support (PTY auth and known_hosts first; SFTP and port forwarding later)
 - [ ] Themes and customizations (UI accents, user-custom keybindings; terminal/editor themes shipped)
-- [ ] AI autocomplete improvements in editor (project-aware context, lower latency)
-- [ ] Drag and drop in terminal (files as quoted paths, AI panel as context)
-- [ ] AI agent meta-orchestration (Yamet agent spawning and managing external coding agents like Claude Code / OpenCode)
+- [x] AI autocomplete improvements in editor (project-aware context, lower latency)
+- [x] Drag and drop in terminal (files as quoted paths, AI panel as context)
+- [x] AI agent meta-orchestration (Yamet agent spawning and managing external coding agents like Claude Code / OpenCode)
 - [ ] More slash commands and skills
 - [ ] Approval flow improvements (project-scoped policies, per-tool trust; auto-approve already shipped)
-- [ ] Persistent terminal sessions and layout restore
+- [x] Persistent terminal sessions and layout restore
 - [ ] Preview surface expansion (better image / Markdown handling)
 - [ ] Test coverage expansion (PTY edge cases, security functions, AI tool guards, IM gateway crypto/state machines)
-- [ ] IM gateway: per-platform onboarding/QR polish, officialaccount/wecom callback tunnel guide, onebot config assistant
+- [x] IM gateway: per-platform onboarding/QR polish, officialaccount/wecom callback tunnel guide, onebot config assistant
 
 ### Longer horizon
 
@@ -128,7 +128,7 @@ Strategic areas where help is welcome. Pick something and propose an approach in
 - **Test coverage.** PTY edge cases across platforms, security functions, AI tool guards.
 - **Bundle optimization.** Profile and propose specific dependency replacements or tree-shake fixes.
 - **Platform-specific bugs.** Rendering issues on niche distros, shell quirks, WSL edge cases.
-- **Documentation and translations.** Improvements, screenshots, examples, non-English README sections.
+- **Documentation.** Improvements, screenshots, examples, non-English README sections. (UI i18n — simplified-Chinese primary + English fallback — shipped; non-English READMEs welcome.)
 - **Themes.** Terminal and editor themes, UI accent palettes that fit the lightweight aesthetic.
 - **Provider integrations.** Only providers that add unique value beyond existing coverage. Justify the case before implementing.
 

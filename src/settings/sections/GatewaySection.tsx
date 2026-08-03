@@ -1,9 +1,22 @@
 import { invoke } from "@tauri-apps/api/core";
+import { Channel } from "@tauri-apps/api/core";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useI18n, type TranslationKey } from "@/lib/i18n";
 import { type JSX, useEffect, useState } from "react";
+
+type QrFrame =
+  | { kind: "qr"; svg_data_url: string }
+  | { kind: "status"; status: string }
+  | { kind: "confirmed"; account_id: string; token: string; base_url: string };
+
+type QrFlow = {
+  running: boolean;
+  qrUrl: string | null;
+  statusLabel: string;
+  error: string | null;
+};
 
 type SessionInfo = {
   session_key: string;
@@ -111,6 +124,47 @@ export function GatewaySection(): JSX.Element {
   const [testChatId, setTestChatId] = useState<Record<string, string>>({});
   const [testText, setTestText] = useState<Record<string, string>>({});
   const [testGroup, setTestGroup] = useState<Record<string, boolean>>({});
+  const [qrFlow, setQrFlow] = useState<QrFlow>({
+    running: false,
+    qrUrl: null,
+    statusLabel: "",
+    error: null,
+  });
+
+  const startQrLogin = async (id: string) => {
+    setQrFlow({ running: true, qrUrl: null, statusLabel: "waiting", error: null });
+    const ch = new Channel<QrFrame>();
+    ch.onmessage = (frame) => {
+      if (frame.kind === "qr") {
+        setQrFlow((s) => ({ ...s, qrUrl: frame.svg_data_url, statusLabel: "waiting" }));
+      } else if (frame.kind === "status") {
+        setQrFlow((s) => ({
+          ...s,
+          statusLabel: frame.status === "scanned" ? "scanned" : "waiting",
+        }));
+      } else if (frame.kind === "confirmed") {
+        setQrFlow((s) => ({ ...s, running: false, statusLabel: "done" }));
+        // Auto-fill the persisted credentials into the config fields.
+        setValues((prev) => ({
+          ...prev,
+          [id]: {
+            ...prev[id],
+            base_url: frame.base_url,
+            token: frame.token,
+            account_id: frame.account_id,
+          },
+        }));
+      }
+    };
+    try {
+      await invoke("gateway_weixin_qr_login", { onFrame: ch });
+      refresh();
+    } catch (e) {
+      setQrFlow((s) => ({ ...s, running: false, error: String(e) }));
+    }
+  };
+  const stopQrLogin = () =>
+    setQrFlow((s) => ({ ...s, running: false, qrUrl: null }));
   const sendTest = (id: string) => {
     const chatId = (testChatId[id] ?? "").trim();
     const text = (testText[id] ?? "").trim();
@@ -185,6 +239,58 @@ export function GatewaySection(): JSX.Element {
                   {t("gateway.save")}
                 </Button>
               </div>
+              {p.id === "weixin" && (
+                <div className="mt-2 space-y-2 border-t border-border/40 pt-3">
+                  {qrFlow.running ? (
+                    <div className="space-y-2">
+                      {qrFlow.qrUrl ? (
+                        <img
+                          src={qrFlow.qrUrl}
+                          alt="QR"
+                          className="size-56 rounded-lg border border-border/50 bg-white p-2"
+                        />
+                      ) : (
+                        <div className="text-xs text-muted-foreground">
+                          {t("gateway.qrWaiting")}
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <span>
+                          {qrFlow.statusLabel === "scanned"
+                            ? t("gateway.qrScanned")
+                            : t("gateway.qrWaiting")}
+                        </span>
+                        <Button size="sm" variant="ghost" onClick={stopQrLogin}>
+                          {t("common.cancel")}
+                        </Button>
+                      </div>
+                      {qrFlow.error && (
+                        <div className="text-xs text-destructive">
+                          {t("gateway.qrError")}: {qrFlow.error}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      <Button size="sm" variant="secondary" onClick={() => void startQrLogin(p.id)}>
+                        {t("gateway.qrLogin")}
+                      </Button>
+                      <p className="text-xs text-muted-foreground">
+                        {t("gateway.qrLoginHint")}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+              {p.id === "qq" && (
+                <div className="mt-2 space-y-1 border-t border-border/40 pt-3">
+                  <span className="text-xs font-medium">{t("gateway.onebotHelper")}</span>
+                  <p className="text-xs text-muted-foreground">{t("gateway.onebotHelperHint")}</p>
+                  <pre className="rounded bg-muted/40 p-2 font-mono text-[11px] leading-relaxed">
+                    {t("gateway.onebotCmd")}
+                  </pre>
+                </div>
+              )}
               <div className="mt-3 border-t border-border/40 pt-3 space-y-2">
                 <span className="text-sm font-medium">{t("gateway.sendTest")}</span>
                 <div className="flex items-center gap-2">

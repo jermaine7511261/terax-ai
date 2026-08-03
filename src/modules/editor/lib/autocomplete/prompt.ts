@@ -3,8 +3,14 @@ export type CompletionRequest = {
   suffix: string;
   language: string | null;
   filename: string | null;
-  /** CodeMirror indent unit: "\t" or a run of spaces. */
+  /** CodeMirror indent unit: "\\t" or a run of spaces. */
   indentUnit: string | null;
+  /** Optional project context (AGENTS.md/YAMET.md + sibling snippets). */
+  projectContext?: {
+    dir: string;
+    notes: string;
+    siblingSnippets: { filename: string; head: string }[];
+  } | null;
 };
 
 const MAX_PREFIX = 4000;
@@ -72,7 +78,30 @@ export function buildUserPrompt(req: CompletionRequest): string {
   }
   const metaBlock = meta.length ? meta.join("\n") + "\n\n" : "";
 
-  return `${metaBlock}PREFIX:
+  let contextBlock = "";
+  const pc = req.projectContext;
+  if (pc) {
+    const parts: string[] = [];
+    if (pc.notes.trim()) {
+      parts.push(`## Project notes (${pc.dir})\n${pc.notes.trim()}`);
+    }
+    if (pc.siblingSnippets.length > 0) {
+      const snips = pc.siblingSnippets
+        .map(
+          (s) =>
+            `--- ${s.filename} ---\n${s.head.trim()}\n`,
+        )
+        .join("\n");
+      parts.push(`## Sibling files in the same directory\n${snips}`);
+    }
+    if (parts.length > 0) {
+      contextBlock = `CONTEXT (follow project symbols, naming and conventions when relevant):\n<<<\n${parts.join(
+        "\n\n",
+      )}\n>>>\n\n`;
+    }
+  }
+
+  return `${metaBlock}${contextBlock}PREFIX:
 <<<
 ${prefix}
 >>>

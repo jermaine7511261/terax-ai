@@ -78,6 +78,115 @@ fn is_stale_session_ret(ret: Option<i64>, errcode: Option<i64>, errmsg: Option<&
     errmsg.unwrap_or("").trim().to_ascii_lowercase() == "unknown error"
 }
 
+/// Classification of a poll response, driving the poll state machine.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PollClass {
+    /// No error — process messages / update sync buffer.
+    Ok,
+    /// Session expired: must QR re-login immediately (no backoff counting).
+    SessionExpired,
+    /// Genuine rate limit: transient, counts toward backoff.
+    RateLimit,
+    /// Any other error: transient, counts toward backoff.
+    OtherError,
+}
+
+/// Pure poll-response classifier. Feeds the failure/backoff state machine.
+fn classify_poll(ret: Option<i64>, errcode: Option<i64>, errmsg: Option<&str>) -> PollClass {
+    if !is_err(ret) && !is_err(errcode) {
+        return PollClass::Ok;
+    }
+    let session_expired = ret == Some(SESSION_EXPIRED_ERRCODE)
+        || errcode == Some(SESSION_EXPIRED_ERRCODE)
+        || is_stale_session_ret(ret, errcode, errmsg);
+    if session_expired {
+        return PollClass::SessionExpired;
+    }
+    if ret == Some(RATE_LIMIT_ERRCODE) || errcode == Some(RATE_LIMIT_ERRCODE) {
+        return PollClass::RateLimit;
+    }
+    PollClass::OtherError
+}
+
+/// Outcome of a failure-state transition.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PollDelay {
+    pub delay_secs: u64,
+    /// True when the failure counter wrapped (hit MAX_CONSECUTIVE_FAILURES).
+    pub backed_off: bool,
+    /// True when the session-expired path short-circuits the failure counter.
+    pub relogin: bool,
+}
+
+/// Pure failure/backoff state machine for the poll loop. Tracks consecutive
+/// failures and decides the sleep delay; session-expired short-circuits and
+/// requests a QR re-login instead of counting toward backoff.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct PollFailureMachine {
+    pub consecutive: u32,
+}
+
+impl PollFailureMachine {
+    /// Feed a poll outcome and get the next delay / action. `is_error` is the
+    /// poll-classification outcome; `relogin` is the session-expired signal
+    /// that short-circuits the counter.
+    pub fn step(&mut self, class: PollClass) -> PollDelay {
+        if class == PollClass::Ok {
+            self.consecutive = 0;
+            return PollDelay {
+                delay_secs: 0,
+                backed_off: false,
+                relogin: false,
+            };
+        }
+        if class == PollClass::SessionExpired {
+            // Never counts toward backoff; caller performs QR re-login.
+            self.consecutive = 0;
+            return PollDelay {
+                delay_secs: 0,
+                backed_off: false,
+                relogin: true,
+            };
+        }
+        self.consecutive += 1;
+        if self.consecutive >= MAX_CONSECUTIVE_FAILURES {
+            self.consecutive = 0;
+            PollDelay {
+                delay_secs: BACKOFF_DELAY_SECONDS,
+                backed_off: true,
+                relogin: false,
+            }
+        } else {
+            PollDelay {
+                delay_secs: RETRY_DELAY_SECONDS,
+                backed_off: false,
+                relogin: false,
+            }
+        }
+    }
+}
+
+/// Statuses observed during the interactive QR login flow.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum QrStatus {
+    Waiting,
+    Scanned,
+    ScannedRedirect,
+    Expired,
+    Confirmed,
+}
+
+/// Pure QR-status classifier (mirrors the `qr_login` match arms).
+fn classify_qr_status(raw: &str) -> QrStatus {
+    match raw {
+        "scaned_but_redirect" => QrStatus::ScannedRedirect,
+        "expired" => QrStatus::Expired,
+        "confirmed" => QrStatus::Confirmed,
+        "scaned" => QrStatus::Scanned,
+        _ => QrStatus::Waiting,
+    }
+}
+
 fn is_err(value: Option<i64>) -> bool {
     matches!(value, Some(v) if v != 0)
 }
@@ -514,7 +623,7 @@ impl WeixinAdapter {
     }
 
     async fn poll_loop(&self, tx: EventTx) {
-        let mut consecutive_failures: u32 = 0;
+        let mut machine = PollFailureMachine::default();
         let mut timeout_ms = LONG_POLL_TIMEOUT_MS;
 
         while !self.inner.stop.load(Ordering::SeqCst) {
@@ -534,11 +643,10 @@ impl WeixinAdapter {
                     let ret = response.get("ret").and_then(Value::as_i64);
                     let errcode = response.get("errcode").and_then(Value::as_i64);
                     let errmsg = response.get("errmsg").and_then(Value::as_str);
-                    if is_err(ret) || is_err(errcode) {
-                        let session_expired = ret == Some(SESSION_EXPIRED_ERRCODE)
-                            || errcode == Some(SESSION_EXPIRED_ERRCODE)
-                            || is_stale_session_ret(ret, errcode, errmsg);
-                        if session_expired {
+                    let class = classify_poll(ret, errcode, errmsg);
+                    if class != PollClass::Ok {
+                        let delay = machine.step(class);
+                        if delay.relogin {
                             log::error!(
                                 "weixin: session expired (ret={ret:?} errcode={errcode:?}); re-logging in via QR"
                             );
@@ -547,34 +655,24 @@ impl WeixinAdapter {
                                     log::info!("weixin: re-login OK, refreshing token/base");
                                     *self.inner.token.lock().unwrap() = new_token;
                                     *self.inner.base_url.lock().unwrap() = new_base;
-                                    consecutive_failures = 0;
                                     continue;
                                 }
                                 None => {
                                     log::error!("weixin: re-login failed; backing off");
                                     tokio::time::sleep(Duration::from_secs(BACKOFF_DELAY_SECONDS)).await;
-                                    consecutive_failures = 0;
                                     continue;
                                 }
                             }
                         }
-
-                        consecutive_failures += 1;
                         log::warn!(
-                            "weixin: getUpdates failed ret={ret:?} errcode={errcode:?} errmsg={errmsg:?} ({} / MAX)",
-                            consecutive_failures
+                            "weixin: getUpdates failed ret={ret:?} errcode={errcode:?} errmsg={errmsg:?} ({:?})",
+                            class
                         );
-                        let delay = if consecutive_failures >= MAX_CONSECUTIVE_FAILURES {
-                            consecutive_failures = 0;
-                            BACKOFF_DELAY_SECONDS
-                        } else {
-                            RETRY_DELAY_SECONDS
-                        };
-                        tokio::time::sleep(Duration::from_secs(delay)).await;
+                        tokio::time::sleep(Duration::from_secs(delay.delay_secs)).await;
                         continue;
                     }
 
-                    consecutive_failures = 0;
+                    machine.step(PollClass::Ok);
                     let new_sync_buf = response.get("get_updates_buf").and_then(Value::as_str).unwrap_or("");
                     if !new_sync_buf.is_empty() {
                         *self.inner.sync_buf.lock().unwrap() = new_sync_buf.to_string();
@@ -588,19 +686,12 @@ impl WeixinAdapter {
                     }
                 }
                 Err(e) => {
-                    consecutive_failures += 1;
+                    let delay = machine.step(PollClass::OtherError);
                     log::error!(
-                        "weixin: poll error ({}/{MAX}): {e}",
-                        consecutive_failures,
-                        MAX = MAX_CONSECUTIVE_FAILURES
+                        "weixin: poll error ({:?}): {e}",
+                        delay
                     );
-                    let delay = if consecutive_failures >= MAX_CONSECUTIVE_FAILURES {
-                        consecutive_failures = 0;
-                        BACKOFF_DELAY_SECONDS
-                    } else {
-                        RETRY_DELAY_SECONDS
-                    };
-                    tokio::time::sleep(Duration::from_secs(delay)).await;
+                    tokio::time::sleep(Duration::from_secs(delay.delay_secs)).await;
                 }
             }
         }
@@ -799,6 +890,158 @@ impl PlatformAdapter for WeixinAdapter {
     }
 }
 
+// --- Standalone QR login (for the settings "扫码登录" flow) -----------------
+
+/// Progress frame streamed to the frontend during the interactive QR login.
+#[derive(Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum QrLoginFrame {
+    /// An SVG data-URL of the current QR code for the user to scan.
+    Qr { svg_data_url: String },
+    /// Human-readable status while waiting for the scan.
+    Status { status: String },
+    /// Login confirmed — returns the credentials to persist.
+    Confirmed {
+        account_id: String,
+        token: String,
+        base_url: String,
+    },
+}
+
+/// Render `content` as an SVG QR code and return it as an inline `data:` URL.
+fn qr_svg_data_url(content: &str) -> Result<String, String> {
+    use qrcode::{EcLevel, QrCode, Version};
+    let code = QrCode::with_version(content, Version::Normal(5), EcLevel::L)
+        .map_err(|e| format!("qr encode failed: {e}"))?;
+    let svg = code
+        .render()
+        .quiet_zone(true)
+        .min_dimensions(240, 240)
+        .dark_color(qrcode::render::svg::Color("#1f2937"))
+        .light_color(qrcode::render::svg::Color("#ffffff"))
+        .build();
+    // Embed directly as a data URL so the frontend can just <img src=...>.
+    Ok(format!(
+        "data:image/svg+xml;base64,{}",
+        base64::engine::general_purpose::STANDARD.encode(svg)
+    ))
+}
+
+/// Fetch a fresh QR frame and emit it via `emit`.
+async fn emit_fresh_qr(
+    client: &reqwest::Client,
+    emit: &(dyn Fn(QrLoginFrame) + Sync),
+) -> Result<String, String> {
+    let qr_resp = api_get(
+        client,
+        ILINK_BASE_URL,
+        &format!("{EP_GET_BOT_QR}?bot_type=3"),
+        QR_TIMEOUT_MS,
+    )
+    .await?;
+    let qrcode_value = qr_resp
+        .get("qrcode")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string();
+    if qrcode_value.is_empty() {
+        return Err("weixin: QR response missing qrcode".into());
+    }
+    let svg = qr_svg_data_url(&qrcode_value)?;
+    emit(QrLoginFrame::Qr { svg_data_url: svg });
+    Ok(qrcode_value)
+}
+
+/// Run the interactive iLink QR login, emitting QR/status frames to the
+/// frontend. Returns the credential triple on success.
+pub async fn run_qr_login(
+    client: &reqwest::Client,
+    emit: &(dyn Fn(QrLoginFrame) + Sync),
+) -> Result<(String, String, String), String> {
+    let qrcode_value = emit_fresh_qr(client, emit).await?;
+
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(480);
+    let mut current_base_url = ILINK_BASE_URL.to_string();
+    let mut refresh_count: u32 = 0;
+    let mut qrcode_value = qrcode_value;
+
+    loop {
+        if tokio::time::Instant::now() >= deadline {
+            return Err("weixin: QR login timed out".into());
+        }
+        let status_resp = match api_get(
+            client,
+            &current_base_url,
+            &format!("{EP_GET_QR_STATUS}?qrcode={qrcode_value}"),
+            QR_TIMEOUT_MS,
+        )
+        .await
+        {
+            Ok(v) => v,
+            Err(e) => {
+                log::warn!("weixin: QR poll error: {e}");
+                emit(QrLoginFrame::Status { status: "poll_error".into() });
+                tokio::time::sleep(Duration::from_secs(1)).await;
+                continue;
+            }
+        };
+
+        let status = status_resp
+            .get("status")
+            .and_then(Value::as_str)
+            .unwrap_or("wait");
+        match classify_qr_status(status) {
+            QrStatus::ScannedRedirect => {
+                emit(QrLoginFrame::Status { status: "scanned".into() });
+                if let Some(host) = status_resp.get("redirect_host").and_then(Value::as_str) {
+                    if !host.is_empty() {
+                        current_base_url = format!("https://{host}");
+                    }
+                }
+            }
+            QrStatus::Expired => {
+                refresh_count += 1;
+                if refresh_count > 3 {
+                    return Err("weixin: QR expired too many times".into());
+                }
+                log::info!("weixin: QR expired, refreshing ({refresh_count}/3)");
+                qrcode_value = emit_fresh_qr(client, emit).await?;
+                current_base_url = ILINK_BASE_URL.to_string();
+            }
+            QrStatus::Confirmed => {
+                let account_id = status_resp
+                    .get("ilink_bot_id")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_string();
+                let token = status_resp
+                    .get("bot_token")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_string();
+                let base_url = status_resp
+                    .get("baseurl")
+                    .and_then(Value::as_str)
+                    .filter(|s| !s.is_empty())
+                    .unwrap_or(ILINK_BASE_URL)
+                    .to_string();
+                if account_id.is_empty() || token.is_empty() {
+                    return Err("weixin: QR confirmed but credential payload incomplete".into());
+                }
+                emit(QrLoginFrame::Confirmed {
+                    account_id: account_id.clone(),
+                    token: token.clone(),
+                    base_url: base_url.clone(),
+                });
+                return Ok((account_id, token, base_url));
+            }
+            _ => {
+                // "wait" / "scaned" — keep polling.
+            }
+        }
+        tokio::time::sleep(Duration::from_secs(1)).await;
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -856,5 +1099,108 @@ mod tests {
     fn extract_text_empty_when_no_text_item() {
         let items = json!([{"type":2,"image_item":{"image":"x"}}]);
         assert_eq!(extract_text(&items), "");
+    }
+
+    // --- Poll state machine tests -----------------------------------------
+
+    #[test]
+    fn classify_poll_ok_when_ret_and_errcode_zero() {
+        assert_eq!(classify_poll(Some(0), Some(0), Some("ok")), PollClass::Ok);
+        assert_eq!(classify_poll(None, None, None), PollClass::Ok);
+        assert_eq!(classify_poll(Some(0), None, None), PollClass::Ok);
+    }
+
+    #[test]
+    fn classify_poll_session_expired_on_minus_14_or_stale_minus_2() {
+        assert_eq!(
+            classify_poll(Some(-14), None, Some("expired")),
+            PollClass::SessionExpired
+        );
+        assert_eq!(
+            classify_poll(None, Some(-14), Some("x")),
+            PollClass::SessionExpired
+        );
+        // -2 with errmsg "unknown error" is a stale-session signal.
+        assert_eq!(
+            classify_poll(Some(-2), None, Some("unknown error")),
+            PollClass::SessionExpired
+        );
+        assert_eq!(
+            classify_poll(None, Some(-2), Some("unknown error")),
+            PollClass::SessionExpired
+        );
+    }
+
+    #[test]
+    fn classify_poll_rate_limit_on_genuine_minus_2() {
+        assert_eq!(
+            classify_poll(Some(-2), None, Some("request too frequent")),
+            PollClass::RateLimit
+        );
+        assert_eq!(
+            classify_poll(None, Some(-2), Some("too many")),
+            PollClass::RateLimit
+        );
+    }
+
+    #[test]
+    fn classify_poll_other_error_for_unmatched_codes() {
+        assert_eq!(classify_poll(Some(1), None, Some("boom")), PollClass::OtherError);
+        assert_eq!(classify_poll(None, Some(500), None), PollClass::OtherError);
+    }
+
+    #[test]
+    fn failure_machine_resets_on_success() {
+        let mut m = PollFailureMachine::default();
+        m.step(PollClass::RateLimit);
+        m.step(PollClass::RateLimit);
+        assert_eq!(m.consecutive, 2);
+        let d = m.step(PollClass::Ok);
+        assert_eq!(m.consecutive, 0);
+        assert_eq!(d.delay_secs, 0);
+        assert!(!d.backed_off);
+        assert!(!d.relogin);
+    }
+
+    #[test]
+    fn failure_machine_backs_off_after_max_consecutive() {
+        let mut m = PollFailureMachine::default();
+        // Two retries at RETRY_DELAY (2s), third triggers backoff (30s).
+        let d1 = m.step(PollClass::OtherError);
+        assert_eq!(d1.delay_secs, RETRY_DELAY_SECONDS);
+        assert!(!d1.backed_off);
+        let d2 = m.step(PollClass::RateLimit);
+        assert_eq!(d2.delay_secs, RETRY_DELAY_SECONDS);
+        let d3 = m.step(PollClass::OtherError);
+        assert_eq!(d3.delay_secs, BACKOFF_DELAY_SECONDS);
+        assert!(d3.backed_off);
+        // Counter wrapped, so the next failure is a fresh retry.
+        assert_eq!(m.consecutive, 0);
+        let d4 = m.step(PollClass::OtherError);
+        assert_eq!(d4.delay_secs, RETRY_DELAY_SECONDS);
+        assert!(!d4.backed_off);
+    }
+
+    #[test]
+    fn failure_machine_session_expired_requests_relogin_without_backoff() {
+        let mut m = PollFailureMachine::default();
+        m.step(PollClass::RateLimit);
+        m.step(PollClass::RateLimit);
+        assert_eq!(m.consecutive, 2);
+        let d = m.step(PollClass::SessionExpired);
+        assert!(d.relogin);
+        assert_eq!(d.delay_secs, 0);
+        // Session-expired resets the counter rather than contributing to it.
+        assert_eq!(m.consecutive, 0);
+    }
+
+    #[test]
+    fn classify_qr_status_maps_protocol_values() {
+        assert_eq!(classify_qr_status("scaned_but_redirect"), QrStatus::ScannedRedirect);
+        assert_eq!(classify_qr_status("expired"), QrStatus::Expired);
+        assert_eq!(classify_qr_status("confirmed"), QrStatus::Confirmed);
+        assert_eq!(classify_qr_status("scaned"), QrStatus::Scanned);
+        assert_eq!(classify_qr_status("wait"), QrStatus::Waiting);
+        assert_eq!(classify_qr_status("unknown"), QrStatus::Waiting);
     }
 }

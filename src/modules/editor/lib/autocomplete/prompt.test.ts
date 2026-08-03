@@ -69,6 +69,39 @@ describe("buildUserPrompt", () => {
     expect(prompt).toContain("Indent: tabs");
   });
 
+  it("injects project context (notes + siblings) before PREFIX", () => {
+    const prompt = buildUserPrompt({
+      prefix: "x",
+      suffix: "y",
+      filename: "/repo/src/a.ts",
+      language: "typescript",
+      indentUnit: null,
+      projectContext: {
+        dir: "/repo",
+        notes: "Use camelCase for locals. Never use any.",
+        siblingSnippets: [{ filename: "b.ts", head: "export const X = 1;" }],
+      },
+    });
+    expect(prompt).toContain("Project notes (/repo)");
+    expect(prompt).toContain("Use camelCase for locals");
+    expect(prompt).toContain("--- b.ts ---");
+    expect(prompt).toContain("export const X = 1;");
+    expect(prompt.indexOf("CONTEXT")).toBeLessThan(prompt.indexOf("PREFIX:"));
+  });
+
+  it("omits the context block when project context is empty", () => {
+    const prompt = buildUserPrompt({
+      prefix: "x",
+      suffix: "y",
+      filename: "a.ts",
+      language: null,
+      indentUnit: null,
+      projectContext: { dir: "/r", notes: "", siblingSnippets: [] },
+    });
+    expect(prompt).not.toContain("CONTEXT");
+    expect(prompt.startsWith("File: a.ts")).toBe(true);
+  });
+
   it("truncates the embedded context to the trim limits", () => {
     const prompt = buildUserPrompt({
       prefix: "p".repeat(5000),

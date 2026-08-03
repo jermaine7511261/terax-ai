@@ -337,6 +337,7 @@ pub fn run() {
             gateway::commands::gateway_connect,
             gateway::commands::gateway_disconnect,
             gateway::commands::gateway_send,
+            gateway::commands::gateway_weixin_qr_login,
             gateway::commands::gateway_sessions,
             gateway::commands::gateway_authorize,
             gateway::commands::gateway_revoke,

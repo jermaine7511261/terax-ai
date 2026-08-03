@@ -4,6 +4,7 @@ use serde::Serialize;
 use tauri::{Manager, State};
 
 use super::adapter::ChatTarget;
+use super::adapters::weixin::{run_qr_login, QrLoginFrame, WeixinAdapter, WeixinConfig};
 use super::message::ChatType;
 use super::platform::PlatformId;
 use super::registry::GatewayRegistry;
@@ -157,4 +158,48 @@ pub async fn gateway_send(
         reply_to: None,
     };
     state.send_text(id, &target, &text).await.map(|_| ())
+}
+
+/// Run the interactive Weixin iLink QR login flow, streaming QR/status frames
+/// to the frontend via a Tauri channel. On confirmation, persists the returned
+/// credentials to the keychain and re-registers the adapter, then resolves the
+/// channel with the confirmed credentials.
+#[tauri::command]
+pub async fn gateway_weixin_qr_login(
+    app: tauri::AppHandle,
+    state: State<'_, GatewayRegistry>,
+    on_frame: tauri::ipc::Channel<QrLoginFrame>,
+) -> Result<(String, String, String), String> {
+    let client = reqwest::Client::builder()
+        .build()
+        .unwrap_or_else(|_| reqwest::Client::new());
+
+    let result = run_qr_login(&client, &|frame| {
+        let _ = on_frame.send(frame);
+    })
+    .await;
+
+    match result {
+        Ok((account_id, token, base_url)) => {
+            let config = WeixinConfig {
+                base_url: base_url.clone(),
+                token: token.clone(),
+                account_id: account_id.clone(),
+            };
+            let config_json = serde_json::to_string(&config).map_err(|e| e.to_string())?;
+            // Persist to keychain + re-register so the fresh token survives.
+            let secrets_state = app.state::<crate::modules::secrets::SecretsState>();
+            crate::modules::secrets::secrets_set(
+                app.clone(),
+                secrets_state,
+                "yamet-ai".to_string(),
+                "gateway:weixin".to_string(),
+                config_json.clone(),
+            )
+            .await?;
+            state.register(Box::new(WeixinAdapter::new(config)));
+            Ok((account_id, token, base_url))
+        }
+        Err(e) => Err(e),
+    }
 }
