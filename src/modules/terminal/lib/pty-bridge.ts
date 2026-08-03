@@ -1,4 +1,5 @@
 import { invoke, Channel } from "@tauri-apps/api/core";
+import type { SshTarget } from "@/modules/tabs";
 import { currentWorkspaceEnv } from "@/modules/workspace";
 
 const textEncoder = new TextEncoder();
@@ -22,6 +23,7 @@ export async function openPty(
   cwd?: string,
   blocks?: boolean,
   shell?: string,
+  ssh?: SshTarget,
 ): Promise<PtySession> {
   // Raw bytes — no base64/JSON round-trip; messages arrive as ArrayBuffer.
   const onData = new Channel<ArrayBuffer>();
@@ -49,6 +51,7 @@ export async function openPty(
     workspace: currentWorkspaceEnv(),
     blocks: blocks ?? false,
     shell: shell ?? null,
+    ssh: ssh ?? null,
     onData,
     onExit,
   });

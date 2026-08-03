@@ -1,4 +1,5 @@
 import { ensureMonoFontsLoaded } from "@/lib/fonts";
+import type { SshTarget } from "@/modules/tabs";
 import { usePreferencesStore } from "@/modules/settings/preferences";
 import { invoke } from "@tauri-apps/api/core";
 import type { SearchAddon } from "@xterm/addon-search";
@@ -61,6 +62,7 @@ type Session = {
   pty: PtySession | null;
   ptyOpening: boolean;
   initialCwd: string | undefined;
+  initialSsh: SshTarget | undefined;
   lastCwd: string | null;
   pendingExit: number | null;
   shellExited: boolean;
@@ -437,6 +439,7 @@ function ensureSession(
   leafId: number,
   initialCwd?: string,
   blocks = false,
+  initialSsh?: SshTarget,
 ): Session {
   const existing = sessions.get(leafId);
   if (existing) return existing;
@@ -445,6 +448,7 @@ function ensureSession(
     pty: null,
     ptyOpening: false,
     initialCwd,
+    initialSsh,
     lastCwd: null,
     pendingExit: null,
     shellExited: false,
@@ -556,6 +560,7 @@ async function openPtyForSession(
     cwd,
     s.blocks,
     usePreferencesStore.getState().terminalShell || undefined,
+    s.initialSsh,
   );
   // Only resize if the bound dims changed during the spawn: a same-size
   // ResizePseudoConsole during conhost warmup is a known ConPTY trigger for
@@ -824,6 +829,7 @@ type Options = {
   focused?: boolean;
   initialCwd?: string;
   blocks?: boolean;
+  ssh?: SshTarget;
   onSearchReady?: (addon: SearchAddon) => void;
   onExit?: (code: number) => void;
   onCwd?: (cwd: string) => void;
@@ -836,6 +842,7 @@ export function useTerminalSession({
   focused = true,
   initialCwd,
   blocks = false,
+  ssh,
   onSearchReady,
   onExit,
   onCwd,
@@ -848,10 +855,12 @@ export function useTerminalSession({
   // would detach/rebind the renderer slot (disposing block markers) on each cd.
   const initialCwdRef = useRef(initialCwd);
   initialCwdRef.current = initialCwd;
+  const initialSshRef = useRef(ssh);
+  initialSshRef.current = ssh;
 
   useEffect(() => {
     let cancelled = false;
-    const s = ensureSession(leafId, initialCwdRef.current, blocks);
+    const s = ensureSession(leafId, initialCwdRef.current, blocks, initialSshRef.current);
     s.ready.then(() => {
       if (cancelled || s.disposed) return;
       const node = container.current;
@@ -872,7 +881,7 @@ export function useTerminalSession({
   const [blockMode, setBlockMode] = useState<BlockMode>("prompt");
   useEffect(() => {
     if (!blocks) return;
-    const s = ensureSession(leafId, initialCwdRef.current, blocks);
+    const s = ensureSession(leafId, initialCwdRef.current, blocks, initialSshRef.current);
     setBlockMode(s.blockMode);
     const cb = () => setBlockMode(sessions.get(leafId)?.blockMode ?? "prompt");
     s.blockListeners.add(cb);

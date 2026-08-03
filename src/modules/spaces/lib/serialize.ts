@@ -7,6 +7,7 @@ import type {
   EditorTab,
   MarkdownTab,
   PreviewTab,
+  SshTarget,
   Tab,
   TerminalTab,
 } from "@/modules/tabs/lib/useTabs";
@@ -21,6 +22,7 @@ export type SerializedTab =
       tree: SerializedNode;
       blocks?: boolean;
       customTitle?: string;
+      ssh?: SshTarget;
     }
   | { kind: "editor"; path: string }
   | { kind: "preview"; url: string }
@@ -29,6 +31,10 @@ export type SerializedTab =
 function basename(path: string): string {
   const parts = path.split(/[\\/]/).filter(Boolean);
   return parts.length ? parts[parts.length - 1] : path;
+}
+
+function sshLabel(ssh: SshTarget): string {
+  return ssh.user ? `${ssh.user}@${ssh.host}` : ssh.host;
 }
 
 function titleFromUrl(url: string): string {
@@ -76,6 +82,7 @@ function serializeTab(tab: Tab): SerializedTab | null {
         tree: serializeNode(tab.paneTree, tab.activeLeafId),
         ...(tab.blocks && { blocks: true }),
         ...(tab.customTitle !== undefined && { customTitle: tab.customTitle }),
+        ...(tab.ssh && { ssh: tab.ssh }),
       };
     case "editor":
       return { kind: "editor", path: tab.path };
@@ -151,7 +158,7 @@ function hydrateTab(
       const { tree, activeLeafId, firstLeafCwd } = hydrateTree(s.tree, allocId);
       const title =
         s.customTitle ??
-        (firstLeafCwd ? basename(firstLeafCwd) : s.blocks ? "blocks" : "shell");
+        (s.ssh ? sshLabel(s.ssh) : (firstLeafCwd ? basename(firstLeafCwd) : s.blocks ? "blocks" : "shell"));
       return {
         id: allocId(),
         kind: "terminal",
@@ -163,6 +170,7 @@ function hydrateTab(
         activeLeafId,
         ...(s.blocks && { blocks: true }),
         ...(s.customTitle !== undefined && { customTitle: s.customTitle }),
+        ...(s.ssh && { ssh: s.ssh }),
       } satisfies TerminalTab;
     }
     case "editor":

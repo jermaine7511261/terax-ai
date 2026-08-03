@@ -12,6 +12,7 @@ export {
   nextActiveInSpace,
   type Tab,
   type TerminalTab,
+  type SshTarget,
   type EditorTab,
   type PreviewTab,
   type MarkdownTab,

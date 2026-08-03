@@ -77,6 +77,8 @@ import {
   useWindowTitle,
   useWorkspaceCwd,
 } from "@/modules/tabs";
+import { SshConnectDialog } from "@/modules/tabs/SshConnectDialog";
+import type { SshTarget } from "@/modules/tabs/lib/useTabs";
 import { DEFAULT_SPACE_ID } from "@/modules/tabs/lib/useTabs";
 import {
   clearFocusedTerminal,
@@ -128,6 +130,7 @@ export default function App() {
     newAgentTab,
     newAgentGroupTab,
     newPrivateTab,
+    newSshTab,
     openChatTab,
     openFileTab,
     pinTab,
@@ -525,6 +528,14 @@ export default function App() {
   const openNewBlockTab = useCallback(() => {
     newBlockTab(inheritedCwdForNewTab());
   }, [newBlockTab, inheritedCwdForNewTab]);
+
+  const [sshDialogOpen, setSshDialogOpen] = useState(false);
+  const openSshTab = useCallback(
+    (target: SshTarget) => {
+      newSshTab(target);
+    },
+    [newSshTab],
+  );
 
   const launchAgentGroup = useCallback(
     (request: AgentLaunchRequest) => {
@@ -1222,6 +1233,7 @@ export default function App() {
               onNewPreview={() => openPreviewTab("")}
               onNewEditor={() => setNewEditorOpen(true)}
               onNewGitGraph={openGitGraphFromContext}
+              onNewSsh={() => setSshDialogOpen(true)}
               onLaunchAgents={launchAgentGroup}
               onClose={handleClose}
               onPin={pinTab}
@@ -1407,6 +1419,12 @@ export default function App() {
             onOpenChange={setNewEditorOpen}
             rootPath={explorerRoot ?? home}
             onCreated={(path) => openFileTab(path)}
+          />
+
+          <SshConnectDialog
+            open={sshDialogOpen}
+            onOpenChange={setSshDialogOpen}
+            onConnect={openSshTab}
           />
 
           <UpdaterDialog />

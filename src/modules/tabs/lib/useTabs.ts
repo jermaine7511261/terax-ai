@@ -42,6 +42,16 @@ export type TerminalTab = TabBase & {
   private?: boolean;
   /** User-set label that overrides the cwd-derived name. Survives cd. */
   customTitle?: string;
+  /** When set, this tab is a remote SSH session (spawns `ssh` as the PTY child). */
+  ssh?: SshTarget;
+};
+
+/** Remote SSH connection target. Mirrors the Rust `SshTarget`. */
+export type SshTarget = {
+  host: string;
+  port?: number;
+  user?: string;
+  identityFile?: string;
 };
 
 export type EditorTab = TabBase & {
@@ -574,6 +584,30 @@ export function useTabs(_initial?: Partial<TerminalTab>) {
         paneTree: { kind: "leaf", id: leafId, cwd },
         activeLeafId: leafId,
         private: true,
+      },
+    ]);
+    setActiveId(tabId);
+    return tabId;
+  }, []);
+
+  /** Opens a remote SSH terminal tab. The `ssh` target is threaded down to
+   * the PTY so `ssh` (with known_hosts/password/key auth) is spawned as the
+   * child process. Returns the new tab id. */
+  const newSshTab = useCallback((target: SshTarget) => {
+    const tabId = nextIdRef.current++;
+    const leafId = nextIdRef.current++;
+    const title = target.user ? `${target.user}@${target.host}` : target.host;
+    setTabs((t) => [
+      ...t,
+      {
+        id: tabId,
+        kind: "terminal",
+        spaceId: activeSpaceIdRef.current,
+        title,
+        customTitle: title,
+        paneTree: { kind: "leaf", id: leafId },
+        activeLeafId: leafId,
+        ssh: target,
       },
     ]);
     setActiveId(tabId);
@@ -1265,6 +1299,7 @@ export function useTabs(_initial?: Partial<TerminalTab>) {
     newAgentTab,
     newAgentGroupTab,
     newPrivateTab,
+    newSshTab,
     openChatTab,
     openFileTab,
     pinTab,

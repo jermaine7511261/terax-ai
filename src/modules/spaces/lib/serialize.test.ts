@@ -157,4 +157,32 @@ describe("hydrateTabs", () => {
       "README.md",
     ]);
   });
+
+  it("round-trips ssh target and derives its title", () => {
+    const serialized: SerializedTab[] = [
+      {
+        kind: "terminal",
+        tree: { kind: "leaf", cwd: "/" },
+        ssh: { host: "db.internal", user: "deploy", port: 2222 },
+      },
+      {
+        kind: "terminal",
+        tree: { kind: "leaf" },
+        ssh: { host: "bare.example.com" },
+      },
+    ];
+    const out = hydrateTabs(serialized, "s1", counter());
+    expect(out[0].kind).toBe("terminal");
+    if (out[0].kind !== "terminal") return;
+    expect(out[0].ssh).toEqual({
+      host: "db.internal",
+      user: "deploy",
+      port: 2222,
+    });
+    expect(out[0].title).toBe("deploy@db.internal");
+    expect(out[1].kind).toBe("terminal");
+    if (out[1].kind !== "terminal") return;
+    expect(out[1].ssh).toEqual({ host: "bare.example.com" });
+    expect(out[1].title).toBe("bare.example.com");
+  });
 });

@@ -11,6 +11,7 @@ use tauri::{AppHandle, Emitter, Manager};
 use super::agent_detect::AgentDetector;
 use super::da_filter::DaFilter;
 use super::shell_init;
+use crate::modules::ssh::SshTarget;
 use crate::modules::workspace::WorkspaceEnv;
 
 const AGENT_EVENT: &str = "yamet:agent-signal";
@@ -108,6 +109,7 @@ pub fn spawn(
     workspace: WorkspaceEnv,
     blocks: bool,
     shell: Option<String>,
+    ssh: Option<SshTarget>,
     on_data: Channel<Response>,
     on_exit: Channel<i32>,
 ) -> Result<(Arc<Session>, PtySize), String> {
@@ -123,7 +125,13 @@ pub fn spawn(
     };
     let pair = pty_system.openpty(size).map_err(|e| e.to_string())?;
 
-    let cmd = shell_init::build_command(cwd, workspace, blocks, shell)?;
+    let cmd = match ssh {
+        // SSH target: spawn the system `ssh` client as the child so remote
+        // terminal, known_hosts verification, and password/key/agent auth all
+        // work through the existing PTY pipeline.
+        Some(target) => crate::modules::ssh::build_command(&target)?,
+        None => shell_init::build_command(cwd, workspace, blocks, shell)?,
+    };
     let mut child = pair.slave.spawn_command(cmd).map_err(|e| e.to_string())?;
     drop(pair.slave);
 

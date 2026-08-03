@@ -23,6 +23,7 @@ import {
   IncognitoIcon,
   PencilEdit02Icon,
   PlusSignIcon,
+  ServerStackIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useRef, useState } from "react";
@@ -34,6 +35,7 @@ type Props = {
   onNewPreview: () => void;
   onNewEditor: () => void;
   onNewGitGraph: () => void;
+  onNewSsh: () => void;
   onLaunchAgents: (request: AgentLaunchRequest) => void;
 };
 
@@ -44,6 +46,7 @@ export function NewTabMenu({
   onNewPreview,
   onNewEditor,
   onNewGitGraph,
+  onNewSsh,
   onLaunchAgents,
 }: Props) {
   const { t } = useI18n();
@@ -130,6 +133,14 @@ export function NewTabMenu({
                   strokeWidth={1.75}
                   className="text-muted-foreground"
                 />
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={onNewSsh}>
+                <HugeiconsIcon
+                  icon={ServerStackIcon}
+                  size={14}
+                  strokeWidth={1.75}
+                />
+                <span className="flex-1">{t("newTabMenu.ssh")}</span>
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={onNewPrivate}>
                 <HugeiconsIcon

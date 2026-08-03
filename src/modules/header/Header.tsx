@@ -35,6 +35,7 @@ type Props = {
   onNewPreview: () => void;
   onNewEditor: () => void;
   onNewGitGraph: () => void;
+  onNewSsh: () => void;
   onLaunchAgents: (request: AgentLaunchRequest) => void;
   onClose: (id: number) => void;
   /** Promote a preview (transient) tab to persistent. */
@@ -66,6 +67,7 @@ export function Header({
   onNewPreview,
   onNewEditor,
   onNewGitGraph,
+  onNewSsh,
   onLaunchAgents,
   onClose,
   onPin,
@@ -164,6 +166,7 @@ export function Header({
           onNewPreview={onNewPreview}
           onNewEditor={onNewEditor}
           onNewGitGraph={onNewGitGraph}
+          onNewSsh={onNewSsh}
           onLaunchAgents={onLaunchAgents}
           onClose={onClose}
           onPin={onPin}

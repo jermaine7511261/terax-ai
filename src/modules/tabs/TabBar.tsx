@@ -64,6 +64,7 @@ type Props = {
   onNewPreview: () => void;
   onNewEditor: () => void;
   onNewGitGraph: () => void;
+  onNewSsh: () => void;
   onLaunchAgents: (request: AgentLaunchRequest) => void;
   onClose: (id: number) => void;
   /** Pin (promote) a preview tab to persistent on double-click. */
@@ -86,6 +87,7 @@ export function TabBar({
   onNewPreview,
   onNewEditor,
   onNewGitGraph,
+  onNewSsh,
   onLaunchAgents,
   onClose,
   onPin,
@@ -549,6 +551,7 @@ export function TabBar({
           onNewPreview={onNewPreview}
           onNewEditor={onNewEditor}
           onNewGitGraph={onNewGitGraph}
+          onNewSsh={onNewSsh}
           onLaunchAgents={onLaunchAgents}
         />
       </div>

@@ -1,4 +1,5 @@
 import { useTheme } from "@/modules/theme";
+import type { SshTarget } from "@/modules/tabs";
 import type { SearchAddon } from "@xterm/addon-search";
 import {
   forwardRef,
@@ -32,6 +33,8 @@ type Props = {
   initialCwd?: string;
   /** Enable command-block decorations (OSC 133) for this terminal. */
   blocks?: boolean;
+  /** Remote SSH target; when set, spawns `ssh` as the PTY child. */
+  ssh?: SshTarget;
   onSearchReady?: (leafId: number, addon: SearchAddon) => void;
   onExit?: (leafId: number, code: number) => void;
   onCwd?: (leafId: number, cwd: string) => void;
@@ -45,6 +48,7 @@ export const TerminalPane = memo(
       focused = true,
       initialCwd,
       blocks = false,
+      ssh,
       onSearchReady,
       onExit,
       onCwd,
@@ -62,6 +66,7 @@ export const TerminalPane = memo(
       focused,
       initialCwd,
       blocks,
+      ssh,
       onSearchReady: (a) => onSearchReady?.(leafId, a),
       onExit: (c) => onExit?.(leafId, c),
       onCwd: (c) => onCwd?.(leafId, c),
