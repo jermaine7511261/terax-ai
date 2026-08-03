@@ -49,6 +49,8 @@ const TOOL_LABELS: Record<string, (input: Record<string, unknown>) => string> =
     todo_write: (i) =>
       `Updating plan (${Array.isArray(i.todos) ? i.todos.length : 0} items)`,
     run_subagent: (i) => `Spawning ${String(i.type ?? "subagent")} subagent`,
+    run_external_agent: (i) =>
+      `Delegating to ${String(i.agent ?? "external agent")}`,
   };
 
 function shortPath(p: unknown): string {

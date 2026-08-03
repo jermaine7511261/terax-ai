@@ -317,6 +317,7 @@ pub fn run() {
             shell::shell_bg_logs,
             shell::shell_bg_kill,
             shell::shell_bg_list,
+            shell::agent_probe,
             workspace::wsl_list_distros,
             workspace::wsl_default_distro,
             workspace::wsl_home,

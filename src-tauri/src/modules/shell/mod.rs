@@ -1,4 +1,5 @@
 pub mod background;
+pub mod external_agent;
 pub mod ringbuffer;
 pub mod session;
 
@@ -297,6 +298,13 @@ pub fn shell_bg_list(state: tauri::State<ShellState>) -> Result<Vec<BackgroundPr
     }
     out.sort_by_key(|i| i.handle);
     Ok(out)
+}
+
+/// Detect which external agent CLIs (claude/codex/opencode/gemini/pi/grok) are
+/// installed and their versions, for the external-agent orchestration feature.
+#[tauri::command]
+pub fn agent_probe() -> Vec<external_agent::ExternalAgentInfo> {
+    external_agent::probe_external_agents()
 }
 
 pub(crate) fn build_oneshot_command(

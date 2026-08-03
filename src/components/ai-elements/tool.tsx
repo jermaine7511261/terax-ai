@@ -49,6 +49,7 @@ const TOOL_META: Record<string, { label: string; icon: typeof File01Icon }> = {
   suggest_command: { label: "Suggest", icon: SparklesIcon },
   open_preview: { label: "Preview", icon: EyeIcon },
   run_subagent: { label: "Subagent", icon: RobotIcon },
+  run_external_agent: { label: "External agent", icon: RobotIcon },
   todo_write: { label: "Todos", icon: CheckListIcon },
 };
 
@@ -102,6 +103,8 @@ function deriveSummary(toolName: string, input: unknown): string | null {
       return str("path") ?? str("url");
     case "run_subagent":
       return str("agent") ?? str("task");
+    case "run_external_agent":
+      return str("agent") ?? str("prompt");
     case "todo_write": {
       const items = Array.isArray(i.todos) ? i.todos : null;
       return items

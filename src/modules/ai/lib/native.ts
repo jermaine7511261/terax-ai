@@ -258,6 +258,16 @@ export const native = {
         exit_code: number | null;
       }[]
     >("shell_bg_list"),
+  agentProbe: () =>
+    invoke<
+      {
+        id: string;
+        label: string;
+        available: boolean;
+        version: string | null;
+        error: string | null;
+      }[]
+    >("agent_probe"),
   gitResolveRepo: (cwd: string) =>
     invoke<GitRepoInfo | null>("git_resolve_repo", {
       cwd,
