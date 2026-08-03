@@ -122,6 +122,12 @@ export async function refreshProviderModels(
   }
 }
 
+// Stable shared empty list. A missing cache entry must not yield a fresh
+// array reference every render — useSyncExternalStore would treat each new
+// reference as a store change and forceStoreRerender in an infinite loop
+// (React #185 "Maximum update depth exceeded").
+const EMPTY_MODELS: FetchedModel[] = [];
+
 export function useFetchedModels(
   provider: ProviderId,
   baseURL: string,
@@ -133,7 +139,7 @@ export function useFetchedModels(
   refresh: () => Promise<FetchedModel[]>;
 } {
   const key = `${provider}::${providerApiBase(provider, baseURL)}`;
-  const models = useFetchedModelsStore((s) => s.cache[key] ?? []);
+  const models = useFetchedModelsStore((s) => s.cache[key] ?? EMPTY_MODELS);
   const loading = useFetchedModelsStore((s) => s.loading[key] ?? false);
   const error = useFetchedModelsStore((s) => s.error[key] ?? null);
   return {
