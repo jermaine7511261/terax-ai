@@ -25,7 +25,13 @@ const TERM_DECORATIONS = {
 };
 
 export type SearchTarget =
-  | { kind: "terminal"; addon: SearchAddon; focus: () => void }
+  | {
+      kind: "terminal";
+      addon: SearchAddon;
+      focus: () => void;
+      /** Persist the query back to the session (survives slot rebinds). */
+      onQueryChange?: (q: string) => void;
+    }
   | { kind: "editor"; handle: EditorPaneHandle; focus: () => void }
   | {
       kind: "git-history";
@@ -114,6 +120,8 @@ export const SearchInline = forwardRef<SearchInlineHandle, Props>(
         } else {
           target.addon.clearDecorations();
         }
+        // Persist so a tab switch / slot rebind re-applies the query.
+        target.onQueryChange?.(next);
       } else {
         target.handle.setQuery(next);
       }

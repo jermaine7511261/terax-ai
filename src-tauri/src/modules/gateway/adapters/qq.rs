@@ -5,6 +5,7 @@
 //!
 //! Reference: LangBot `aiocqhttp.py` + Hermes `gateway/platforms/qqbot/`.
 
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -12,6 +13,7 @@ use chrono::Utc;
 use futures_util::future::BoxFuture;
 use futures_util::{SinkExt, StreamExt};
 use tokio::sync::mpsc;
+use tokio_tungstenite::tungstenite::http;
 
 use crate::modules::gateway::adapter::{
     ChatTarget, EventTx, PlatformAdapter, SendReceipt, SendResult,
@@ -19,6 +21,36 @@ use crate::modules::gateway::adapter::{
 use crate::modules::gateway::message::{ChatType, MessageEvent};
 use crate::modules::gateway::platform::PlatformId;
 use serde::{Deserialize, Serialize};
+
+/// OneBot WebSocket stream + the split-out send half, so `send_text` reuses the
+/// connection held by the receive loop instead of dialing a new one per send.
+type OnebotWs = tokio_tungstenite::WebSocketStream<
+    tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+>;
+type OnebotSink = futures_util::stream::SplitSink<
+    OnebotWs,
+    tokio_tungstenite::tungstenite::Message,
+>;
+
+/// Connect to go-cqhttp's forward WebSocket, attaching `Authorization: Bearer`
+/// when an access token is configured (OneBot v11 supports token auth).
+async fn connect_onebot(cfg: &QqConfig) -> Result<OnebotWs, String> {
+    let mut request = http::Request::builder()
+        .uri(&cfg.ws_url)
+        .body(())
+        .map_err(|e| format!("onebot request build failed: {e}"))?;
+    if !cfg.access_token.is_empty() {
+        request.headers_mut().insert(
+            "Authorization",
+            http::HeaderValue::from_str(&format!("Bearer {}", cfg.access_token))
+                .map_err(|e| format!("onebot auth header invalid: {e}"))?,
+        );
+    }
+    let (ws, _) = tokio_tungstenite::connect_async(request)
+        .await
+        .map_err(|e| format!("onebot connect failed: {e}"))?;
+    Ok(ws)
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QqConfig {
@@ -29,7 +61,9 @@ pub struct QqConfig {
 impl Default for QqConfig {
     fn default() -> Self {
         Self {
-            ws_url: "ws://127.0.0.1:6700".to_string(),
+            // Empty by default so an un-configured QQ shows as "not configured"
+            // (the previous default made every fresh install look configured).
+            ws_url: String::new(),
             access_token: String::new(),
         }
     }
@@ -43,6 +77,17 @@ struct QqInner {
     cfg: QqConfig,
     stop: Arc<AtomicBool>,
     task: Mutex<Option<tokio::task::JoinHandle<()>>>,
+    /// Reused outbound half of the OneBot WebSocket (set by the receive loop).
+    /// `send_text` reuses it instead of opening a new connection per send.
+    sender: Mutex<Option<futures_util::stream::SplitSink<
+        tokio_tungstenite::WebSocketStream<
+            tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+        >,
+        tokio_tungstenite::tungstenite::Message,
+    >>>,
+    /// echo id -> oneshot for the send receipt, so `send_text` can await the
+    /// real `message_id` returned by OneBot instead of a generic empty receipt.
+    pending_sends: Mutex<HashMap<String, tokio::sync::oneshot::Sender<SendReceipt>>>,
 }
 
 impl QqAdapter {
@@ -52,6 +97,8 @@ impl QqAdapter {
                 cfg,
                 stop: Arc::new(AtomicBool::new(false)),
                 task: Mutex::new(None),
+                sender: Mutex::new(None),
+                pending_sends: Mutex::new(HashMap::new()),
             }),
         }
     }
@@ -123,10 +170,6 @@ impl PlatformAdapter for QqAdapter {
         let chat_id = target.chat_id.clone();
         let content = text.to_string();
         Box::pin(async move {
-            let url = this.cfg.ws_url.clone();
-            let (mut ws, _) = tokio_tungstenite::connect_async(&url)
-                .await
-                .map_err(|e| format!("onebot connect failed: {e}"))?;
             let action = match chat_type {
                 ChatType::Dm => "send_private_msg",
                 ChatType::Group => "send_group_msg",
@@ -136,44 +179,88 @@ impl PlatformAdapter for QqAdapter {
             } else {
                 "group_id"
             };
-            let id_val = chat_id
-                .parse::<i64>()
-                .unwrap_or_default();
+            let id_val = chat_id.parse::<i64>().unwrap_or_default();
+            let echo = format!(
+                "send-{}",
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_nanos())
+                    .unwrap_or(0)
+            );
             let payload = serde_json::json!({
                 "action": action,
                 "params": { id_key: id_val, "message": content },
-                "echo": format!("send-{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0)),
+                "echo": echo,
             });
-            ws.send(tokio_tungstenite::tungstenite::Message::Text(
-                payload.to_string().into(),
-            ))
-            .await
-            .map_err(|e| format!("onebot send failed: {e}"))?;
-            // Read the matching reply (best-effort).
+            let msg = tokio_tungstenite::tungstenite::Message::Text(payload.to_string().into());
+
+            // Preferred path: reuse the connection held by the receive loop.
+            // Take it out into a local so the std MutexGuard is dropped before
+            // any await (holding it across an await would make the future
+            // non-`Send`).
+            let live_sink = this.sender.lock().unwrap().take();
+            if let Some(mut sink) = live_sink {
+                let (tx_rcv, rx_rcv) = tokio::sync::oneshot::channel::<SendReceipt>();
+                this.pending_sends.lock().unwrap().insert(echo.clone(), tx_rcv);
+                if let Err(e) = sink.send(msg).await {
+                    log::warn!("onebot send via shared conn failed: {e}");
+                    this.pending_sends.lock().unwrap().remove(&echo);
+                    return Err(format!("onebot send failed: {e}"));
+                }
+                // Put the sink back for future sends.
+                *this.sender.lock().unwrap() = Some(sink);
+                return match tokio::time::timeout(
+                    std::time::Duration::from_secs(3),
+                    rx_rcv,
+                )
+                .await
+                {
+                    // The receive loop resolved our oneshot with the real
+                    // message_id from OneBot's reply.
+                    Ok(Ok(receipt)) => Ok(receipt),
+                    _ => Ok(SendReceipt { message_id: None }),
+                };
+            }
+
+            // Fallback: no live connection — open a one-shot (auth'd) connection
+            // and read the echo reply ourselves.
+            let mut ws = connect_onebot(&this.cfg).await?;
+            ws.send(msg)
+                .await
+                .map_err(|e| format!("onebot send failed: {e}"))?;
+            let mut message_id: Option<String> = None;
             let _ = tokio::time::timeout(std::time::Duration::from_secs(3), async {
-                while let Some(msg) = ws.next().await {
-                    if let Ok(tokio_tungstenite::tungstenite::Message::Text(t)) = msg {
-                        if let Ok(v) = serde_json::from_str::<serde_json::Value>(&t) {
+                while let Some(Ok(tokio_tungstenite::tungstenite::Message::Text(t))) =
+                    ws.next().await
+                {
+                    if let Ok(v) = serde_json::from_str::<serde_json::Value>(&t) {
+                        if v.get("echo").and_then(|s| s.as_str()) == Some(&echo) {
                             if v.get("status").and_then(|s| s.as_str()) == Some("ok") {
-                                return;
+                                message_id = v
+                                    .get("data")
+                                    .and_then(|d| d.get("message_id"))
+                                    .map(|x| x.to_string());
                             }
+                            return;
                         }
                     }
                 }
             })
             .await;
-            Ok(SendReceipt { message_id: None })
+            Ok(SendReceipt { message_id })
         })
     }
 }
 
-/// One connect cycle: receive inbound messages until error or stop.
+/// One connect cycle: receive inbound messages until error or stop. The
+/// outbound half of the connection is stashed on `inner.sender` so `send_text`
+/// reuses it instead of dialing a fresh WebSocket per message.
 async fn run_onebot_loop(inner: &Arc<QqInner>, tx: EventTx) -> Result<(), String> {
-    let (mut ws, _) = tokio_tungstenite::connect_async(&inner.cfg.ws_url)
-        .await
-        .map_err(|e| format!("onebot connect failed: {e}"))?;
+    let ws = connect_onebot(&inner.cfg).await?;
+    let (sink, mut stream) = ws.split();
+    *inner.sender.lock().unwrap() = Some(sink);
     while !inner.stop.load(Ordering::Relaxed) {
-        let msg = match ws.next().await {
+        let msg = match stream.next().await {
             Some(Ok(m)) => m,
             Some(Err(e)) => return Err(format!("ws error: {e}")),
             None => return Ok(()),
@@ -183,6 +270,18 @@ async fn run_onebot_loop(inner: &Arc<QqInner>, tx: EventTx) -> Result<(), String
                 Ok(v) => v,
                 Err(_) => continue,
             };
+            // A reply to one of our sends (carries `echo`): resolve the pending
+            // oneshot with the real message_id so send_text can return it.
+            if let Some(echo) = v.get("echo").and_then(|x| x.as_str()) {
+                if let Some(tx_send) = inner.pending_sends.lock().unwrap().remove(echo) {
+                    let message_id = v
+                        .get("data")
+                        .and_then(|d| d.get("message_id"))
+                        .map(|x| x.to_string());
+                    let _ = tx_send.send(SendReceipt { message_id });
+                }
+                continue;
+            }
             if v.get("post_type").and_then(|x| x.as_str()) != Some("message") {
                 continue;
             }

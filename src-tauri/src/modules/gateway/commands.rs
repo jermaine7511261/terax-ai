@@ -203,3 +203,52 @@ pub async fn gateway_weixin_qr_login(
         Err(e) => Err(e),
     }
 }
+
+/// Current local callback URLs per platform. Platforms without callbacks
+/// (dingtalk/feishu/qq/weixin) return `None`. The settings UI shows these so
+/// the user can paste them into the platform admin console (tunneled).
+#[tauri::command]
+pub fn gateway_callback_urls(state: State<'_, GatewayRegistry>) -> Vec<CallbackUrlInfo> {
+    state
+        .callback_urls()
+        .into_iter()
+        .map(|(id, url)| CallbackUrlInfo { id, url })
+        .collect()
+}
+
+/// Persist fresh Weixin credentials after a **background** QR re-login
+/// (session-expired while polling). Unlike `gateway_weixin_qr_login`, this does
+/// not re-register the adapter — the poll loop already swapped the live token
+/// in memory; we only write the keychain so the new token survives restarts.
+#[tauri::command]
+pub async fn gateway_weixin_persist(
+    app: tauri::AppHandle,
+    account_id: String,
+    token: String,
+    base_url: String,
+) -> Result<(), String> {
+    if account_id.is_empty() || token.is_empty() {
+        return Err("weixin persist: incomplete credentials".into());
+    }
+    let config = WeixinConfig {
+        base_url,
+        token,
+        account_id,
+    };
+    let config_json = serde_json::to_string(&config).map_err(|e| e.to_string())?;
+    let secrets_state = app.state::<crate::modules::secrets::SecretsState>();
+    crate::modules::secrets::secrets_set(
+        app.clone(),
+        secrets_state,
+        "yamet-ai".to_string(),
+        "gateway:weixin".to_string(),
+        config_json,
+    )
+    .await
+}
+
+#[derive(Serialize)]
+pub struct CallbackUrlInfo {
+    pub id: String,
+    pub url: Option<String>,
+}

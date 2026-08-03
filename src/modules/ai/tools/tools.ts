@@ -2,6 +2,7 @@ import { buildManagedAgentTools } from "./agent";
 import { buildEditTools } from "./edit";
 import { buildExternalAgentTools } from "./externalAgent";
 import { buildFsTools } from "./fs";
+import { buildGitTools } from "./git";
 import { buildSearchTools } from "./search";
 import { buildShellTools } from "./shell";
 import { buildSubagentTools } from "./subagent";
@@ -32,6 +33,7 @@ export { resolvePath, type ToolContext } from "./context";
 export function buildTools(ctx: import("./context").ToolContext) {
   return {
     ...buildFsTools(ctx),
+    ...buildGitTools(ctx),
     ...buildEditTools(ctx),
     ...buildSearchTools(ctx),
     ...buildShellTools(ctx),

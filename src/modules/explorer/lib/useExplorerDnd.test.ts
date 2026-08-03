@@ -98,7 +98,7 @@ describe("finishExplorerDrag", () => {
     );
 
     expect(pathDropTarget.dropPath).toHaveBeenCalledWith(
-      "/repo/file.ts",
+      ["/repo/file.ts"],
       100,
       200,
     );

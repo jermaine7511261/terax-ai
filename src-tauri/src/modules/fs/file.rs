@@ -3,10 +3,10 @@ use std::time::UNIX_EPOCH;
 use std::{fs, io::Write};
 
 use serde::Serialize;
-use tauri::Emitter;
+use tauri::{Emitter, Manager};
 use tempfile::NamedTempFile;
 
-use crate::modules::workspace::{resolve_path, WorkspaceEnv};
+use crate::modules::workspace::{resolve_path, WorkspaceEnv, WorkspaceRegistry};
 
 const MAX_READ_BYTES: u64 = 10 * 1024 * 1024; // 10 MB
 /// Ceiling for explicit "open anyway"; mirrored as FORCE_READ_LIMIT in useDocument.ts.
@@ -54,6 +54,12 @@ fn mtime_millis(meta: &fs::Metadata) -> u64 {
         .unwrap_or(0)
 }
 
+/// Defense-in-depth for the AI write path: the frontend `security.ts` denylist
+/// is the first gate; this is the second, authoritative one. AI-sourced writes
+/// (`source == "ai"`) must resolve to a path under an authorized workspace
+/// root. The user's own editor/explorer writes pass `source == "editor"`/null
+/// and are not gated here (they carry their own trust), so this must not break
+/// normal editing.
 #[tauri::command]
 pub async fn fs_read_file(
     path: String,
@@ -85,6 +91,17 @@ fn read_file_sync(p: &Path, force: bool) -> Result<ReadResult, String> {
         e.to_string()
     })?;
 
+    // UTF-16 (LE/BE) BOM takes priority over the null-byte sniff: Windows
+    // tools routinely write UTF-16 text files, which the NUL sniff would
+    // misclassify as binary. Decode lossy so the editor shows the text.
+    if let Some(content) = decode_utf16(&bytes) {
+        return Ok(ReadResult::Text {
+            content,
+            size,
+            mtime: mtime_millis(&meta),
+        });
+    }
+
     // Null-byte sniff on the first chunk. Not perfect (misses UTF-16 BOM
     // cases) but catches the common "this is a PNG" mistake cheaply.
     let sniff_len = bytes.len().min(BINARY_SNIFF_BYTES);
@@ -100,6 +117,26 @@ fn read_file_sync(p: &Path, force: bool) -> Result<ReadResult, String> {
         }),
         Err(_) => Ok(ReadResult::Binary { size }),
     }
+}
+
+/// Decode a UTF-16 file when it carries a BOM (`FF FE` LE / `FE FF` BE).
+/// Returns `None` for anything else so the normal UTF-8 / binary path runs.
+fn decode_utf16(bytes: &[u8]) -> Option<String> {
+    if bytes.starts_with(&[0xff, 0xfe]) {
+        let units: Vec<u16> = bytes[2..]
+            .chunks_exact(2)
+            .map(|c| u16::from_le_bytes([c[0], c[1]]))
+            .collect();
+        return Some(String::from_utf16_lossy(&units));
+    }
+    if bytes.starts_with(&[0xfe, 0xff]) {
+        let units: Vec<u16> = bytes[2..]
+            .chunks_exact(2)
+            .map(|c| u16::from_be_bytes([c[0], c[1]]))
+            .collect();
+        return Some(String::from_utf16_lossy(&units));
+    }
+    None
 }
 
 #[derive(Serialize, Clone)]
@@ -134,6 +171,14 @@ pub async fn fs_write_file(
 ) -> Result<u64, String> {
     let workspace = WorkspaceEnv::from_option(workspace);
     let target = resolve_path(&path, &workspace);
+    // Defense-in-depth: AI writes must land inside an authorized workspace root.
+    if source.as_deref() == Some("ai") {
+        let registry = app.state::<WorkspaceRegistry>();
+        super::enforce_ai_workspace_authorization(&target, &source, &registry).map_err(|e| {
+            log::warn!("{e}");
+            e
+        })?;
+    }
     let original_permissions = fs::metadata(&target).ok().map(|m| m.permissions());
     write_atomic(&target, content.as_bytes()).map_err(|e| {
         log::warn!("fs_write_file({}) failed: {e}", target.display());
@@ -229,12 +274,66 @@ mod tests {
     fn read_file_detects_binary_via_invalid_utf8() {
         let dir = tempfile::tempdir().unwrap();
         let f = dir.path().join("a.bin");
-        // Invalid UTF-8 with no null byte: must still classify as binary.
-        std::fs::write(&f, [0xff, 0xfe, 0xfd, 0xfc]).unwrap();
+        // Invalid UTF-8 (overlong/truncated sequence) with no null byte and no
+        // UTF-16 BOM prefix: must still classify as binary.
+        std::fs::write(&f, [0xc3, 0x28, 0xf0, 0x28]).unwrap();
         assert!(matches!(
             read_file_sync(&f, false).unwrap(),
             ReadResult::Binary { .. }
         ));
+    }
+
+    #[test]
+    fn read_file_decodes_utf16le_bom_as_text() {
+        let dir = tempfile::tempdir().unwrap();
+        let f = dir.path().join("utf16le.txt");
+        let mut bytes = vec![0xff, 0xfe]; // UTF-16 LE BOM
+        for unit in "你好，世界".encode_utf16() {
+            bytes.extend_from_slice(&unit.to_le_bytes());
+        }
+        std::fs::write(&f, &bytes).unwrap();
+        match read_file_sync(&f, false).unwrap() {
+            ReadResult::Text {
+                content,
+                size,
+                mtime,
+            } => {
+                assert_eq!(content, "你好，世界");
+                assert_eq!(size as usize, bytes.len());
+                assert!(mtime > 0);
+            }
+            _ => panic!("expected utf-16le text"),
+        }
+    }
+
+    #[test]
+    fn read_file_decodes_utf16be_bom_as_text() {
+        let dir = tempfile::tempdir().unwrap();
+        let f = dir.path().join("utf16be.txt");
+        let mut bytes = vec![0xfe, 0xff]; // UTF-16 BE BOM
+        for unit in "Hello, 世界".encode_utf16() {
+            bytes.extend_from_slice(&unit.to_be_bytes());
+        }
+        std::fs::write(&f, &bytes).unwrap();
+        match read_file_sync(&f, false).unwrap() {
+            ReadResult::Text {
+                content,
+                size,
+                mtime,
+            } => {
+                assert_eq!(content, "Hello, 世界");
+                assert_eq!(size as usize, bytes.len());
+                assert!(mtime > 0);
+            }
+            _ => panic!("expected utf-16be text"),
+        }
+    }
+
+    #[test]
+    fn decode_utf16_rejects_non_bom_bytes() {
+        assert_eq!(decode_utf16(b"plain utf-8"), None);
+        assert_eq!(decode_utf16(b"\xff\xfe"), Some(String::new()));
+        assert_eq!(decode_utf16(&[0xfe, 0xff, 0x00, 0x41]), Some("A".into()));
     }
 
     #[test]
@@ -279,5 +378,56 @@ mod tests {
         assert_eq!(std::fs::read(&target).unwrap(), b"payload");
         // The pre-staged symlink target must not have been written through.
         assert_eq!(std::fs::read(&outside).unwrap(), b"untouched");
+    }
+
+    #[test]
+    fn ai_write_authorization_allows_inside_workspace_and_blocks_outside() {
+        use crate::modules::workspace::WorkspaceRegistry;
+        let registry = WorkspaceRegistry::default();
+        let ws = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        registry.authorize(ws.path()).unwrap();
+
+        // A write inside the authorized workspace root passes.
+        let inside = ws.path().join("sub/new.txt");
+        std::fs::create_dir(ws.path().join("sub")).unwrap();
+        assert!(
+            super::super::enforce_ai_workspace_authorization(
+                &inside,
+                &Some("ai".into()),
+                &registry,
+            )
+            .is_ok(),
+            "write inside workspace must be allowed"
+        );
+
+        // A write outside the workspace root is refused.
+        let out = outside.path().join("pwn.txt");
+        let err =
+            super::super::enforce_ai_workspace_authorization(&out, &Some("ai".into()), &registry)
+                .unwrap_err();
+        assert!(err.contains("outside the authorized workspace"), "got: {err}");
+    }
+
+    #[test]
+    fn non_ai_writes_are_not_gated() {
+        use crate::modules::workspace::WorkspaceRegistry;
+        let registry = WorkspaceRegistry::default();
+        let dir = tempfile::tempdir().unwrap();
+        // editor/explorer writes (non-"ai" source) pass without a registry root.
+        let target = dir.path().join("x.txt");
+        assert!(
+            super::super::enforce_ai_workspace_authorization(&target, &None, &registry).is_ok(),
+            "non-AI writes must not be gated"
+        );
+        assert!(
+            super::super::enforce_ai_workspace_authorization(
+                &target,
+                &Some("editor".into()),
+                &registry,
+            )
+            .is_ok(),
+            "editor writes must not be gated"
+        );
     }
 }

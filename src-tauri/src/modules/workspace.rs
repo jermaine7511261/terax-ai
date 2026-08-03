@@ -880,7 +880,14 @@ mod auth_tests {
         #[cfg(unix)]
         std::os::unix::fs::symlink(&outside, &link).expect("symlink");
         #[cfg(windows)]
-        std::os::windows::fs::symlink_dir(&outside, &link).expect("symlink");
+        {
+            // Creating directory symlinks on Windows requires developer mode
+            // or admin privileges; skip rather than fail CI on locked-down
+            // runners (the unix branch still covers the escape logic).
+            if std::os::windows::fs::symlink_dir(&outside, &link).is_err() {
+                return;
+            }
+        }
         let reg = WorkspaceRegistry::default();
         reg.authorize(&allowed).expect("authorize root");
         let s = link.to_string_lossy().into_owned();

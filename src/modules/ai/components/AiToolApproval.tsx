@@ -7,6 +7,7 @@ import {
   FileEditIcon,
   FilePlusIcon,
   FolderAddIcon,
+  FolderGitTwoIcon,
   TerminalIcon,
   Tick02Icon,
   ToolsIcon,
@@ -29,6 +30,10 @@ const TOOL_META: Record<string, { label: string; icon: typeof FilePlusIcon }> =
     create_directory: { label: "Create directory", icon: FolderAddIcon },
     bash_run: { label: "Run shell command", icon: TerminalIcon },
     bash_background: { label: "Spawn background process", icon: TerminalIcon },
+    terminal_execute: { label: "Run in terminal", icon: TerminalIcon },
+    terminal_type: { label: "Type in terminal", icon: TerminalIcon },
+    git_stage: { label: "Stage changes", icon: FolderGitTwoIcon },
+    git_commit: { label: "Commit", icon: FolderGitTwoIcon },
   };
 
 function AiToolApprovalImpl({ part, toolName, onRespond }: Props) {
@@ -121,6 +126,32 @@ function PreviewBlock({
       </div>
     );
   }
+  if (toolName === "terminal_execute") {
+    return (
+      <div className="space-y-1.5">
+        <div className="flex items-center gap-1.5 text-[10.5px] text-muted-foreground">
+          <HugeiconsIcon icon={TerminalIcon} size={11} strokeWidth={1.75} />
+          runs in the active terminal (Enter)
+        </div>
+        <pre className="max-h-40 overflow-auto rounded-md bg-muted/60 p-2 font-mono text-[11px] leading-relaxed">
+          {String(input.command ?? "")}
+        </pre>
+      </div>
+    );
+  }
+  if (toolName === "terminal_type") {
+    return (
+      <div className="space-y-1.5">
+        <div className="flex items-center gap-1.5 text-[10.5px] text-muted-foreground">
+          <HugeiconsIcon icon={TerminalIcon} size={11} strokeWidth={1.75} />
+          types into the active terminal (no Enter)
+        </div>
+        <pre className="max-h-40 overflow-auto rounded-md bg-muted/60 p-2 font-mono text-[11px] leading-relaxed">
+          {String(input.text ?? "")}
+        </pre>
+      </div>
+    );
+  }
   // For file mutations we deliberately do NOT preview content here —
   // streamed write/edit content thrashes the UI and the AI diff tab is the
   // authoritative place to review the change. Show just the path + a
@@ -173,6 +204,26 @@ function PreviewBlock({
     return (
       <div className="font-mono text-[11px] text-muted-foreground">
         {String(input.path ?? "")}
+      </div>
+    );
+  }
+  if (toolName === "git_stage") {
+    const paths = Array.isArray(input.paths) ? (input.paths as string[]) : [];
+    return (
+      <div className="space-y-0.5 font-mono text-[11px]">
+        <div className="text-muted-foreground">
+          {paths.length > 0 ? paths.join(", ") : "(all changes)"}
+        </div>
+      </div>
+    );
+  }
+  if (toolName === "git_commit") {
+    return (
+      <div className="space-y-0.5 font-mono text-[11px]">
+        <div className="text-muted-foreground">Commit staged changes</div>
+        <div className="rounded bg-muted/40 p-1.5 text-foreground">
+          {String(input.message ?? "")}
+        </div>
       </div>
     );
   }

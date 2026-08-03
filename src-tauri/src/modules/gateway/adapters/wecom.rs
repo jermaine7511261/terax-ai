@@ -17,7 +17,7 @@ use tokio::sync::mpsc;
 use crate::modules::gateway::adapter::{
     ChatTarget, EventTx, PlatformAdapter, SendReceipt, SendResult,
 };
-use crate::modules::gateway::crypto::{aes128_cbc_decrypt, sha1_hex};
+use crate::modules::gateway::crypto::{aes128_cbc_decrypt, constant_time_eq, sha1_hex};
 use crate::modules::gateway::message::{ChatType, MessageEvent};
 use crate::modules::gateway::platform::PlatformId;
 use base64::Engine;
@@ -42,6 +42,12 @@ struct WeComInner {
     stop: Arc<AtomicBool>,
     task: Mutex<Option<tokio::task::JoinHandle<()>>>,
     access_token: Mutex<Option<(String, i64)>>,
+    /// Local callback URL (bound port), surfaced to the settings UI so the
+    /// user can tunnel it as the WeCom app callback.
+    callback_url: Mutex<Option<String>>,
+    /// Shared HTTP client — reused across token refresh and message sends
+    /// instead of dialing a fresh connection pool per request.
+    client: reqwest::Client,
 }
 
 impl WeComInner {
@@ -56,7 +62,8 @@ impl WeComInner {
             "{}/gettoken?corpid={}&corpsecret={}",
             API_BASE, self.cfg.corp_id, self.cfg.corp_secret
         );
-        let resp = reqwest::Client::new()
+        let resp = self
+            .client
             .get(&url)
             .send()
             .await
@@ -86,6 +93,8 @@ impl WeComAdapter {
                 stop: Arc::new(AtomicBool::new(false)),
                 task: Mutex::new(None),
                 access_token: Mutex::new(None),
+                callback_url: Mutex::new(None),
+                client: reqwest::Client::new(),
             }),
         }
     }
@@ -142,7 +151,8 @@ impl PlatformAdapter for WeComAdapter {
                 "agentid": agent_id,
                 "text": { "content": content },
             });
-            let resp: serde_json::Value = reqwest::Client::new()
+            let resp: serde_json::Value = this
+                .client
                 .post(&url)
                 .json(&body)
                 .send()
@@ -159,6 +169,10 @@ impl PlatformAdapter for WeComAdapter {
             })
         })
     }
+
+    fn callback_url(&self) -> Option<String> {
+        self.inner.callback_url.lock().unwrap().clone()
+    }
 }
 
 /// Verify the callback signature: sha1(sort(token, timestamp, nonce, encrypt)).
@@ -166,7 +180,7 @@ fn verify_cb_signature(token: &str, ts: &str, nonce: &str, encrypt: &str, sig: &
     let mut parts = vec![token.to_string(), ts.to_string(), nonce.to_string(), encrypt.to_string()];
     parts.sort();
     let joined = parts.join("");
-    sha1_hex(joined.as_bytes()) == sig
+    constant_time_eq(&sha1_hex(joined.as_bytes()), sig)
 }
 
 /// Decrypt a WeCom callback message.
@@ -193,14 +207,22 @@ fn decrypt_cb_msg(encoding_aes_key: &str, encrypt: &str) -> Result<String, Strin
 }
 
 /// Minimal callback HTTP server: GET URL-verification, POST encrypted message.
+/// Binds a fixed, predictable port (8787 — matches the tunnel guide) so the
+/// user can configure a stable tunnel; falls back to an ephemeral port if the
+/// fixed one is taken.
 async fn run_callback_server(inner: &Arc<WeComInner>, tx: EventTx) -> Result<(), String> {
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
-        .await
-        .map_err(|e| format!("callback bind failed: {e}"))?;
+    let listener = match tokio::net::TcpListener::bind("127.0.0.1:8787").await {
+        Ok(l) => l,
+        Err(_) => tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .map_err(|e| format!("callback bind failed: {e}"))?,
+    };
     let addr = listener
         .local_addr()
         .map_err(|e| format!("callback addr failed: {e}"))?;
-    log::info!("WeCom callback server listening on {addr} — configure this URL as the app's callback (tunnel to public if needed)");
+    let callback_url = format!("http://{addr}/callback");
+    *inner.callback_url.lock().unwrap() = Some(callback_url.clone());
+    log::info!("WeCom callback server listening on {addr} — configure this URL as the app's callback (tunnel to public if needed): {callback_url}");
     let token = inner.cfg.token.clone();
     let aes_key = inner.cfg.encoding_aes_key.clone();
     loop {

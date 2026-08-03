@@ -16,6 +16,7 @@ import {
   FilePlusIcon,
   Folder01Icon,
   FolderAddIcon,
+  FolderGitTwoIcon,
   FolderOpenIcon,
   GlobalSearchIcon,
   RobotIcon,
@@ -47,9 +48,16 @@ const TOOL_META: Record<string, { label: string; icon: typeof File01Icon }> = {
   grep: { label: "Search", icon: GlobalSearchIcon },
   glob: { label: "Glob", icon: Folder01Icon },
   suggest_command: { label: "Suggest", icon: SparklesIcon },
+  get_terminal_output: { label: "Terminal", icon: TerminalIcon },
+  terminal_execute: { label: "Run in terminal", icon: TerminalIcon },
+  terminal_type: { label: "Type in terminal", icon: TerminalIcon },
   open_preview: { label: "Preview", icon: EyeIcon },
   run_subagent: { label: "Subagent", icon: RobotIcon },
   run_external_agent: { label: "External agent", icon: RobotIcon },
+  git_status: { label: "Git status", icon: FolderGitTwoIcon },
+  git_diff: { label: "Git diff", icon: FolderGitTwoIcon },
+  git_stage: { label: "Git stage", icon: FolderGitTwoIcon },
+  git_commit: { label: "Git commit", icon: FolderGitTwoIcon },
   todo_write: { label: "Todos", icon: CheckListIcon },
 };
 
@@ -90,6 +98,12 @@ function deriveSummary(toolName: string, input: unknown): string | null {
     case "bash_run":
     case "bash_background":
       return str("command");
+    case "terminal_execute":
+      return str("command");
+    case "terminal_type":
+      return str("text");
+    case "get_terminal_output":
+      return null;
     case "bash_logs":
     case "bash_kill":
       return str("id");
@@ -105,6 +119,14 @@ function deriveSummary(toolName: string, input: unknown): string | null {
       return str("agent") ?? str("task");
     case "run_external_agent":
       return str("agent") ?? str("prompt");
+    case "git_status":
+      return null;
+    case "git_diff":
+      return str("path") ?? (i.staged ? "staged changes" : "working tree changes");
+    case "git_stage":
+      return str("paths") ?? "all changes";
+    case "git_commit":
+      return str("message");
     case "todo_write": {
       const items = Array.isArray(i.todos) ? i.todos : null;
       return items

@@ -27,7 +27,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tokio::task::JoinHandle;
 
-use crate::modules::gateway::adapter::{ChatTarget, EventTx, PlatformAdapter, SendReceipt, SendResult};
+use crate::modules::gateway::adapter::{
+    ChatTarget, EventTx, PlatformAdapter, PlatformEventSink, SendReceipt, SendResult,
+};
 use crate::modules::gateway::message::{ChatType, MediaItem, MessageEvent};
 use crate::modules::gateway::platform::PlatformId;
 
@@ -472,6 +474,8 @@ struct Inner {
     /// Persisted across reconnects so a fresh poll continues from the last sync point.
     sync_buf: Mutex<String>,
     client: reqwest::Client,
+    /// Out-of-band events (background re-login QR frames) forwarded to the UI.
+    event_sink: Mutex<Option<PlatformEventSink>>,
 }
 
 pub struct WeixinAdapter {
@@ -493,7 +497,17 @@ impl WeixinAdapter {
                 context_tokens: Mutex::new(HashMap::new()),
                 sync_buf: Mutex::new(String::new()),
                 client,
+                event_sink: Mutex::new(None),
             }),
+        }
+    }
+
+    /// Forward an out-of-band frame (QR / status) to the UI, if a sink is set.
+    fn emit(&self, frame: QrLoginFrame) {
+        if let Some(sink) = &*self.inner.event_sink.lock().unwrap() {
+            if let Ok(payload) = serde_json::to_value(&frame) {
+                sink(payload);
+            }
         }
     }
 
@@ -526,6 +540,11 @@ impl WeixinAdapter {
         if qrcode_value.is_empty() {
             log::error!("weixin: QR response missing qrcode");
             return None;
+        }
+        // Surface the QR to the UI (background re-login) so the user knows a
+        // scan is required instead of the session silently dying.
+        if let Ok(svg) = qr_svg_data_url(&qrcode_value) {
+            self.emit(QrLoginFrame::Qr { svg_data_url: svg });
         }
 
         let deadline = tokio::time::Instant::now() + Duration::from_secs(480);
@@ -614,6 +633,11 @@ impl WeixinAdapter {
                         return None;
                     }
                     log::info!("weixin: QR login confirmed account_id={account_id}");
+                    self.emit(QrLoginFrame::Confirmed {
+                        account_id: account_id.clone(),
+                        token: token.clone(),
+                        base_url: base_url.clone(),
+                    });
                     return Some((account_id, token, base_url));
                 }
                 _ => { /* "wait" / "scaned" — keep polling */ }
@@ -785,6 +809,10 @@ impl PlatformAdapter for WeixinAdapter {
         if let Some(handle) = self.inner.task.lock().unwrap().take() {
             handle.abort();
         }
+    }
+
+    fn set_event_sink(&self, sink: PlatformEventSink) {
+        *self.inner.event_sink.lock().unwrap() = Some(sink);
     }
 
     fn send_text(&self, target: &ChatTarget, text: &str) -> BoxFuture<'static, SendResult> {

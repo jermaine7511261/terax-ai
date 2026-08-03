@@ -6,6 +6,9 @@ import {
   useRef,
   useState,
 } from "react";
+import { toast } from "sonner";
+import { useI18n } from "@/lib/i18n";
+import { getModel, type ModelId } from "../config";
 import { useWhisperRecording } from "../hooks/useWhisperRecording";
 import { expandSnippetTokens, type Snippet } from "../lib/snippets";
 import { tryRunSlashCommand, type SlashCommandMeta } from "./slashCommands";
@@ -74,6 +77,7 @@ export function AiComposerProvider({ children }: ProviderProps) {
   const sessionId = useChatStore((s) => s.activeSessionId);
   const status = useChatStore((s) => s.agentMeta.status);
   const isBusy = status === "thinking" || status === "streaming";
+  const { t } = useI18n();
 
   const [value, setValue] = useState("");
   const [files, setFiles] = useState<FileAttachment[]>([]);
@@ -225,6 +229,27 @@ export function AiComposerProvider({ children }: ProviderProps) {
       pickedCommands.length === 0
     )
       return;
+
+    // Vision gate: if the user attached images but the selected model does not
+    // advertise vision, block with a clear toast instead of silently sending
+    // images a non-vision model will drop or error on.
+    const hasImages = files.some((f) => f.kind === "image");
+    if (hasImages) {
+      const { selectedModelId } = useChatStore.getState();
+      let supportsVision = false;
+      try {
+        const info = getModel(selectedModelId as ModelId);
+        supportsVision = info.tags?.includes("vision") ?? false;
+      } catch {
+        supportsVision = false;
+      }
+      if (!supportsVision) {
+        toast(t("ai.modelNoVision"), {
+          description: t("ai.modelNoVisionHint"),
+        });
+        return;
+      }
+    }
 
     // Slash-command interception. `/plan` toggles plan mode; `/init` rewrites
     // the prompt to the YAMET.md scan template before sending.

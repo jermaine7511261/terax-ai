@@ -102,7 +102,7 @@ The themes below frame every scope decision.
 ### Coming next
 
 - [x] SSH support (PTY auth and known_hosts first; SFTP and port forwarding later)
-- [ ] Themes and customizations (UI accents, user-custom keybindings; terminal/editor themes shipped)
+- [ ] Themes and customizations (UI accents; terminal/editor themes + user-custom keybindings shipped)
 - [x] AI autocomplete improvements in editor (project-aware context, lower latency)
 - [x] Drag and drop in terminal (files as quoted paths, AI panel as context)
 - [x] AI agent meta-orchestration (Yamet agent spawning and managing external coding agents like Claude Code / OpenCode)
@@ -138,7 +138,7 @@ See `good-first-issue` and `help-wanted` labels on GitHub Issues for concrete ta
 
 Categories that will not be built into Yamet. Individual feature requests in these categories will be closed.
 
-- **Heavy IDE features.** Full language-server integration, integrated debuggers, refactoring engines, project-wide search at IDE scale. Use a real editor for those.
+- **Heavy IDE features beyond LSP.** Language-server basics (go-to-definition, references, rename, formatting, diagnostics, 19 built-in presets) are shipped. Integrated debuggers, refactoring engines, and IDE-scale project-wide search remain out of scope — use a real editor for those.
 - **Notebook and document workspaces.** Anything that turns Yamet into a document host rather than a terminal.
 - **Package manager and toolchain UIs.** Use `npm`, `pip`, `cargo` and friends in the terminal directly.
 - **Full web browser features.** Preview pane stays scoped to local dev servers and lightweight doc viewing. No navigation history, no bookmarks, no dev tools.

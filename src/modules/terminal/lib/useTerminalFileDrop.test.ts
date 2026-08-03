@@ -28,7 +28,7 @@ describe("createTerminalPathDropTarget", () => {
       setTarget,
     });
 
-    expect(target.dropPath("/repo/My File.ts", 40, 50)).toBe(true);
+    expect(target.dropPath(["/repo/My File.ts"], 40, 50)).toBe(true);
     expect(setTarget).toHaveBeenCalledWith(null);
     expect(paste).toHaveBeenCalledWith(11, "'/repo/My File.ts' ");
   });
@@ -42,7 +42,7 @@ describe("createTerminalPathDropTarget", () => {
       setTarget,
     });
 
-    expect(target.dropPath("/repo/file.ts", 1, 2)).toBe(false);
+    expect(target.dropPath(["/repo/file.ts"], 1, 2)).toBe(false);
     expect(setTarget).toHaveBeenCalledWith(null);
     expect(paste).not.toHaveBeenCalled();
   });

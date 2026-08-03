@@ -102,9 +102,22 @@ pub fn sha1_hex(data: &[u8]) -> String {
     hex::encode(h.finalize())
 }
 
-/// Constant-time-ish hex comparison for callback signatures.
+/// Constant-time hex comparison for callback signatures.
+///
+/// Runs a fixed-length loop over the longer input and folds the length
+/// difference into the accumulator, so the time taken does not reveal how many
+/// leading bytes matched (or even whether the lengths differ).
 pub fn constant_time_eq(a: &str, b: &str) -> bool {
-    a.as_bytes().len() == b.as_bytes().len() && a.as_bytes().iter().zip(b.as_bytes()).all(|(x, y)| x == y)
+    let a = a.as_bytes();
+    let b = b.as_bytes();
+    let max = a.len().max(b.len());
+    let mut diff = (a.len() as u8) ^ (b.len() as u8);
+    for i in 0..max {
+        let x = a.get(i).copied().unwrap_or(0);
+        let y = b.get(i).copied().unwrap_or(0);
+        diff |= x ^ y;
+    }
+    diff == 0
 }
 
 #[cfg(test)]

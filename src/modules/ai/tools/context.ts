@@ -11,6 +11,11 @@ export type ToolContext = {
    * Returns false if there is no active terminal tab to inject into.
    */
   injectIntoActivePty: (text: string) => boolean;
+  /**
+   * Type into the active terminal AND submit it (Enter) so the shell runs it.
+   * Returns false if there is no active terminal tab.
+   */
+  executeInActivePty: (text: string) => boolean;
   /** Open a new preview tab (in-app iframe) at the given URL. */
   openPreview: (url: string) => boolean;
   /** Spawn a Claude Code agent in a new terminal tab, bound to this session. */

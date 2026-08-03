@@ -357,6 +357,20 @@ export function checkShellCommand(cmd: string): SafetyResult {
         "Refused: command attempts to recursively delete the filesystem root.",
     };
   }
+  // rm -rf . / ./ / * / ** / ./* — a bare glob or dot target wipes the current
+  // directory's contents. Explicit named subdirectories (`rm -rf ./build`) are
+  // legitimate and stay allowed — this only catches targets made of `.`/`*`.
+  if (
+    /\brm\s+(-[a-zA-Z]*r[a-zA-Z]*f[a-zA-Z]*|-[a-zA-Z]*f[a-zA-Z]*r[a-zA-Z]*)\s+['"]?[./*]+['"]?(\s|$|;|&|\|)/.test(
+      c,
+    )
+  ) {
+    return {
+      ok: false,
+      reason:
+        "Refused: command recursively deletes the current directory or a bare glob of it.",
+    };
+  }
   // rm -rf ~ / $HOME / ${HOME}, with or without a trailing path — wiping the user's home dir
   if (
     /\brm\s+-[a-zA-Z]*r[a-zA-Z]*f[a-zA-Z]*\s+(['"]?(~(\/[^\s'"]*)?|\$\{?HOME\}?(\/[^\s'"]*)?)['"]?)(\s|$|;|&|\|)/.test(
@@ -375,6 +389,15 @@ export function checkShellCommand(cmd: string): SafetyResult {
   if (/\bdd\b[^|]*\bof=\/dev\/(disk|sd|nvme|hd)/i.test(c)) {
     return { ok: false, reason: "Refused: dd to a block device is not allowed." };
   }
+  // Shell redirection into a raw disk device (`> /dev/sda`, `1>/dev/sda`,
+  // `>> /dev/nvme0n1`). `> /dev/null` stays allowed — null isn't a device name
+  // in this list.
+  if (/[12]?>>?\s*\/dev\/(disk|sd|nvme|hd)[a-z0-9]*/i.test(c)) {
+    return {
+      ok: false,
+      reason: "Refused: redirecting output to a block device is not allowed.",
+    };
+  }
   // mkfs / fdisk / diskutil eraseDisk / parted
   if (
     /\b(mkfs(\.[a-z0-9]+)?|fdisk|parted)\b/.test(c) ||
@@ -385,13 +408,41 @@ export function checkShellCommand(cmd: string): SafetyResult {
       reason: "Refused: disk-formatting commands are not allowed.",
     };
   }
+  // chmod -R on the filesystem root — recursively loosening every file's
+  // permissions on `/` is destructive and almost never intended.
+  if (/\bchmod\s+-R\s+[0-7a-z+=-]{1,8}\s+(['"]?\/['"]?)(\s|$|;|&|\|)/.test(c)) {
+    return {
+      ok: false,
+      reason: "Refused: recursive chmod on the filesystem root is not allowed.",
+    };
+  }
+  // System power commands — shutting down or rebooting the host from an AI
+  // suggestion is never a safe side effect. Anchored to command position
+  // (start, after `;`/`&`/`|`, or after `sudo`) so `echo shutdown` stays legal.
+  if (/(^|[;&|]\s*|sudo\s+)(shutdown|poweroff|halt|reboot)\b/.test(c)) {
+    return {
+      ok: false,
+      reason: "Refused: system shutdown/power commands are not allowed.",
+    };
+  }
+  // Force-pushing to git rewrites remote history — a data-loss side effect
+  // that needs the user to do it deliberately. `--force-with-lease` (safer
+  // variant that refuses to clobber others' commits) is left alone — the
+  // trailing `(\s|$|;|&|\|)` makes the regex backtrack past `-with-lease`.
+  if (/\bgit\s+push\b[^;&|]*(--force|-f)(\s|$|;|&|\|)/.test(c)) {
+    return {
+      ok: false,
+      reason: "Refused: git push --force is not allowed (rewrites remote history).",
+    };
+  }
   // Fork bomb
   if (/:\s*\(\s*\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;/.test(c)) {
     return { ok: false, reason: "Refused: fork-bomb pattern detected." };
   }
   // Pipe-to-shell from network. The user already approves the command, but
   // this combo is overwhelmingly malicious-payload-shaped and worth flagging.
-  if (/\b(curl|wget)\b[^|;&]*\|\s*(ba|z|k|d|fi|c)?sh\b/.test(c)) {
+  // `sudo bash` / `sudo sh` are equally suspicious (root shell from network).
+  if (/\b(curl|wget)\b[^|;&]*\|\s*(sudo\s+)?(ba|z|k|d|fi|c)?sh\b/.test(c)) {
     return {
       ok: false,
       reason:

@@ -213,5 +213,59 @@ export function buildFsTools(ctx: ToolContext) {
         }
       },
     }),
+
+    delete_file: tool({
+      description:
+        "Delete a file (or an empty directory). Recursively deletes a non-empty directory, so be careful. Always asks the user before running. Never use bash_run rm for this — use this tool so the path safety checks apply.",
+      inputSchema: z.object({
+        path: z
+          .string()
+          .describe("Absolute path, or relative to the active terminal cwd."),
+      }),
+      needsApproval: true,
+      execute: async ({ path }) => {
+        const reqPath = resolvePath(path, ctx.getCwd());
+        const safety = await checkWritableCanonical(reqPath, native.canonicalize);
+        if (!safety.ok) return { error: safety.reason, path: reqPath };
+        const abs = safety.canonical;
+        try {
+          await native.deleteFile(abs);
+          return { path: abs, ok: true };
+        } catch (e) {
+          return { error: String(e), path: abs };
+        }
+      },
+    }),
+
+    rename_file: tool({
+      description:
+        "Rename or move a file/directory to a new path. Refuses to overwrite an existing target. Always asks the user before running.",
+      inputSchema: z.object({
+        from: z
+          .string()
+          .describe("Current path (absolute, or relative to the active terminal cwd)."),
+        to: z
+          .string()
+          .describe("New path (absolute, or relative to the active terminal cwd)."),
+      }),
+      needsApproval: true,
+      execute: async ({ from, to }) => {
+        const fromAbs = resolvePath(from, ctx.getCwd());
+        const toAbs = resolvePath(to, ctx.getCwd());
+        const safety = await checkWritableCanonical(fromAbs, native.canonicalize);
+        if (!safety.ok) return { error: safety.reason, path: fromAbs };
+        const src = safety.canonical;
+        // The destination must also be a writable, non-secret location.
+        const destSafety = await checkWritableCanonical(toAbs, native.canonicalize);
+        if (!destSafety.ok) return { error: destSafety.reason, path: toAbs };
+        const dest = destSafety.canonical;
+        try {
+          await native.renameFile(src, dest);
+          return { from: src, to: dest, ok: true };
+        } catch (e) {
+          return { error: String(e), from: src, to: dest };
+        }
+      },
+    }),
   } as const;
 }

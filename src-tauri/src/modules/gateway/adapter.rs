@@ -1,8 +1,14 @@
 use futures_util::future::BoxFuture;
+use std::sync::Arc;
 use tokio::sync::mpsc;
 
 use super::message::{ChatType, MessageEvent};
 use super::platform::PlatformId;
+
+/// A structured out-of-band event an adapter wants to surface to the frontend
+/// (e.g. Weixin background re-login QR frames). Serialized as JSON and emitted
+/// on the `yamet:gateway-platform-event` channel.
+pub type PlatformEventSink = Arc<dyn Fn(serde_json::Value) + Send + Sync>;
 
 /// Where an outbound message should be delivered.
 #[derive(Debug, Clone)]
@@ -71,4 +77,16 @@ pub trait PlatformAdapter: Send + Sync {
 
     /// Send a plain-text message to a target.
     fn send_text(&self, target: &ChatTarget, text: &str) -> BoxFuture<'static, SendResult>;
+
+    /// For callback-based platforms (WeCom, WeChat OA): the local callback URL
+    /// the user must tunnel and paste into the platform admin console. `None`
+    /// when the platform doesn't use callbacks or isn't connected yet.
+    fn callback_url(&self) -> Option<String> {
+        None
+    }
+
+    /// Install an out-of-band event sink (background re-login QR frames, etc.).
+    /// The adapter may keep and invoke it from its background loops. Default is
+    /// a no-op — most platforms never use it.
+    fn set_event_sink(&self, _sink: PlatformEventSink) {}
 }

@@ -46,11 +46,20 @@ const TOOL_LABELS: Record<string, (input: Record<string, unknown>) => string> =
     bash_kill: () => `Stopping background process`,
     suggest_command: (i) =>
       `Suggesting ${ellipsize(String(i.command ?? ""), 60)}`,
+    get_terminal_output: () => `Reading terminal output`,
+    terminal_execute: (i) =>
+      `Running in terminal ${ellipsize(String(i.command ?? ""), 60)}`,
+    terminal_type: (i) =>
+      `Typing in terminal ${ellipsize(String(i.text ?? ""), 60)}`,
     todo_write: (i) =>
       `Updating plan (${Array.isArray(i.todos) ? i.todos.length : 0} items)`,
     run_subagent: (i) => `Spawning ${String(i.type ?? "subagent")} subagent`,
     run_external_agent: (i) =>
       `Delegating to ${String(i.agent ?? "external agent")}`,
+    git_status: () => `Reading git status`,
+    git_diff: (i) => `Showing git diff${shortPath(i.path) ? ` for ${shortPath(i.path)}` : ""}`,
+    git_stage: () => `Staging changes`,
+    git_commit: (i) => `Committing: ${ellipsize(String(i.message ?? ""), 40)}`,
   };
 
 function shortPath(p: unknown): string {

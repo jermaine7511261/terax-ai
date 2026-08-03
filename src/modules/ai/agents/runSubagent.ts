@@ -3,8 +3,11 @@ import { DEFAULT_MODEL_ID, type CustomEndpoint, type ModelId } from "../config";
 import { buildConfiguredLanguageModel } from "../lib/agent";
 import type { CustomEndpointKeys, ProviderKeys } from "../lib/keyring";
 import type { ToolContext } from "../tools/context";
+import { buildEditTools } from "../tools/edit";
 import { buildFsTools } from "../tools/fs";
+import { buildGitTools } from "../tools/git";
 import { buildSearchTools } from "../tools/search";
+import { buildShellTools } from "../tools/shell";
 import { SUBAGENTS, type SubagentType } from "./registry";
 
 const SUBAGENT_MAX_STEPS = 12;
@@ -27,6 +30,23 @@ type RunResult = {
   durationMs: number;
 };
 
+/**
+ * ai SDK blocks tools with `needsApproval: true` inside `generateText` (it
+ * collects them as approval requests and never executes them). Subagents have
+ * no UI approval channel, so writable subagents must run their mutating tools
+ * unblocked — the approval happens once, on the `run_subagent` tool call itself.
+ */
+function stripApproval(tool: unknown): unknown {
+  if (tool && typeof tool === "object") {
+    const { needsApproval: _needsApproval, ...rest } = tool as Record<
+      string,
+      unknown
+    >;
+    return rest;
+  }
+  return tool;
+}
+
 export async function runSubagent({
   type,
   prompt,
@@ -45,9 +65,15 @@ export async function runSubagent({
     ...buildFsTools(toolContext),
     ...buildSearchTools(toolContext),
   };
+  const writable: Record<string, unknown> = {
+    ...buildEditTools(toolContext),
+    ...buildGitTools(toolContext),
+    ...buildShellTools(toolContext),
+  };
   const tools: Record<string, unknown> = {};
   for (const t of def.tools) {
     if (t in readOnly) tools[t] = readOnly[t];
+    else if (t in writable) tools[t] = stripApproval(writable[t]);
   }
 
   const model = await buildConfiguredLanguageModel(modelId, keys, {

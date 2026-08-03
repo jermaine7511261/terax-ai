@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 export type ExplorerPathDropTarget = {
   updateTarget: (clientX: number, clientY: number) => boolean;
-  dropPath: (path: string, clientX: number, clientY: number) => boolean;
+  dropPath: (paths: string[], clientX: number, clientY: number) => boolean;
   clearTarget: () => void;
 };
 
@@ -55,7 +55,7 @@ export function finishExplorerDrag(
 ): void {
   const handledByPathTarget =
     commit &&
-    (pathDropTarget?.dropPath(source, clientX, clientY) ?? false);
+    (pathDropTarget?.dropPath([source], clientX, clientY) ?? false);
   if (commit && !handledByPathTarget && moveTarget) {
     onMove(source, moveTarget);
   }

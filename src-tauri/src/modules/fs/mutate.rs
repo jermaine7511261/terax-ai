@@ -1,15 +1,43 @@
-use crate::modules::workspace::{resolve_path, WorkspaceEnv};
+use crate::modules::workspace::{resolve_path, WorkspaceEnv, WorkspaceRegistry};
+use std::path::Path;
+use tauri::Manager;
 
-/// Creates a new empty file. Fails if the file already exists.
-#[tauri::command]
-pub fn fs_create_file(path: String, workspace: Option<WorkspaceEnv>) -> Result<(), String> {
-    let workspace = WorkspaceEnv::from_option(workspace);
-    let p = resolve_path(&path, &workspace);
+fn create_file_sync(p: &Path) -> Result<(), String> {
     if p.exists() {
         return Err(format!("already exists: {}", p.display()));
     }
-    std::fs::write(&p, "").map_err(|e| {
+    std::fs::write(p, "").map_err(|e| {
         log::debug!("fs_create_file({}) failed: {e}", p.display());
+        e.to_string()
+    })
+}
+
+/// Creates a new empty file. Fails if the file already exists.
+#[tauri::command]
+pub fn fs_create_file(
+    path: String,
+    workspace: Option<WorkspaceEnv>,
+    source: Option<String>,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
+    let workspace = WorkspaceEnv::from_option(workspace);
+    let p = resolve_path(&path, &workspace);
+    // Defense-in-depth: AI-sourced mutations must land inside an authorized
+    // workspace root (see fs::mod::enforce_ai_workspace_authorization).
+    let registry = app.state::<WorkspaceRegistry>();
+    super::enforce_ai_workspace_authorization(&p, &source, &registry).map_err(|e| {
+        log::warn!("{e}");
+        e
+    })?;
+    create_file_sync(&p)
+}
+
+fn create_dir_sync(p: &Path) -> Result<(), String> {
+    if p.exists() {
+        return Err(format!("already exists: {}", p.display()));
+    }
+    std::fs::create_dir_all(p).map_err(|e| {
+        log::debug!("fs_create_dir({}) failed: {e}", p.display());
         e.to_string()
     })
 }
@@ -18,31 +46,30 @@ pub fn fs_create_file(path: String, workspace: Option<WorkspaceEnv>) -> Result<(
 /// Parents are created as needed — matches the common "new folder" UX
 /// where typing "a/b/c" creates the full chain.
 #[tauri::command]
-pub fn fs_create_dir(path: String, workspace: Option<WorkspaceEnv>) -> Result<(), String> {
+pub fn fs_create_dir(
+    path: String,
+    workspace: Option<WorkspaceEnv>,
+    source: Option<String>,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
     let workspace = WorkspaceEnv::from_option(workspace);
     let p = resolve_path(&path, &workspace);
-    if p.exists() {
-        return Err(format!("already exists: {}", p.display()));
-    }
-    std::fs::create_dir_all(&p).map_err(|e| {
-        log::debug!("fs_create_dir({}) failed: {e}", p.display());
-        e.to_string()
-    })
+    let registry = app.state::<WorkspaceRegistry>();
+    super::enforce_ai_workspace_authorization(&p, &source, &registry).map_err(|e| {
+        log::warn!("{e}");
+        e
+    })?;
+    create_dir_sync(&p)
 }
 
-/// Renames (or moves) a path. Refuses to overwrite an existing target.
-#[tauri::command]
-pub fn fs_rename(from: String, to: String, workspace: Option<WorkspaceEnv>) -> Result<(), String> {
-    let workspace = WorkspaceEnv::from_option(workspace);
-    let from_p = resolve_path(&from, &workspace);
-    let to_p = resolve_path(&to, &workspace);
+fn rename_sync(from_p: &Path, to_p: &Path) -> Result<(), String> {
     if !from_p.exists() {
         return Err(format!("not found: {}", from_p.display()));
     }
     if to_p.exists() {
         return Err(format!("already exists: {}", to_p.display()));
     }
-    std::fs::rename(&from_p, &to_p).map_err(|e| {
+    std::fs::rename(from_p, to_p).map_err(|e| {
         log::debug!(
             "fs_rename({} -> {}) failed: {e}",
             from_p.display(),
@@ -52,27 +79,68 @@ pub fn fs_rename(from: String, to: String, workspace: Option<WorkspaceEnv>) -> R
     })
 }
 
-/// Deletes a file or directory (recursively for dirs). Callers are
-/// responsible for confirming destructive operations with the user.
+/// Renames (or moves) a path. Refuses to overwrite an existing target.
 #[tauri::command]
-pub fn fs_delete(path: String, workspace: Option<WorkspaceEnv>) -> Result<(), String> {
+pub fn fs_rename(
+    from: String,
+    to: String,
+    workspace: Option<WorkspaceEnv>,
+    source: Option<String>,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
     let workspace = WorkspaceEnv::from_option(workspace);
-    let p = resolve_path(&path, &workspace);
-    let meta = std::fs::symlink_metadata(&p).map_err(|e| {
+    let from_p = resolve_path(&from, &workspace);
+    let to_p = resolve_path(&to, &workspace);
+    let registry = app.state::<WorkspaceRegistry>();
+    // Both endpoints must be inside the authorized workspace for AI-sourced
+    // renames/moves — a move is a write at the destination and a delete at the
+    // source.
+    super::enforce_ai_workspace_authorization(&from_p, &source, &registry).map_err(|e| {
+        log::warn!("{e}");
+        e
+    })?;
+    super::enforce_ai_workspace_authorization(&to_p, &source, &registry).map_err(|e| {
+        log::warn!("{e}");
+        e
+    })?;
+    rename_sync(&from_p, &to_p)
+}
+
+fn delete_sync(p: &Path) -> Result<(), String> {
+    let meta = std::fs::symlink_metadata(p).map_err(|e| {
         log::debug!("fs_delete stat({}) failed: {e}", p.display());
         e.to_string()
     })?;
 
     let result = if meta.is_dir() {
-        std::fs::remove_dir_all(&p)
+        std::fs::remove_dir_all(p)
     } else {
-        std::fs::remove_file(&p)
+        std::fs::remove_file(p)
     };
 
     result.map_err(|e| {
         log::warn!("fs_delete({}) failed: {e}", p.display());
         e.to_string()
     })
+}
+
+/// Deletes a file or directory (recursively for dirs). Callers are
+/// responsible for confirming destructive operations with the user.
+#[tauri::command]
+pub fn fs_delete(
+    path: String,
+    workspace: Option<WorkspaceEnv>,
+    source: Option<String>,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
+    let workspace = WorkspaceEnv::from_option(workspace);
+    let p = resolve_path(&path, &workspace);
+    let registry = app.state::<WorkspaceRegistry>();
+    super::enforce_ai_workspace_authorization(&p, &source, &registry).map_err(|e| {
+        log::warn!("{e}");
+        e
+    })?;
+    delete_sync(&p)
 }
 
 fn copy_recursive(src: &std::path::Path, dst: &std::path::Path) -> std::io::Result<()> {
@@ -132,13 +200,13 @@ mod tests {
     fn create_file_makes_empty_and_refuses_to_clobber() {
         let dir = tempfile::tempdir().unwrap();
         let f = dir.path().join("new.txt");
-        fs_create_file(s(f.clone()), None).expect("create");
+        create_file_sync(&f).expect("create");
         assert!(f.exists());
         assert_eq!(std::fs::read(&f).unwrap(), b"");
 
         // A second create must error, not truncate existing content.
         std::fs::write(&f, b"data").unwrap();
-        let err = fs_create_file(s(f.clone()), None).unwrap_err();
+        let err = create_file_sync(&f).unwrap_err();
         assert!(err.contains("already exists"), "got: {err}");
         assert_eq!(std::fs::read(&f).unwrap(), b"data");
     }
@@ -147,9 +215,9 @@ mod tests {
     fn create_dir_builds_nested_chain_and_refuses_existing() {
         let dir = tempfile::tempdir().unwrap();
         let nested = dir.path().join("a/b/c");
-        fs_create_dir(s(nested.clone()), None).expect("create dir");
+        create_dir_sync(&nested).expect("create dir");
         assert!(nested.is_dir());
-        let err = fs_create_dir(s(nested), None).unwrap_err();
+        let err = create_dir_sync(&nested).unwrap_err();
         assert!(err.contains("already exists"), "got: {err}");
     }
 
@@ -160,18 +228,18 @@ mod tests {
         let to = dir.path().join("b.txt");
         std::fs::write(&from, b"payload").unwrap();
 
-        fs_rename(s(from.clone()), s(to.clone()), None).expect("rename");
+        rename_sync(&from, &to).expect("rename");
         assert!(!from.exists());
         assert_eq!(std::fs::read(&to).unwrap(), b"payload");
 
         // Missing source is reported, not silently ignored.
-        let err = fs_rename(s(from), s(dir.path().join("c.txt")), None).unwrap_err();
+        let err = rename_sync(&from, &dir.path().join("c.txt")).unwrap_err();
         assert!(err.contains("not found"), "got: {err}");
 
         // Refusing to overwrite an existing target is the data-loss guard.
         let occupied = dir.path().join("keep.txt");
         std::fs::write(&occupied, b"keep").unwrap();
-        let err = fs_rename(s(to.clone()), s(occupied.clone()), None).unwrap_err();
+        let err = rename_sync(&to, &occupied).unwrap_err();
         assert!(err.contains("already exists"), "got: {err}");
         assert_eq!(std::fs::read(&occupied).unwrap(), b"keep");
         assert!(to.exists());
@@ -217,16 +285,16 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let f = dir.path().join("x.txt");
         std::fs::write(&f, b"x").unwrap();
-        fs_delete(s(f.clone()), None).expect("delete file");
+        delete_sync(&f).expect("delete file");
         assert!(!f.exists());
 
         let sub = dir.path().join("sub");
         std::fs::create_dir_all(sub.join("inner")).unwrap();
         std::fs::write(sub.join("inner/y.txt"), b"y").unwrap();
-        fs_delete(s(sub.clone()), None).expect("delete dir");
+        delete_sync(&sub).expect("delete dir");
         assert!(!sub.exists());
 
-        let err = fs_delete(s(dir.path().join("missing")), None).unwrap_err();
+        let err = delete_sync(&dir.path().join("missing")).unwrap_err();
         assert!(!err.is_empty());
     }
 
@@ -243,7 +311,7 @@ mod tests {
         let link = dir.path().join("link");
         std::os::unix::fs::symlink(&real, &link).unwrap();
 
-        fs_delete(s(link.clone()), None).expect("delete symlink");
+        delete_sync(&link).expect("delete symlink");
         assert!(!link.exists(), "symlink itself should be gone");
         assert!(real.is_dir(), "target dir must survive");
         assert_eq!(std::fs::read(real.join("keep.txt")).unwrap(), b"keep");

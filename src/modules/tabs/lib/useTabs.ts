@@ -21,8 +21,9 @@ import {
 import { disposeSession } from "@/modules/terminal/lib/useTerminalSession";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-// Matches the renderer slot pool size — over this we'd evict an active leaf.
-export const MAX_PANES_PER_TAB = 4;
+// Must match the renderer slot pool size (rendererPool.ts POOL_MAX_SIZE) —
+// over this we'd evict an active leaf's live slot.
+export const MAX_PANES_PER_TAB = 5;
 
 type TabBase = {
   spaceId: string;

@@ -152,6 +152,7 @@ export const native = {
     invoke<void>("fs_write_file", {
       path,
       content,
+      source: "ai",
       workspace: currentWorkspaceEnv(),
     }),
   canonicalize: (path: string) =>
@@ -160,9 +161,30 @@ export const native = {
       workspace: currentWorkspaceEnv(),
     }),
   createFile: (path: string) =>
-    invoke<void>("fs_create_file", { path, workspace: currentWorkspaceEnv() }),
+    invoke<void>("fs_create_file", {
+      path,
+      source: "ai",
+      workspace: currentWorkspaceEnv(),
+    }),
   createDir: (path: string) =>
-    invoke<void>("fs_create_dir", { path, workspace: currentWorkspaceEnv() }),
+    invoke<void>("fs_create_dir", {
+      path,
+      source: "ai",
+      workspace: currentWorkspaceEnv(),
+    }),
+  renameFile: (from: string, to: string) =>
+    invoke<void>("fs_rename", {
+      from,
+      to,
+      source: "ai",
+      workspace: currentWorkspaceEnv(),
+    }),
+  deleteFile: (path: string) =>
+    invoke<void>("fs_delete", {
+      path,
+      source: "ai",
+      workspace: currentWorkspaceEnv(),
+    }),
   // AI tooling never sees dot-prefixed entries regardless of the user's
   // explorer preference — keeps .git / .env / .ssh out of agent context.
   readDir: (path: string) =>

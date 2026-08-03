@@ -296,6 +296,16 @@ export function leafIdForPty(ptyId: number): number | null {
   return null;
 }
 
+/**
+ * Persist the active search query on a session so a slot rebind (tab switch,
+ * pool eviction) can re-apply it via `searchQuery` in rendererPool. Called by
+ * the search UI on every incremental change.
+ */
+export function setLeafSearchQuery(leafId: number, q: string | null): void {
+  const s = sessions.get(leafId);
+  if (s) s.searchQuery = q;
+}
+
 export function ptyIdForLeaf(leafId: number): number | null {
   return sessions.get(leafId)?.pty?.id ?? null;
 }
@@ -735,6 +745,10 @@ export async function respawnSession(
 ): Promise<void> {
   const s = sessions.get(leafId);
   if (!s || s.disposed) return;
+  // Mutual exclusion with an in-flight open (attachSession / a concurrent
+  // respawn): don't tear down state under an openPtyWithRetry promise that is
+  // about to resolve and overwrite s.pty.
+  if (s.ptyOpening) return;
   s.pty?.close();
   s.pty = null;
   s.snapshot = null;

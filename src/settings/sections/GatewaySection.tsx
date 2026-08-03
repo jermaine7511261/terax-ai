@@ -4,7 +4,7 @@ import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useI18n, type TranslationKey } from "@/lib/i18n";
-import { type JSX, useEffect, useState } from "react";
+import { type JSX, useCallback, useEffect, useState } from "react";
 
 type QrFrame =
   | { kind: "qr"; svg_data_url: string }
@@ -34,6 +34,11 @@ type PlatformStatus = {
   label: string;
   configured: boolean;
   connected: boolean;
+};
+
+type CallbackUrlInfo = {
+  id: string;
+  url: string | null;
 };
 
 type FieldDef = { key: string; labelKey: string; secret?: boolean };
@@ -78,32 +83,58 @@ export function GatewaySection(): JSX.Element {
   const [platforms, setPlatforms] = useState<PlatformStatus[]>([]);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [values, setValues] = useState<Record<string, Record<string, string>>>({});
+  const [callbackUrls, setCallbackUrls] = useState<Record<string, string>>({});
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  const refresh = () => {
+  const refresh = useCallback(() => {
     void invoke<PlatformStatus[]>("gateway_platforms").then(setPlatforms);
-  };
+  }, []);
+  const refreshCallbackUrls = useCallback(() => {
+    void invoke<CallbackUrlInfo[]>("gateway_callback_urls").then((list) => {
+      const map: Record<string, string> = {};
+      for (const item of list) {
+        if (item.url) map[item.id] = item.url;
+      }
+      setCallbackUrls(map);
+    });
+  }, []);
   useEffect(() => {
     refresh();
-  }, []);
+    refreshCallbackUrls();
+  }, [refresh, refreshCallbackUrls]);
 
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
-  const refreshSessions = () => {
+  const refreshSessions = useCallback(() => {
     void invoke<SessionInfo[]>("gateway_sessions").then(setSessions);
-  };
+  }, []);
   useEffect(() => {
     refreshSessions();
-  }, []);
+  }, [refreshSessions]);
   useEffect(() => {
     let un: (() => void) | undefined;
     void getCurrentWebviewWindow()
-      .listen<string>("yamet:gateway-pending", () => refreshSessions())
+      .listen<[string, string | null]>("yamet:gateway-pending", () => refreshSessions())
       .then((u) => {
         un = u;
       });
     return () => {
       un?.();
     };
-  }, []);
+  }, [refreshSessions]);
+  // Refresh callback URLs when a platform connects (Rust emits this with the
+  // bound port; also covers the case where the settings window was open when
+  // the user connected from elsewhere).
+  useEffect(() => {
+    let un: (() => void) | undefined;
+    void getCurrentWebviewWindow()
+      .listen<string[]>("yamet:gateway-connected", () => refreshCallbackUrls())
+      .then((u) => {
+        un = u;
+      });
+    return () => {
+      un?.();
+    };
+  }, [refreshCallbackUrls]);
 
   const setField = (id: string, key: string, v: string) =>
     setValues((prev) => ({ ...prev, [id]: { ...prev[id], [key]: v } }));
@@ -116,10 +147,14 @@ export function GatewaySection(): JSX.Element {
     refresh();
   };
   const connect = (id: string) => {
-    void invoke("gateway_connect", { platform: id }).then(refresh);
+    void invoke("gateway_connect", { platform: id })
+      .then(refresh)
+      .then(refreshCallbackUrls);
   };
   const disconnect = (id: string) => {
-    void invoke("gateway_disconnect", { platform: id }).then(refresh);
+    void invoke("gateway_disconnect", { platform: id })
+      .then(refresh)
+      .then(refreshCallbackUrls);
   };
   const [testChatId, setTestChatId] = useState<Record<string, string>>({});
   const [testText, setTestText] = useState<Record<string, string>>({});
@@ -130,6 +165,54 @@ export function GatewaySection(): JSX.Element {
     statusLabel: "",
     error: null,
   });
+  // Background Weixin re-login (session expired while polling): the adapter
+  // streams QR/status frames here so the user can scan instead of the session
+  // silently dying.
+  const [reloginFlow, setReloginFlow] = useState<QrFlow>({
+    running: false,
+    qrUrl: null,
+    statusLabel: "",
+    error: null,
+  });
+  useEffect(() => {
+    let un: (() => void) | undefined;
+    void getCurrentWebviewWindow()
+      .listen<[string, unknown]>("yamet:gateway-platform-event", (e) => {
+        const [platform, payload] = e.payload;
+        if (platform !== "weixin") return;
+        const frame = payload as QrFrame;
+        if (frame.kind === "qr") {
+          setReloginFlow((s) => ({
+            ...s,
+            running: true,
+            qrUrl: frame.svg_data_url,
+            statusLabel: "waiting",
+            error: null,
+          }));
+        } else if (frame.kind === "status") {
+          setReloginFlow((s) => ({
+            ...s,
+            statusLabel: frame.status === "scanned" ? "scanned" : "waiting",
+          }));
+        } else if (frame.kind === "confirmed") {
+          // Persist the fresh credentials so the new token survives restarts.
+          void invoke("gateway_weixin_persist", {
+            accountId: frame.account_id,
+            token: frame.token,
+            baseUrl: frame.base_url,
+          }).catch((err) => {
+            setReloginFlow((s) => ({ ...s, error: String(err) }));
+          });
+          setReloginFlow((s) => ({ ...s, running: false, statusLabel: "done" }));
+        }
+      })
+      .then((u) => {
+        un = u;
+      });
+    return () => {
+      un?.();
+    };
+  }, []);
 
   const startQrLogin = async (id: string) => {
     setQrFlow({ running: true, qrUrl: null, statusLabel: "waiting", error: null });
@@ -221,6 +304,51 @@ export function GatewaySection(): JSX.Element {
           </div>
           {expanded === p.id && (
             <div className="mt-3 space-y-2">
+              {(p.id === "wecom" || p.id === "official_account") && (
+                <div className="space-y-1 border-b border-border/40 pb-3">
+                  <span className="text-xs font-medium">
+                    {t("gateway.callbackTitle")}
+                  </span>
+                  <p className="text-xs text-muted-foreground">
+                    {t("gateway.callbackHint")}
+                  </p>
+                  {callbackUrls[p.id] ? (
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 truncate rounded bg-muted/40 px-2 py-1 font-mono text-[11px]">
+                        {callbackUrls[p.id]}
+                      </code>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          void navigator.clipboard
+                            .writeText(callbackUrls[p.id] ?? "")
+                            .then(() => {
+                              setCopiedId(p.id);
+                              setTimeout(() => setCopiedId(null), 1500);
+                            });
+                        }}
+                      >
+                        {copiedId === p.id
+                          ? t("gateway.callbackCopied")
+                          : t("gateway.callbackCopy")}
+                      </Button>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      {t("gateway.callbackNotConnected")}
+                    </p>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    {t("gateway.callbackPortNote")}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {t("gateway.callbackGuideFile", {
+                      file: "docs/gateway-callback-tunnel-guide.md",
+                    })}
+                  </p>
+                </div>
+              )}
               {(FIELDS[p.id] ?? []).map((f) => (
                 <div key={f.key} className="flex items-center gap-2">
                   <label className="w-32 shrink-0 text-sm">
@@ -241,6 +369,56 @@ export function GatewaySection(): JSX.Element {
               </div>
               {p.id === "weixin" && (
                 <div className="mt-2 space-y-2 border-t border-border/40 pt-3">
+                  {(reloginFlow.running || reloginFlow.qrUrl) && (
+                    <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-amber-600">
+                          {reloginFlow.statusLabel === "done"
+                            ? t("gateway.reloginDone")
+                            : t("gateway.reloginTitle")}
+                        </span>
+                        {reloginFlow.qrUrl && reloginFlow.statusLabel !== "done" && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() =>
+                              setReloginFlow({ running: false, qrUrl: null, statusLabel: "", error: null })
+                            }
+                          >
+                            {t("common.cancel")}
+                          </Button>
+                        )}
+                      </div>
+                      {reloginFlow.qrUrl && reloginFlow.statusLabel !== "done" ? (
+                        <>
+                          <img
+                            src={reloginFlow.qrUrl}
+                            alt="Relogin QR"
+                            className="size-48 rounded-lg border border-border/50 bg-white p-2"
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            {t("gateway.reloginHint")}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {reloginFlow.statusLabel === "scanned"
+                              ? t("gateway.qrScanned")
+                              : t("gateway.reloginWaiting")}
+                          </p>
+                        </>
+                      ) : (
+                        !reloginFlow.qrUrl && (
+                          <p className="text-xs text-muted-foreground">
+                            {t("gateway.reloginWaiting")}
+                          </p>
+                        )
+                      )}
+                      {reloginFlow.error && (
+                        <p className="text-xs text-destructive">
+                          {t("gateway.reloginError")}: {reloginFlow.error}
+                        </p>
+                      )}
+                    </div>
+                  )}
                   {qrFlow.running ? (
                     <div className="space-y-2">
                       {qrFlow.qrUrl ? (

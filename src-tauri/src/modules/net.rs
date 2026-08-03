@@ -53,6 +53,14 @@ fn ip_kind(ip: IpAddr) -> IpKind {
             IpKind::Public
         }
         IpAddr::V6(v) => {
+            // IPv4-mapped IPv6 (`::ffff:a.b.c.d`) must be classified by its
+            // embedded IPv4 address. `Ipv6Addr::is_loopback()`/link-local
+            // checks return false for mapped addresses, so without this
+            // `::ffff:127.0.0.1` would be Public and `::ffff:169.254.169.254`
+            // (cloud metadata) would slip past the metadata block.
+            if let Some(v4) = v.to_ipv4_mapped() {
+                return ip_kind(IpAddr::V4(v4));
+            }
             if v.is_loopback() || v.is_unspecified() || v.is_multicast() {
                 return IpKind::Loopback;
             }
@@ -498,6 +506,36 @@ mod tests {
         assert_eq!(
             ip_kind("fe80::1".parse().unwrap()),
             IpKind::BlockedMetadata
+        );
+    }
+
+    #[test]
+    fn ipv4_mapped_ipv6_classified_by_embedded_ipv4() {
+        // `::ffff:` IPv4-mapped IPv6 must be classified by its embedded IPv4
+        // address, not by the V6 checks (which return false for mapped forms).
+        // Without the to_ipv4_mapped() unwrap these would all be "Public" —
+        // a real SSRF bypass: ::ffff:169.254.169.254 reaches cloud metadata.
+        assert_eq!(
+            ip_kind("::ffff:169.254.169.254".parse().unwrap()),
+            IpKind::BlockedMetadata
+        );
+        assert_eq!(
+            ip_kind("::ffff:127.0.0.1".parse().unwrap()),
+            IpKind::Loopback
+        );
+        assert_eq!(
+            ip_kind("::ffff:10.0.0.1".parse().unwrap()),
+            IpKind::Private
+        );
+        // A genuinely public mapped address stays Public.
+        assert_eq!(
+            ip_kind("::ffff:8.8.8.8".parse().unwrap()),
+            IpKind::Public
+        );
+        // Non-mapped V6 (e.g. 64:ff9b:: NAT64) still goes through V6 rules.
+        assert_eq!(
+            ip_kind("64:ff9b::c0a8:101".parse().unwrap()),
+            IpKind::Public
         );
     }
 

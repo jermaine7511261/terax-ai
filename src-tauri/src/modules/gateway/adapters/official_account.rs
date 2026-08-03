@@ -18,7 +18,7 @@ use tokio::sync::mpsc;
 use crate::modules::gateway::adapter::{
     ChatTarget, EventTx, PlatformAdapter, SendReceipt, SendResult,
 };
-use crate::modules::gateway::crypto::sha1_hex;
+use crate::modules::gateway::crypto::{constant_time_eq, sha1_hex};
 use crate::modules::gateway::message::{ChatType, MessageEvent};
 use crate::modules::gateway::platform::PlatformId;
 use base64::Engine;
@@ -44,6 +44,12 @@ struct OaInner {
     stop: Arc<AtomicBool>,
     task: Mutex<Option<tokio::task::JoinHandle<()>>>,
     access_token: Mutex<Option<(String, i64)>>,
+    /// Local callback URL (bound port), surfaced to the settings UI so the
+    /// user can tunnel it as the公众号回调地址.
+    callback_url: Mutex<Option<String>>,
+    /// Shared HTTP client — reused across token refresh and message sends
+    /// instead of dialing a fresh connection pool per request.
+    client: reqwest::Client,
 }
 
 impl OfficialAccountAdapter {
@@ -54,6 +60,8 @@ impl OfficialAccountAdapter {
                 stop: Arc::new(AtomicBool::new(false)),
                 task: Mutex::new(None),
                 access_token: Mutex::new(None),
+                callback_url: Mutex::new(None),
+                client: reqwest::Client::new(),
             }),
         }
     }
@@ -68,7 +76,9 @@ impl OfficialAccountAdapter {
             "{}/token?grant_type=client_credential&appid={}&secret={}",
             API_BASE, self.inner.cfg.app_id, self.inner.cfg.app_secret
         );
-        let resp: serde_json::Value = reqwest::Client::new()
+        let resp: serde_json::Value = self
+            .inner
+            .client
             .get(&url)
             .send()
             .await
@@ -102,7 +112,7 @@ fn aes256_cbc_decrypt(key: &[u8], iv: &[u8], ciphertext: &[u8]) -> Result<Vec<u8
 fn verify_signature(token: &str, ts: &str, nonce: &str, sig: &str) -> bool {
     let mut parts = vec![token.to_string(), ts.to_string(), nonce.to_string()];
     parts.sort();
-    sha1_hex(parts.join("").as_bytes()) == sig
+    constant_time_eq(&sha1_hex(parts.join("").as_bytes()), sig)
 }
 
 /// Decrypt the message body: random(16) + msg_len(4 big-endian) + content + appid.
@@ -174,7 +184,7 @@ impl PlatformAdapter for OfficialAccountAdapter {
                 "msgtype": "text",
                 "text": { "content": content },
             });
-            let client = reqwest::Client::new();
+            let client = this.client.clone();
             // Refresh token then send.
             let token = {
                 // reuse cached token via a short re-fetch
@@ -222,17 +232,29 @@ impl PlatformAdapter for OfficialAccountAdapter {
             Ok(SendReceipt { message_id: None })
         })
     }
+
+    fn callback_url(&self) -> Option<String> {
+        self.inner.callback_url.lock().unwrap().clone()
+    }
 }
 
 /// Minimal passive-callback HTTP server (GET url-verification + POST message).
+/// Binds a fixed, predictable port (8788 — matches the tunnel guide) so the
+/// user can configure a stable tunnel; falls back to an ephemeral port if the
+/// fixed one is taken.
 async fn run_oa_callback_server(inner: &Arc<OaInner>, tx: EventTx) -> Result<(), String> {
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
-        .await
-        .map_err(|e| format!("oa callback bind failed: {e}"))?;
+    let listener = match tokio::net::TcpListener::bind("127.0.0.1:8788").await {
+        Ok(l) => l,
+        Err(_) => tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .map_err(|e| format!("oa callback bind failed: {e}"))?,
+    };
     let addr = listener
         .local_addr()
         .map_err(|e| format!("oa callback addr failed: {e}"))?;
-    log::info!("WeChat OA callback server on {addr} — set this URL (tunneled) as the公众号回调地址");
+    let callback_url = format!("http://{addr}/callback");
+    *inner.callback_url.lock().unwrap() = Some(callback_url.clone());
+    log::info!("WeChat OA callback server on {addr} — set this URL (tunneled) as the公众号回调地址: {callback_url}");
     let token = inner.cfg.token.clone();
     let aes_key = inner.cfg.encoding_aes_key.clone();
     loop {

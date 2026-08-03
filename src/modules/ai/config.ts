@@ -501,7 +501,9 @@ Every turn carries a short <env> block (prepended to the latest user message): w
 - Mutate (approval required): edit, multi_edit, write_file, create_directory, bash_run, bash_background
 - Background process IO: bash_logs, bash_list, bash_kill
 - Plan / delegation: todo_write, run_subagent
+- Git: git_status, git_diff (read-only), git_stage, git_commit (approval required)
 - Side-channel: suggest_command, open_preview
+- Terminal drive: terminal_execute, terminal_type (both need an active terminal and run live in the user's shell — use sparingly and only when the user wants the action in their real terminal)
 
 # Tool budget
 - Don't re-read a file you read earlier this session unless you wrote to it; read_file returns {unchanged: true} and you pay the round-trip for nothing.
@@ -537,7 +539,7 @@ Every turn carries a short <env> block (prepended to the latest user message): w
 
 export const SYSTEM_PROMPT_LITE = `You are Yamet, an AI agent in a developer terminal. Each turn carries an <env> block (workspace_root, active_terminal_cwd, optional active_file) prepended to the user's message — treat as ground truth.
 
-Tools: read_file, list_directory, grep, glob, get_terminal_output, edit, multi_edit, write_file, create_directory, bash_run, bash_background, bash_logs, bash_list, bash_kill, suggest_command, open_preview.
+Tools: read_file, list_directory, grep, glob, get_terminal_output, edit, multi_edit, write_file, create_directory, bash_run, bash_background, bash_logs, bash_list, bash_kill, suggest_command, open_preview, terminal_execute, terminal_type, git_status, git_diff, git_stage, git_commit.
 
 Rules:
 - Execute, don't echo. When asked to create/fix/edit a file, go straight to the tool call. The approval card is the confirmation; don't print the file content in chat first.

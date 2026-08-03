@@ -3,6 +3,13 @@ import { z } from "zod";
 import { checkShellCommand } from "../lib/security";
 import type { ToolContext } from "./context";
 
+function refusePrivate(ctx: ToolContext): string | null {
+  if (ctx.isActiveTerminalPrivate()) {
+    return "active terminal is in Privacy mode; its buffer is withheld. Ask the user to switch to a regular tab if they want you to act on it.";
+  }
+  return null;
+}
+
 export function buildTerminalTools(ctx: ToolContext) {
   return {
     suggest_command: tool({
@@ -42,12 +49,8 @@ export function buildTerminalTools(ctx: ToolContext) {
           .describe("Number of trailing lines to return. Default 80."),
       }),
       execute: async ({ lines }) => {
-        if (ctx.isActiveTerminalPrivate()) {
-          return {
-            error:
-              "active terminal is in Privacy mode; its buffer is withheld. Ask the user to switch to a regular tab if they want you to see it.",
-          };
-        }
+        const priv = refusePrivate(ctx);
+        if (priv) return { error: priv };
         const buffer = ctx.getTerminalContext();
         if (!buffer) return { output: "", note: "no active terminal" };
         const n = lines ?? 80;
@@ -57,6 +60,64 @@ export function buildTerminalTools(ctx: ToolContext) {
         const capped =
           sliced.length > MAX ? `…[truncated]…\n${sliced.slice(sliced.length - MAX)}` : sliced;
         return { output: capped, lines_returned: Math.min(parts.length, n) };
+      },
+    }),
+
+    terminal_execute: tool({
+      description:
+        "Type a command into the ACTIVE terminal and press Enter to run it. Use this when the user wants you to run something in their live shell (start a dev server, run a script, install a dependency, answer a REPL prompt). The command lands exactly where the user is typing — it is NOT a separate sandbox. Refuse if the active terminal is in Privacy mode. Do NOT inject secrets, passwords, or tokens. Prefer suggest_command if you only want to show a command without running it.",
+      inputSchema: z.object({
+        command: z
+          .string()
+          .describe(
+            "The text to type into the terminal. A trailing newline is added automatically to submit it.",
+          ),
+        note: z
+          .string()
+          .optional()
+          .describe("Optional one-line note shown to the user about what ran and why."),
+      }),
+      needsApproval: true,
+      execute: async ({ command, note }) => {
+        const priv = refusePrivate(ctx);
+        if (priv) return { error: priv };
+        if (!command) return { error: "command cannot be empty" };
+        const safety = checkShellCommand(command);
+        if (!safety.ok) return { error: safety.reason };
+        // Strip any trailing newlines; we submit with one \r.
+        const cleaned = command.replace(/[\r\n]+$/, "");
+        const ok = ctx.executeInActivePty(cleaned);
+        if (!ok) return { error: "no active terminal tab to run in" };
+        return { ok: true, ran: cleaned, note };
+      },
+    }),
+
+    terminal_type: tool({
+      description:
+        "Type text into the ACTIVE terminal WITHOUT pressing Enter (does not execute). Use this to fill in an interactive prompt (a REPL, `npm init` wizard, a `read` line) or to complete a partially-typed command. Refuse if the active terminal is in Privacy mode. Do NOT type secrets, passwords, or tokens.",
+      inputSchema: z.object({
+        text: z
+          .string()
+          .describe(
+            "The exact text to type at the cursor. No Enter is sent — use terminal_execute to submit.",
+          ),
+        note: z
+          .string()
+          .optional()
+          .describe("Optional one-line note about what was typed and why."),
+      }),
+      needsApproval: true,
+      execute: async ({ text, note }) => {
+        const priv = refusePrivate(ctx);
+        if (priv) return { error: priv };
+        if (!text) return { error: "text cannot be empty" };
+        // Control bytes would corrupt the interactive state.
+        if (/[\x00\x1b\x07]/.test(text)) {
+          return { error: "text must not contain control bytes" };
+        }
+        const ok = ctx.injectIntoActivePty(text);
+        if (!ok) return { error: "no active terminal tab to type into" };
+        return { ok: true, typed: text, note };
       },
     }),
 

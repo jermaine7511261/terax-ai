@@ -7,6 +7,48 @@ pub mod watch;
 
 use std::path::Path;
 
+use crate::modules::workspace::WorkspaceRegistry;
+
+/// Defense-in-depth for the AI write path: the frontend `security.ts` denylist
+/// is the first gate; this is the second, authoritative one. AI-sourced
+/// mutations (`source == "ai"`) must resolve to a path under an authorized
+/// workspace root. The user's own editor/explorer writes pass
+/// `source == "editor"`/null and are not gated here (they carry their own
+/// trust), so this must not break normal editing.
+pub(crate) fn enforce_ai_workspace_authorization(
+    target: &Path,
+    source: &Option<String>,
+    registry: &WorkspaceRegistry,
+) -> Result<(), String> {
+    if source.as_deref() != Some("ai") {
+        return Ok(());
+    }
+    // The file may not exist yet (new file / deep dir chain), so canonicalize
+    // the nearest existing ancestor and require that it sits under an
+    // authorized root.
+    let mut ancestor = target;
+    while !ancestor.exists() {
+        match ancestor.parent() {
+            Some(p) if p != ancestor => ancestor = p,
+            _ => break,
+        }
+    }
+    let canonical = std::fs::canonicalize(ancestor).map_err(|e| {
+        format!(
+            "AI write target not accessible: {} ({e})",
+            ancestor.display()
+        )
+    })?;
+    if registry.is_authorized(&canonical) {
+        Ok(())
+    } else {
+        Err(format!(
+            "AI write refused: {} is outside the authorized workspace",
+            canonical.display()
+        ))
+    }
+}
+
 /// The single canonical-to-display conversion: forward slashes, Windows
 /// verbatim `\\?\` prefix stripped. Route every such conversion through here.
 pub fn to_canon(p: impl AsRef<Path>) -> String {

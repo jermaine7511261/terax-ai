@@ -212,13 +212,37 @@ pub fn run() {
             tauri::async_runtime::block_on(async {
                 gateway::adapters::restore_from_keychain(&gateway_registry, &app_handle).await;
             });
+            // Restore the session-authorization whitelist from disk (approved
+            // sessions survive restarts; everything else re-requests approval).
+            if let Ok(data_dir) = app.path().app_local_data_dir() {
+                let _ = std::fs::create_dir_all(&data_dir);
+                gateway_registry.sessions().set_persist_path(
+                    data_dir.join("gateway-sessions.json"),
+                );
+            }
             app.manage(gateway_registry);
             {
                 use tauri::Emitter;
                 let h = app.handle().clone();
                 let reg = app.state::<gateway::registry::GatewayRegistry>();
-                reg.set_on_pending(std::sync::Arc::new(move |sk| {
-                    let _ = h.emit("yamet:gateway-pending", sk);
+                reg.set_on_pending(std::sync::Arc::new(move |sk, summary| {
+                    let _ = h.emit("yamet:gateway-pending", (sk, summary));
+                }));
+            }
+            {
+                use tauri::Emitter;
+                let h = app.handle().clone();
+                let reg = app.state::<gateway::registry::GatewayRegistry>();
+                reg.set_on_connected(std::sync::Arc::new(move |platform, url| {
+                    let _ = h.emit("yamet:gateway-connected", (platform, url));
+                }));
+            }
+            {
+                use tauri::Emitter;
+                let h = app.handle().clone();
+                let reg = app.state::<gateway::registry::GatewayRegistry>();
+                reg.set_platform_event(std::sync::Arc::new(move |platform, payload| {
+                    let _ = h.emit("yamet:gateway-platform-event", (platform, payload));
                 }));
             }
             // macOS skips parent() for the settings window, so tie its lifecycle
@@ -342,6 +366,8 @@ pub fn run() {
             gateway::commands::gateway_authorize,
             gateway::commands::gateway_revoke,
             gateway::commands::gateway_auto_approve,
+            gateway::commands::gateway_callback_urls,
+            gateway::commands::gateway_weixin_persist,
             net::lm_ping,
             net::ai_http_request,
             net::ai_http_stream,

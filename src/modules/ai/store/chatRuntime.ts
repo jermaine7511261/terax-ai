@@ -28,6 +28,8 @@ function makeChat(sessionId: string): Chat<UIMessage> {
       useChatStore.getState().live.isActiveTerminalPrivate(),
     injectIntoActivePty: (text) =>
       useChatStore.getState().live.injectIntoActivePty(text),
+    executeInActivePty: (text) =>
+      useChatStore.getState().live.executeInActivePty(text),
     openPreview: (url) => useChatStore.getState().live.openPreview(url),
     spawnAgent: (prompt) =>
       useChatStore.getState().live.spawnManagedAgent(prompt, sessionId),

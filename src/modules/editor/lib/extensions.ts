@@ -53,8 +53,10 @@ const SHARED_EXTENSIONS: readonly Extension[] = Object.freeze([
       backgroundColor: "transparent !important",
       color: "var(--muted-foreground)",
     },
+    // Give the lint gutter a fixed width so diagnostics have visible gutter
+    // markers (it was 0px, hiding them entirely). Matches the fold gutter size.
     ".cm-gutter-lint": {
-      width: "0px",
+      width: "10px",
     },
     ".cm-gutter": { backgroundColor: "transparent !important" },
     ".cm-lineNumbers .cm-gutterElement": {

@@ -109,7 +109,7 @@ Each module is self-contained, exports a thin barrel via `index.ts`, and owns it
 
 ### AI subsystem (`src/modules/ai/`)
 
-BYOK. Cloud providers via `@ai-sdk/*`: **OpenAI, Anthropic, Google, xAI, Cerebras, Groq, DeepSeek, Mistral, OpenRouter**, plus **OpenAI-compatible** for any custom base URL. Local / offline providers (key-optional, model id supplied at runtime): **LM Studio, MLX, Ollama**. Provider list in `config.ts` (`PROVIDERS`); model registry includes `DEFAULT_MODEL_ID` + `DEFAULT_AUTOCOMPLETE_MODEL`.
+BYOK. Built-in providers (all via `@ai-sdk/openai-compatible`): **DeepSeek, Mistral, OpenRouter**, plus **OpenAI-compatible** (any custom base URL, incl. the built-in opencode-go endpoint) and **llama.cpp** for local GGUF models. Provider list in `config.ts` (`PROVIDERS`); model registry includes `DEFAULT_MODEL_ID` + `DEFAULT_AUTOCOMPLETE_MODEL`. The `@ai-sdk/{openai,anthropic,google,xai,groq,cerebras}` packages are declared but unused — all providers route through the OpenAI-compatible transport.
 
 - **Key storage**: OS keychain via `keyring` (Rust). Frontend reads/writes through `secrets_*` commands. Service `KEYRING_SERVICE = "yamet-ai"`. Never persist keys to disk, settings store, or `localStorage`.
 - **Agent** (`lib/agent.ts`): `Experimental_Agent` with `stopWhen: stepCountIs(MAX_AGENT_STEPS)` and the system prompt from `config.ts`. Provider branching happens here - keep the `Agent` / `DirectChatTransport` shape; the rest of the system depends on AI SDK v6 chat semantics.
@@ -156,7 +156,7 @@ BYOK. Cloud providers via `@ai-sdk/*`: **OpenAI, Anthropic, Google, xAI, Cerebra
 - `bundle.targets: "all"` plus per-platform sections in `tauri.conf.json`:
   - **macOS**: `minimumSystemVersion: 10.15`.
   - **Linux**: deb depends `libwebkit2gtk-4.1-0`, `libgtk-3-0`; rpm `webkit2gtk4.1`, `gtk3`; AppImage bundles its media framework.
-  - **Windows**: NSIS installer in `currentUser` mode (no admin required), WebView2 via `embedBootstrapper` (offline install).
+  - **Windows**: NSIS installer in `currentUser` mode (no admin required), WebView2 via `downloadBootstrapper` (downloads the runtime if missing; not an offline embed).
 - Auto-updater configured with a public minisign key; release artifacts are hosted by your fork's release channel (point the updater `endpoints` in `tauri.conf.json` at your `latest.json`).
 
 ### Known gotchas

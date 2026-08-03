@@ -1,4 +1,4 @@
-import { native } from "@/modules/ai/lib/native";
+import { native, type DirEntry } from "@/modules/ai/lib/native";
 
 /**
  * Project context for AI completion: AGENTS.md / YAMET.md / CLAUDE.md found by
@@ -23,7 +23,7 @@ type CacheEntry = { at: number; value: DirContext | null };
 
 const CACHE_TTL_MS = 30_000;
 const MAX_NOTES_CHARS = 6000;
-const MAX_SIBLINGS = 4;
+const MAX_SIBLINGS = 8;
 const MAX_SIBLING_CHARS = 1200;
 const SIBLING_EXTENSIONS = new Set([
   ".ts",
@@ -81,22 +81,27 @@ async function listSiblingSnippets(
   dir: string,
   selfPath: string,
 ): Promise<{ filename: string; head: string }[]> {
-  let entries: { name: string; kind: string }[] = [];
+  let entries: DirEntry[] = [];
   try {
     entries = await native.readDir(dir);
   } catch {
     return [];
   }
   const self = selfPath.split(/[\\/]/).pop() ?? "";
-  const files = entries.filter(
-    (e) =>
-      e.kind === "file" &&
-      e.name !== self &&
-      !e.name.startsWith(".") &&
-      SIBLING_EXTENSIONS.has(e.name.slice(e.name.lastIndexOf(".")).toLowerCase()),
-  );
+  const files = entries
+    .filter(
+      (e) =>
+        e.kind === "file" &&
+        e.name !== self &&
+        !e.name.startsWith(".") &&
+        SIBLING_EXTENSIONS.has(e.name.slice(e.name.lastIndexOf(".")).toLowerCase()),
+    )
+    // Most-recently-edited first: files the user touched recently carry the
+    // freshest conventions/symbols, so they matter more than stale ones.
+    .sort((a, b) => (b.mtime ?? 0) - (a.mtime ?? 0))
+    .slice(0, MAX_SIBLINGS);
   const out: { filename: string; head: string }[] = [];
-  for (const f of files.slice(0, MAX_SIBLINGS)) {
+  for (const f of files) {
     const content = await readFileSafe(`${dir}/${f.name}`);
     if (content) {
       out.push({ filename: f.name, head: content.slice(0, MAX_SIBLING_CHARS) });

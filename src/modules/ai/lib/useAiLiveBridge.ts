@@ -101,6 +101,17 @@ export function useAiLiveBridge(params: Params) {
         term.focus();
         return true;
       },
+      executeInActivePty: (text) => {
+        const { activeId, tabs } = ref.current;
+        const t = tabs.find((x) => x.id === activeId);
+        if (t?.kind !== "terminal") return false;
+        const term = terminalRefs.current.get(t.activeLeafId);
+        if (!term) return false;
+        term.write(text);
+        term.write("\r");
+        term.focus();
+        return true;
+      },
       getWorkspaceRoot: () => {
         const { explorerRoot, launchCwd, home } = ref.current;
         return explorerRoot ?? launchCwd ?? home ?? null;

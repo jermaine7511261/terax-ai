@@ -8,8 +8,25 @@ import {
   useImperativeHandle,
   useRef,
 } from "react";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
+import { useI18n } from "@/lib/i18n";
 import { BlockOverlay } from "./block/BlockOverlay";
 import { BlockWatermark } from "./block/BlockWatermark";
+import {
+  clearLeaf,
+  pasteIntoLeaf,
+  selectAllLeaf,
+} from "./lib/rendererPool";
+import {
+  readTerminalClipboard,
+  writeTerminalClipboard,
+} from "./lib/terminalClipboard";
 import {
   focusLeafInput,
   submitToLeaf,
@@ -95,6 +112,26 @@ export const TerminalPane = memo(
     };
 
     const promptReady = session.blockMode === "prompt";
+    const { t } = useI18n();
+
+    const handleCopy = () => {
+      const sel = session.getSelection();
+      if (sel) void writeTerminalClipboard(sel);
+    };
+    const handlePaste = () => {
+      void readTerminalClipboard().then((text) => {
+        if (text) pasteIntoLeaf(leafId, text);
+      });
+    };
+    const handleSelectAll = () => {
+      selectAllLeaf(leafId);
+    };
+    const handleClear = () => {
+      clearLeaf(leafId);
+    };
+    const handleSearch = () => {
+      window.dispatchEvent(new CustomEvent("yamet:terminal-focus-search"));
+    };
 
     if (blocks) {
       return (
@@ -142,11 +179,34 @@ export const TerminalPane = memo(
     }
 
     return (
-      <div
-        ref={containerRef}
-        className="zoom-exempt h-full w-full"
-        style={hideStyle}
-      />
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
+          <div
+            ref={containerRef}
+            className="zoom-exempt h-full w-full"
+            style={hideStyle}
+          />
+        </ContextMenuTrigger>
+        <ContextMenuContent className="min-w-40">
+          <ContextMenuItem onSelect={handleCopy}>
+            {t("terminal.copy")}
+          </ContextMenuItem>
+          <ContextMenuItem onSelect={handlePaste}>
+            {t("terminal.paste")}
+          </ContextMenuItem>
+          <ContextMenuSeparator />
+          <ContextMenuItem onSelect={handleSelectAll}>
+            {t("terminal.selectAll")}
+          </ContextMenuItem>
+          <ContextMenuItem onSelect={handleClear}>
+            {t("terminal.clear")}
+          </ContextMenuItem>
+          <ContextMenuSeparator />
+          <ContextMenuItem onSelect={handleSearch}>
+            {t("terminal.search")}
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
     );
   }),
 );

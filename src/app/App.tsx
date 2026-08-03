@@ -87,6 +87,7 @@ import {
   hasLeaf,
   leafIds,
   navigateFocusedBlocks,
+  setLeafSearchQuery,
   type PaneBounds,
   type TerminalPaneHandle,
   useTerminalFileDrop,
@@ -358,6 +359,14 @@ export default function App() {
     },
     [activeLeafId],
   );
+
+  // Terminal context-menu "Find" focuses the global search field.
+  useEffect(() => {
+    const onFocus = () => searchInlineRef.current?.focus();
+    window.addEventListener("yamet:terminal-focus-search", onFocus);
+    return () =>
+      window.removeEventListener("yamet:terminal-focus-search", onFocus);
+  }, []);
 
   const disposeTab = useCallback(
     (id: number) => {
@@ -1015,6 +1024,7 @@ export default function App() {
         kind: "terminal",
         addon: activeSearchAddon,
         focus: () => terminalRefs.current.get(activeLeafId)?.focus(),
+        onQueryChange: (q) => setLeafSearchQuery(activeLeafId, q),
       };
     if (isEditorTab && activeEditorHandle)
       return {

@@ -8,6 +8,7 @@ import { SerializeAddon } from "@xterm/addon-serialize";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { type FontWeight, Terminal } from "@xterm/xterm";
+import { toast } from "sonner";
 import { shouldCursorBlink } from "./cursorBlink";
 import {
   readTerminalClipboard,
@@ -286,7 +287,15 @@ function createSlot(): Slot {
       if (event.type === "keydown") {
         const targetLeafId = slot.currentLeafId;
         void readTerminalClipboard().then((text) => {
-          if (text && slot.currentLeafId === targetLeafId) slot.term.paste(text);
+          if (!text || slot.currentLeafId !== targetLeafId) return;
+          // Multiline paste can silently execute several commands at once.
+          // Confirm first, then send atomically as a bracketed paste so the
+          // shell treats it as one edit (never line-by-line execution).
+          if (text.includes("\n")) {
+            confirmMultilinePaste(slot, text);
+          } else {
+            slot.term.paste(text);
+          }
         });
       }
       event.preventDefault();
@@ -303,6 +312,31 @@ function createSlot(): Slot {
 
   slots.push(slot);
   return slot;
+}
+
+/**
+ * Ask before pasting multiline content into the live terminal, then write it
+ * as one bracketed-paste frame (`\x1b[200~…\x1b[201~`) — the same framing
+ * `submitToLeaf` uses — so a REPL/shell can't execute each line separately.
+ */
+function confirmMultilinePaste(slot: Slot, text: string): void {
+  const lineCount = text.split("\n").length;
+  const preview = text.split("\n").slice(0, 3).join("\n");
+  toast("检测到多行粘贴", {
+    description: `剪贴板包含 ${lineCount} 行内容。确认后将作为一个整体粘贴（Bracketed Paste），不会逐行执行。\n\n${preview}${lineCount > 3 ? "\n…" : ""}`,
+    action: {
+      label: "粘贴",
+      onClick: () => {
+        const leafId = slot.currentLeafId;
+        if (leafId === null) return;
+        const framed = `\x1b[200~${text}\x1b[201~`;
+        const bridge = adapter?.resolveLeaf(leafId);
+        if (bridge) bridge.writeToPty(framed);
+        else slot.term.paste(text);
+      },
+    },
+    duration: 10_000,
+  });
 }
 
 type PickResult = { slot: Slot; previousLeafId: number | null };
@@ -970,6 +1004,26 @@ export function getSlotForLeaf(leafId: number): Slot | null {
   return slots.find((s) => s.currentLeafId === leafId) ?? null;
 }
 
+/** Select the entire scrollback buffer (context-menu "Select all"). */
+export function selectAllLeaf(leafId: number): boolean {
+  const slot = getSlotForLeaf(leafId);
+  if (!slot) return false;
+  try {
+    slot.term.selectAll();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Clear the visible terminal buffer (context-menu "Clear"). */
+export function clearLeaf(leafId: number): boolean {
+  const slot = getSlotForLeaf(leafId);
+  if (!slot) return false;
+  slot.term.clear();
+  return true;
+}
+
 export function isLeafAltScreen(leafId: number): boolean {
   const slot = slots.find((s) => s.currentLeafId === leafId);
   return slot ? isAltScreen(slot) : false;
@@ -1041,6 +1095,14 @@ const IS_MAC =
   /Mac|iPhone|iPad/.test(navigator.userAgent);
 
 function isTerminalCopy(e: KeyboardEvent): boolean {
+  if (IS_MAC) {
+    return (
+      e.metaKey &&
+      !e.ctrlKey &&
+      !e.altKey &&
+      (e.code === "KeyC" || e.key === "c" || e.key === "C")
+    );
+  }
   return (
     !IS_MAC &&
     e.ctrlKey &&
@@ -1052,6 +1114,14 @@ function isTerminalCopy(e: KeyboardEvent): boolean {
 }
 
 function isTerminalPaste(e: KeyboardEvent): boolean {
+  if (IS_MAC) {
+    return (
+      e.metaKey &&
+      !e.ctrlKey &&
+      !e.altKey &&
+      (e.code === "KeyV" || e.key === "v" || e.key === "V")
+    );
+  }
   return (
     !IS_MAC &&
     e.ctrlKey &&
