@@ -106,3 +106,70 @@ pub fn sha1_hex(data: &[u8]) -> String {
 pub fn constant_time_eq(a: &str, b: &str) -> bool {
     a.as_bytes().len() == b.as_bytes().len() && a.as_bytes().iter().zip(b.as_bytes()).all(|(x, y)| x == y)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn aes_cbc_roundtrip() {
+        let key = b"0123456789abcdef";
+        let iv = b"fedcba9876543210";
+        let plain = b"hello yamet gateway crypto roundtrip payload";
+        let ct = aes128_cbc_encrypt(key, iv, plain).unwrap();
+        let pt = aes128_cbc_decrypt(key, iv, &ct).unwrap();
+        assert_eq!(pt, plain);
+    }
+
+    #[test]
+    fn aes_cbc_wrong_key_does_not_roundtrip() {
+        let k1 = b"0123456789abcdef";
+        let k2 = b"abcdef0123456789";
+        let iv = b"fedcba9876543210";
+        let ct = aes128_cbc_encrypt(k1, iv, b"secret data").unwrap();
+        let pt = aes128_cbc_decrypt(k2, iv, &ct);
+        // Must not silently produce the original plaintext.
+        assert!(pt.is_err() || pt.unwrap_or_default() != b"secret data");
+    }
+
+    #[test]
+    fn aes_ecb_roundtrip() {
+        let key = b"0123456789abcdef";
+        let plain = b"aes ecb roundtrip payload for iLink cdn";
+        let ct = aes128_ecb_encrypt(key, plain).unwrap();
+        let pt = aes128_ecb_decrypt(key, &ct).unwrap();
+        assert_eq!(pt, plain);
+    }
+
+    #[test]
+    fn pkcs7_pad_adds_full_block_on_alignment() {
+        let padded = pkcs7_pad(b"1234567890123456", 16); // exactly one block
+        assert_eq!(padded.len(), 32); // adds a full 16-byte padding block
+        assert_eq!(padded[16], 16);
+    }
+
+    #[test]
+    fn sha1_known_vector() {
+        assert_eq!(
+            sha1_hex(b"abc"),
+            "a9993e364706816aba3e25717850c26c9cd0d89d"
+        );
+    }
+
+    #[test]
+    fn hmac_sha256_rfc4231_case1() {
+        let key = [0x0b_u8; 20];
+        let msg = b"Hi There";
+        assert_eq!(
+            hmac_sha256_hex(&key, msg),
+            "b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7"
+        );
+    }
+
+    #[test]
+    fn constant_time_eq_compares_content_not_length_only() {
+        assert!(constant_time_eq("abc", "abc"));
+        assert!(!constant_time_eq("abc", "abd"));
+        assert!(!constant_time_eq("abc", "abcd"));
+    }
+}
