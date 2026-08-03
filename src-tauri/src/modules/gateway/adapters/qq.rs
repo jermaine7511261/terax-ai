@@ -18,8 +18,9 @@ use crate::modules::gateway::adapter::{
 };
 use crate::modules::gateway::message::{ChatType, MessageEvent};
 use crate::modules::gateway::platform::PlatformId;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QqConfig {
     pub ws_url: String,
     pub access_token: String,

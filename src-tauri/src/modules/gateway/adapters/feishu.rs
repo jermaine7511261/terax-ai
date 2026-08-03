@@ -34,6 +34,7 @@ use std::time::Duration;
 use chrono::Utc;
 use futures_util::future::BoxFuture;
 use futures_util::{SinkExt, StreamExt};
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serde_json::Value;
 use tokio::sync::mpsc;
@@ -56,7 +57,7 @@ const FEISHU_BASE: &str = "https://open.feishu.cn";
 const WS_READ_TIMEOUT_SECS: u64 = 25;
 
 /// Credentials configured in the gateway settings.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FeishuConfig {
     pub app_id: String,
     pub app_secret: String,

@@ -3,10 +3,44 @@
 use serde::Serialize;
 use tauri::State;
 
-use super::adapter::ChatTarget;
+use super::adapter::{ChatTarget, PlatformAdapter};
+use super::adapters::{dingtalk, feishu, official_account, qq, wecom, weixin};
 use super::message::ChatType;
 use super::platform::PlatformId;
 use super::registry::GatewayRegistry;
+
+/// Reconfigure a platform from a JSON credentials blob. Rebuilds and
+/// re-registers the adapter so the new credentials take effect immediately.
+#[tauri::command]
+pub fn gateway_configure(
+    state: State<'_, GatewayRegistry>,
+    platform: String,
+    config_json: String,
+) -> Result<(), String> {
+    let id: PlatformId = platform.parse().map_err(|e: String| e)?;
+    let adapter: Box<dyn PlatformAdapter> = match id {
+        PlatformId::DingTalk => Box::new(dingtalk::DingTalkAdapter::new(
+            serde_json::from_str(&config_json).map_err(|e| e.to_string())?,
+        )),
+        PlatformId::Feishu => Box::new(feishu::FeishuAdapter::new(
+            serde_json::from_str(&config_json).map_err(|e| e.to_string())?,
+        )),
+        PlatformId::WeCom => Box::new(wecom::WeComAdapter::new(
+            serde_json::from_str(&config_json).map_err(|e| e.to_string())?,
+        )),
+        PlatformId::Qq => Box::new(qq::QqAdapter::new(
+            serde_json::from_str(&config_json).map_err(|e| e.to_string())?,
+        )),
+        PlatformId::Weixin => Box::new(weixin::WeixinAdapter::new(
+            serde_json::from_str(&config_json).map_err(|e| e.to_string())?,
+        )),
+        PlatformId::OfficialAccount => Box::new(official_account::OfficialAccountAdapter::new(
+            serde_json::from_str(&config_json).map_err(|e| e.to_string())?,
+        )),
+    };
+    state.register(adapter);
+    Ok(())
+}
 
 #[derive(Serialize)]
 pub struct PlatformStatus {

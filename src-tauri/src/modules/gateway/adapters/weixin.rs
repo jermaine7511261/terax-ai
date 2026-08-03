@@ -23,6 +23,7 @@ use base64::Engine as _;
 use chrono::Utc;
 use futures_util::future::BoxFuture;
 use reqwest::header::{HeaderMap, HeaderValue, CONTENT_TYPE};
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tokio::task::JoinHandle;
 
@@ -330,7 +331,7 @@ fn extract_text(item_list: &Value) -> String {
 
 /// Weixin configuration. `token`/`account_id` come from a successful QR login
 /// (or are injected from settings).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WeixinConfig {
     pub base_url: String,
     pub token: String,

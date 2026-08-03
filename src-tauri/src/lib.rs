@@ -318,6 +318,7 @@ pub fn run() {
             secrets::secrets_delete,
             secrets::secrets_get_all,
             gateway::commands::gateway_platforms,
+            gateway::commands::gateway_configure,
             gateway::commands::gateway_connect,
             gateway::commands::gateway_disconnect,
             gateway::commands::gateway_send,

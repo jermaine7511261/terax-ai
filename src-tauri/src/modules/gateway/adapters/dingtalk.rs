@@ -23,7 +23,7 @@ use chrono::{TimeZone, Utc};
 use futures_util::future::BoxFuture;
 use futures_util::{SinkExt, StreamExt};
 use hmac::{Hmac, Mac};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sha2::Sha256;
 use tokio::task::JoinHandle;
@@ -53,7 +53,7 @@ const OPENAPI_BASE: &str = "https://api.dingtalk.com";
 // ---------------------------------------------------------------------------
 
 /// Credentials for the DingTalk chatbot.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct DingTalkConfig {
     /// The AppKey (client id) of the DingTalk application / robot.
     pub app_key: String,
