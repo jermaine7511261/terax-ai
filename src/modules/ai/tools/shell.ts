@@ -19,6 +19,11 @@ async function getSessionShell(
   if (!p) {
     p = native.shellSessionOpen(cwd);
     sessionShells.set(sessionId, p);
+    // Don't cache a rejected promise: drop it so a later call retries instead
+    // of failing forever on a stale/failed shell-session id.
+    void p.catch(() => {
+      if (sessionShells.get(sessionId) === p) sessionShells.delete(sessionId);
+    });
   }
   return p;
 }
