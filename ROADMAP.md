@@ -31,6 +31,8 @@ The themes below frame every scope decision.
 
 ### Terminal
 
+- [x] Block terminal (block-based terminal surface with inline suggest)
+- [x] Inline terminal suggestions (history + AI-powered)
 - [x] Multi-tab terminal with WebGL renderer
 - [x] Native PTY backend (zsh, bash, pwsh, fish, cmd)
 - [x] Split panes
@@ -51,6 +53,7 @@ The themes below frame every scope decision.
 
 - [x] Icon theme with full file-type coverage
 - [x] Fuzzy search, keyboard navigation, inline rename, context actions
+- [x] Live filesystem updates via fs watch
 
 ### Git / Source Control
 
@@ -68,6 +71,8 @@ The themes below frame every scope decision.
 - [x] Tools with approval flow (file read / write / edit, bash, search, plan)
 - [x] Workspace file picker
 - [x] Auto-compact for long context
+- [x] Auto-approve within a session after the first approval
+- [x] IM gateway: DingTalk / Feishu / WeCom / QQ / WeChat (iLink) / Official Account adapters with auth-gated agent driving
 
 ### Web Preview
 
@@ -90,22 +95,23 @@ The themes below frame every scope decision.
 - [x] SSRF and DNS rebinding defenses on outbound HTTP
 - [x] Trust gating in terminal escape-sequence handling
 - [x] Sandboxed preview surface
+- [x] IM gateway auth gate (default-deny + session approval whitelist)
 
 ## Planned
 
 ### Coming next
 
 - [ ] SSH support (PTY auth and known_hosts first; SFTP and port forwarding later)
-- [ ] Inline terminal auto-suggestions (history-based first; AI-powered opt-in later)
-- [ ] Themes and customizations (terminal themes, UI accents, keybindings, layout)
+- [ ] Themes and customizations (UI accents, user-custom keybindings; terminal/editor themes shipped)
 - [ ] AI autocomplete improvements in editor (project-aware context, lower latency)
 - [ ] Drag and drop in terminal (files as quoted paths, AI panel as context)
 - [ ] AI agent meta-orchestration (Yamet agent spawning and managing external coding agents like Claude Code / OpenCode)
 - [ ] More slash commands and skills
-- [ ] Approval flow improvements (YOLO / auto-approve, project-scoped policies, per-tool trust)
+- [ ] Approval flow improvements (project-scoped policies, per-tool trust; auto-approve already shipped)
 - [ ] Persistent terminal sessions and layout restore
 - [ ] Preview surface expansion (better image / Markdown handling)
-- [ ] Test coverage expansion (PTY edge cases, security functions, AI tool guards)
+- [ ] Test coverage expansion (PTY edge cases, security functions, AI tool guards, IM gateway crypto/state machines)
+- [ ] IM gateway: per-platform onboarding/QR polish, officialaccount/wecom callback tunnel guide, onebot config assistant
 
 ### Longer horizon
 
@@ -113,7 +119,7 @@ The themes below frame every scope decision.
 - [ ] Bundle optimization (lazy-load language packs, individual UI primitive imports, tree-shake)
 - [ ] Selective TS → Rust migration where the profiler shows measurable wins
 - [ ] AI tools / skills as installable bundles
-- [ ] Live filesystem updates in explorer and editor
+- [ ] Live filesystem updates in editor (explorer already wired)
 
 ## Wanted contributions
 
