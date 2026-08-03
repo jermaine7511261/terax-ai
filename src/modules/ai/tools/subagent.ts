@@ -1,5 +1,6 @@
 import { tool } from "ai";
 import { z } from "zod";
+import { usePreferencesStore } from "@/modules/settings/preferences";
 import { runSubagent } from "../agents/runSubagent";
 import { SUBAGENTS, type SubagentType } from "../agents/registry";
 import { useChatStore } from "../store/chatStore";
@@ -29,14 +30,17 @@ Auto-executes (no approval) — subagents are read-only by design.`,
           .describe("Short label shown in the chat UI for the spawn card."),
       }),
       execute: async ({ type, prompt, description }) => {
-        const { apiKeys, selectedModelId, patchAgentMeta } =
+        const { apiKeys, selectedModelId, customEndpointKeys, patchAgentMeta } =
           useChatStore.getState();
+        const customEndpoints = usePreferencesStore.getState().customEndpoints;
         try {
           const r = await runSubagent({
             type,
             prompt,
             keys: apiKeys,
             modelId: selectedModelId,
+            customEndpoints,
+            customEndpointKeys,
             toolContext: ctx,
             onStep: (label) => patchAgentMeta({ step: label }),
           });

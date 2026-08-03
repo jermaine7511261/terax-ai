@@ -1,7 +1,7 @@
 import { generateText, stepCountIs } from "ai";
-import { DEFAULT_MODEL_ID, getModel, type ModelId } from "../config";
-import { buildLanguageModel } from "../lib/agent";
-import type { ProviderKeys } from "../lib/keyring";
+import { DEFAULT_MODEL_ID, type CustomEndpoint, type ModelId } from "../config";
+import { buildConfiguredLanguageModel } from "../lib/agent";
+import type { CustomEndpointKeys, ProviderKeys } from "../lib/keyring";
 import type { ToolContext } from "../tools/context";
 import { buildFsTools } from "../tools/fs";
 import { buildSearchTools } from "../tools/search";
@@ -16,6 +16,8 @@ type Args = {
   modelId: string;
   toolContext: ToolContext;
   llamaCppBaseURL?: string;
+  customEndpoints?: readonly CustomEndpoint[];
+  customEndpointKeys?: CustomEndpointKeys;
   onStep?: (label: string) => void;
 };
 
@@ -32,6 +34,8 @@ export async function runSubagent({
   modelId,
   toolContext,
   llamaCppBaseURL,
+  customEndpoints,
+  customEndpointKeys,
   onStep,
 }: Args): Promise<RunResult> {
   const def = SUBAGENTS[type];
@@ -46,12 +50,11 @@ export async function runSubagent({
     if (t in readOnly) tools[t] = readOnly[t];
   }
 
-  const model = await buildLanguageModel(
-    getModel(modelId as ModelId).provider,
-    keys,
-    getModel(modelId as ModelId).id,
-    { llamaCppBaseURL },
-  );
+  const model = await buildConfiguredLanguageModel(modelId, keys, {
+    customEndpoints,
+    customEndpointKeys,
+    llamaCppBaseURL,
+  });
 
   const start = Date.now();
   const result = await generateText({
