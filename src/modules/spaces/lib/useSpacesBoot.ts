@@ -83,9 +83,10 @@ export function useSpacesBoot({
           const st = states.get(space.id);
           if (!st) continue;
           const hydrated = hydrateTabs(st.tabs, space.id, allocId);
-          // No terminal tabs on boot: the app opens directly into the chat
-          // window. Terminals can still be opened on demand from the + menu.
-          restored.push(...hydrated.filter((t) => t.kind !== "terminal"));
+          // I1b: restore terminal tabs as cold tabs (placeholder until
+          // activated), each spawning a fresh shell in its original cwd.
+          // I1c (full PTY session/history restore) is a future enhancement.
+          restored.push(...hydrated);
         }
 
         const active =

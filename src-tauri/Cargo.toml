@@ -1,6 +1,6 @@
 [package]
 name = "yamet"
-version = "0.1.1"
+version = "0.1.3"
 description = "Yamet — an open-source AI-native terminal emulator"
 authors = ["Yamet contributors"]
 license = "Apache-2.0"
