@@ -237,6 +237,9 @@ export function GatewaySection(): JSX.Element {
             account_id: frame.account_id,
           },
         }));
+        // The backend already persisted the creds to keychain and registered
+        // the adapter. Auto-connect so the session starts immediately.
+        void connect(id);
       }
     };
     try {
@@ -545,9 +548,11 @@ export function GatewaySection(): JSX.Element {
                   size="sm"
                   variant="outline"
                   onClick={() =>
-                    void invoke("gateway_authorize", { session_key: s.session_key }).then(
-                      refreshSessions,
-                    )
+                    void invoke("gateway_authorize", { session_key: s.session_key })
+                      .then(refreshSessions)
+                      .catch((err) => {
+                        console.error("[gateway] authorize failed:", s.session_key, err);
+                      })
                   }
                 >
                   {t("gateway.approve")}

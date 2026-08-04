@@ -212,6 +212,7 @@ impl SessionRouter {
     /// Approve a session (add to the whitelist). Subsequent messages drive
     /// the agent.
     pub fn approve(&self, session_key: &str) {
+        log::info!("[gateway] approve session: {session_key}");
         let mut map = self.inner.lock().unwrap();
         let entry = map
             .entry(session_key.to_string())

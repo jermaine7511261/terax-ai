@@ -56,9 +56,21 @@ pub struct SessionInfo {
 /// List known gateway sessions with their authorization state.
 #[tauri::command]
 pub fn gateway_sessions(state: State<'_, GatewayRegistry>) -> Vec<SessionInfo> {
-    state
-        .sessions()
-        .all()
+    let sessions = state.sessions().all();
+    log::info!(
+        "[gateway] gateway_sessions: {} sessions: {:?}",
+        sessions.len(),
+        sessions
+            .iter()
+            .map(|s| (
+                s.session_key.as_str(),
+                s.authorized,
+                s.auto_approve,
+                s.awaiting_approval
+            ))
+            .collect::<Vec<_>>()
+    );
+    sessions
         .into_iter()
         .map(|s| SessionInfo {
             session_key: s.session_key,
@@ -79,6 +91,7 @@ pub fn gateway_authorize(
     state: State<'_, GatewayRegistry>,
     session_key: String,
 ) -> Result<(), String> {
+    log::info!("[gateway] authorize command called: {session_key}");
     state.sessions().approve(&session_key);
     Ok(())
 }

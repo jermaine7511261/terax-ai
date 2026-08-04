@@ -276,7 +276,12 @@ impl GatewayRegistry {
                 // the agent. Unauthorized messages are queued for approval and
                 // dropped from the agent path — but the pending callback gets a
                 // sender+text summary so the approval UI isn't blind.
-                if this.inner.sessions.is_authorized(&sk) {
+                let authorized = this.inner.sessions.is_authorized(&sk);
+                log::info!(
+                    "[gateway] inbound platform={} sk={sk} authorized={authorized}",
+                    ev.platform.as_str()
+                );
+                if authorized {
                     if let Some(h) = &handler {
                         h(ev);
                     }
