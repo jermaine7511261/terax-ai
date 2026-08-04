@@ -166,13 +166,6 @@ impl SessionRouter {
         self.inner.lock().unwrap().get(session_key).cloned()
     }
 
-    pub fn set_auto_approve(&self, session_key: &str, value: bool) {
-        if let Some(s) = self.inner.lock().unwrap().get_mut(session_key) {
-            s.auto_approve = value;
-        }
-        self.persist();
-    }
-
     pub fn set_awaiting_approval(&self, session_key: &str, value: bool) {
         if let Some(s) = self.inner.lock().unwrap().get_mut(session_key) {
             s.awaiting_approval = value;
@@ -219,10 +212,24 @@ impl SessionRouter {
     /// Approve a session (add to the whitelist). Subsequent messages drive
     /// the agent.
     pub fn approve(&self, session_key: &str) {
-        if let Some(s) = self.inner.lock().unwrap().get_mut(session_key) {
-            s.authorized = true;
-            s.awaiting_approval = false;
-        }
+        let mut map = self.inner.lock().unwrap();
+        let entry = map
+            .entry(session_key.to_string())
+            .or_insert_with(|| SessionState::new(session_key.to_string(), "", "dm", ""));
+        entry.authorized = true;
+        entry.awaiting_approval = false;
+        drop(map);
+        self.persist();
+    }
+
+    /// Toggle per-session auto-approve (bypasses the approval prompt).
+    pub fn set_auto_approve(&self, session_key: &str, value: bool) {
+        let mut map = self.inner.lock().unwrap();
+        let entry = map
+            .entry(session_key.to_string())
+            .or_insert_with(|| SessionState::new(session_key.to_string(), "", "dm", ""));
+        entry.auto_approve = value;
+        drop(map);
         self.persist();
     }
 
