@@ -11,8 +11,11 @@
 //! - Login is a **QR-code flow**: fetch a QR with `get_bot_qrcode`, poll
 //!   `get_qrcode_status` until `confirmed`, then use the issued `bot_token`.
 //! - Session expiry (`errcode = -14`, or `-2` with errmsg `"unknown error"`)
-//!   triggers an automatic QR **re-login**; genuine rate-limit `-2` backs off
-//!   exponentially and retries.
+//!   pauses polling for `SESSION_EXPIRED_PAUSE_SECONDS` and retries; it never
+//!   auto-starts a QR login (iLink bot tokens have no refresh path, so a scan
+//!   must be initiated manually from Settings). Mirrors Hermes' `weixin.py`
+//!   `_poll_loop`, which sleeps 10 minutes on session expiry. Genuine
+//!   rate-limit `-2` backs off exponentially and retries.
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -28,7 +31,7 @@ use serde_json::{json, Value};
 use tokio::task::JoinHandle;
 
 use crate::modules::gateway::adapter::{
-    ChatTarget, EventTx, PlatformAdapter, PlatformEventSink, SendReceipt, SendResult,
+    ChatTarget, EventTx, PlatformAdapter, SendReceipt, SendResult,
 };
 use crate::modules::gateway::message::{ChatType, MediaItem, MessageEvent};
 use crate::modules::gateway::platform::PlatformId;
@@ -60,6 +63,9 @@ const QR_TIMEOUT_MS: u64 = 35_000;
 const RETRY_DELAY_SECONDS: u64 = 2;
 const BACKOFF_DELAY_SECONDS: u64 = 30;
 const MAX_CONSECUTIVE_FAILURES: u32 = 3;
+/// Pause after session expiry before retrying, mirroring Hermes' `weixin.py`
+/// (`"Session expired; pausing for 10 minutes"`, `await asyncio.sleep(600)`).
+const SESSION_EXPIRED_PAUSE_SECONDS: u64 = 600;
 
 /// Session-expired signal.
 const SESSION_EXPIRED_ERRCODE: i64 = -14;
@@ -77,7 +83,7 @@ fn is_stale_session_ret(ret: Option<i64>, errcode: Option<i64>, errmsg: Option<&
     if ret != Some(RATE_LIMIT_ERRCODE) && errcode != Some(RATE_LIMIT_ERRCODE) {
         return false;
     }
-    errmsg.unwrap_or("").trim().to_ascii_lowercase() == "unknown error"
+    errmsg.unwrap_or("").trim().eq_ignore_ascii_case("unknown error")
 }
 
 /// Classification of a poll response, driving the poll state machine.
@@ -474,8 +480,6 @@ struct Inner {
     /// Persisted across reconnects so a fresh poll continues from the last sync point.
     sync_buf: Mutex<String>,
     client: reqwest::Client,
-    /// Out-of-band events (background re-login QR frames) forwarded to the UI.
-    event_sink: Mutex<Option<PlatformEventSink>>,
 }
 
 pub struct WeixinAdapter {
@@ -497,17 +501,7 @@ impl WeixinAdapter {
                 context_tokens: Mutex::new(HashMap::new()),
                 sync_buf: Mutex::new(String::new()),
                 client,
-                event_sink: Mutex::new(None),
             }),
-        }
-    }
-
-    /// Forward an out-of-band frame (QR / status) to the UI, if a sink is set.
-    fn emit(&self, frame: QrLoginFrame) {
-        if let Some(sink) = &*self.inner.event_sink.lock().unwrap() {
-            if let Ok(payload) = serde_json::to_value(&frame) {
-                sink(payload);
-            }
         }
     }
 
@@ -517,160 +511,6 @@ impl WeixinAdapter {
 
     fn base_url(&self) -> String {
         self.inner.base_url.lock().unwrap().clone()
-    }
-
-    /// Run the interactive iLink QR login flow. Returns the credential triple
-    /// (account_id, token, base_url) on success, or `None` on failure/timeout.
-    async fn qr_login(&self) -> Option<(String, String, String)> {
-        let bot_type = "3";
-        let qr_resp = api_get(
-            &self.inner.client,
-            ILINK_BASE_URL,
-            &format!("{EP_GET_BOT_QR}?bot_type={bot_type}"),
-            QR_TIMEOUT_MS,
-        )
-        .await
-        .ok()?;
-
-        let qrcode_value = qr_resp
-            .get("qrcode")
-            .and_then(Value::as_str)
-            .unwrap_or("")
-            .to_string();
-        if qrcode_value.is_empty() {
-            log::error!("weixin: QR response missing qrcode");
-            return None;
-        }
-        // `qrcode_img_content` is the full scannable URL; `qrcode` is just the
-        // hex token.  WeChat needs the full URL to trigger bot-pairing.
-        let qrcode_url = qr_resp
-            .get("qrcode_img_content")
-            .and_then(Value::as_str)
-            .unwrap_or("")
-            .to_string();
-        let qr_scan_data = if !qrcode_url.is_empty() {
-            qrcode_url
-        } else {
-            // Fallback: wrap the raw token in a URL (shouldn't normally happen).
-            ilink_qr_url(&qrcode_value)
-        };
-        // Surface the QR to the UI (background re-login) so the user knows a
-        // scan is required instead of the session silently dying.
-        if let Ok(svg) = qr_svg_data_url(&qr_scan_data) {
-            self.emit(QrLoginFrame::Qr { svg_data_url: svg });
-        }
-
-        let deadline = tokio::time::Instant::now() + Duration::from_secs(480);
-        let mut current_base_url = ILINK_BASE_URL.to_string();
-        let mut refresh_count: u32 = 0;
-        let mut qrcode_value = qrcode_value;
-
-        loop {
-            if tokio::time::Instant::now() >= deadline {
-                log::error!("weixin: QR login timed out");
-                return None;
-            }
-            let status_resp = match api_get(
-                &self.inner.client,
-                &current_base_url,
-                &format!("{EP_GET_QR_STATUS}?qrcode={qrcode_value}"),
-                QR_TIMEOUT_MS,
-            )
-            .await
-            {
-                Ok(v) => v,
-                Err(e) => {
-                    log::warn!("weixin: QR poll error: {e}");
-                    tokio::time::sleep(Duration::from_secs(1)).await;
-                    continue;
-                }
-            };
-
-            let status = status_resp
-                .get("status")
-                .and_then(Value::as_str)
-                .unwrap_or("wait");
-            match status {
-                "scaned_but_redirect" => {
-                    if let Some(host) = status_resp.get("redirect_host").and_then(Value::as_str) {
-                        if !host.is_empty() {
-                            current_base_url = format!("https://{host}");
-                        }
-                    }
-                }
-                "expired" => {
-                    refresh_count += 1;
-                    if refresh_count > 3 {
-                        log::error!("weixin: QR expired too many times");
-                        return None;
-                    }
-                    log::info!("weixin: QR expired, refreshing ({refresh_count}/3)");
-                    let new_qr = api_get(
-                        &self.inner.client,
-                        ILINK_BASE_URL,
-                        &format!("{EP_GET_BOT_QR}?bot_type={bot_type}"),
-                        QR_TIMEOUT_MS,
-                    )
-                    .await
-                    .ok()?;
-                    let new_token = new_qr
-                        .get("qrcode")
-                        .and_then(Value::as_str)
-                        .unwrap_or("")
-                        .to_string();
-                    if new_token.is_empty() {
-                        return None;
-                    }
-                    // Emit the refreshed QR with the full scannable URL.
-                    let new_url = new_qr
-                        .get("qrcode_img_content")
-                        .and_then(Value::as_str)
-                        .unwrap_or("")
-                        .to_string();
-                    let scan_data = if !new_url.is_empty() {
-                        new_url
-                    } else {
-                        ilink_qr_url(&new_token)
-                    };
-                    if let Ok(svg) = qr_svg_data_url(&scan_data) {
-                        self.emit(QrLoginFrame::Qr { svg_data_url: svg });
-                    }
-                    qrcode_value = new_token;
-                    current_base_url = ILINK_BASE_URL.to_string();
-                }
-                "confirmed" => {
-                    let account_id = status_resp
-                        .get("ilink_bot_id")
-                        .and_then(Value::as_str)
-                        .unwrap_or("")
-                        .to_string();
-                    let token = status_resp
-                        .get("bot_token")
-                        .and_then(Value::as_str)
-                        .unwrap_or("")
-                        .to_string();
-                    let base_url = status_resp
-                        .get("baseurl")
-                        .and_then(Value::as_str)
-                        .filter(|s| !s.is_empty())
-                        .unwrap_or(ILINK_BASE_URL)
-                        .to_string();
-                    if account_id.is_empty() || token.is_empty() {
-                        log::error!("weixin: QR confirmed but credential payload incomplete");
-                        return None;
-                    }
-                    log::info!("weixin: QR login confirmed account_id={account_id}");
-                    self.emit(QrLoginFrame::Confirmed {
-                        account_id: account_id.clone(),
-                        token: token.clone(),
-                        base_url: base_url.clone(),
-                    });
-                    return Some((account_id, token, base_url));
-                }
-                _ => { /* "wait" / "scaned" — keep polling */ }
-            }
-            tokio::time::sleep(Duration::from_secs(1)).await;
-        }
     }
 
     async fn poll_loop(&self, tx: EventTx) {
@@ -698,22 +538,16 @@ impl WeixinAdapter {
                     if class != PollClass::Ok {
                         let delay = machine.step(class);
                         if delay.relogin {
+                            // Mirrors Hermes' weixin.py `_poll_loop`: iLink bot
+                            // tokens cannot be refreshed, so on session expiry
+                            // we pause and retry instead of auto-starting a QR
+                            // scan. Re-login is a manual action in Settings.
                             log::error!(
-                                "weixin: session expired (ret={ret:?} errcode={errcode:?}); re-logging in via QR"
+                                "weixin: session expired (ret={ret:?} errcode={errcode:?}); pausing for {SESSION_EXPIRED_PAUSE_SECONDS}s (manual QR re-login required)"
                             );
-                            match self.qr_login().await {
-                                Some((_account_id, new_token, new_base)) => {
-                                    log::info!("weixin: re-login OK, refreshing token/base");
-                                    *self.inner.token.lock().unwrap() = new_token;
-                                    *self.inner.base_url.lock().unwrap() = new_base;
-                                    continue;
-                                }
-                                None => {
-                                    log::error!("weixin: re-login failed; backing off");
-                                    tokio::time::sleep(Duration::from_secs(BACKOFF_DELAY_SECONDS)).await;
-                                    continue;
-                                }
-                            }
+                            tokio::time::sleep(Duration::from_secs(SESSION_EXPIRED_PAUSE_SECONDS))
+                                .await;
+                            continue;
                         }
                         log::warn!(
                             "weixin: getUpdates failed ret={ret:?} errcode={errcode:?} errmsg={errmsg:?} ({:?})",
@@ -838,9 +672,6 @@ impl PlatformAdapter for WeixinAdapter {
         }
     }
 
-    fn set_event_sink(&self, sink: PlatformEventSink) {
-        *self.inner.event_sink.lock().unwrap() = Some(sink);
-    }
 
     fn send_text(&self, target: &ChatTarget, text: &str) -> BoxFuture<'static, SendResult> {
         // Own all data up front so the returned future does not borrow
