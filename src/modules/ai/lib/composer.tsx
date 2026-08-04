@@ -122,13 +122,57 @@ export function AiComposerProvider({ children }: ProviderProps) {
   // that want to programmatically ask without opening the composer).
   useEffect(() => {
     const onAsk = (e: Event) => {
-      const text = (e as CustomEvent<string>).detail;
-      if (typeof text !== "string" || !text.trim()) return;
+      const detail = (e as CustomEvent).detail;
+      // Support both legacy string detail and new { text, gateway } object.
+      const text =
+        typeof detail === "string"
+          ? detail
+          : typeof detail?.text === "string"
+            ? detail.text
+            : "";
+      const isGateway =
+        typeof detail === "object" && detail !== null && detail.gateway === true;
+      if (!text.trim()) return;
       const sessionId = useChatStore.getState().activeSessionId;
       if (!sessionId) return;
       void (async () => {
         const { getOrCreateChat } = await import("../store/chatRuntime");
         const chat = getOrCreateChat(sessionId);
+
+        // Register a one-shot status listener: when the LLM finishes
+        // streaming (status goes back to "ready"), extract the last
+        // assistant message and dispatch it as a gateway reply.
+        let unsubStatus: (() => void) | undefined;
+        if (isGateway) {
+          unsubStatus = chat["~registerStatusCallback"](() => {
+            const st = chat.status;
+            if (st === "ready" || st === "error") {
+              // Small delay to ensure the last message is fully written.
+              setTimeout(() => {
+                const msgs = chat.messages;
+                const last = msgs[msgs.length - 1];
+                if (last?.role === "assistant") {
+                  const replyText = (last.parts ?? [])
+                    .filter(
+                      (p): p is { type: "text"; text: string } =>
+                        p.type === "text",
+                    )
+                    .map((p) => p.text)
+                    .join("");
+                  if (replyText.trim()) {
+                    window.dispatchEvent(
+                      new CustomEvent("yamet:gateway-reply", {
+                        detail: replyText,
+                      }),
+                    );
+                  }
+                }
+              }, 200);
+              unsubStatus?.();
+            }
+          });
+        }
+
         void chat.sendMessage({
           role: "user",
           parts: [{ type: "text", text }],

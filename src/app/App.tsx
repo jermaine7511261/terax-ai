@@ -110,6 +110,10 @@ import {
   WorkspaceInputBar,
 } from "./components/WorkspaceInputBar";
 import { WorkspaceSurface } from "./components/WorkspaceSurface";
+import {
+  setPendingGatewayMeta,
+  setupGatewayResponseListener,
+} from "@/modules/gateway/bridge";
 import { useAppCloseGuard } from "./hooks/useAppCloseGuard";
 import { useTabCloseGuards } from "./hooks/useTabCloseGuards";
 import { useWorkspaceSwitcher } from "./hooks/useWorkspaceSwitcher";
@@ -660,25 +664,42 @@ export default function App() {
 
   // Bridge inbound gateway messages into the active AI chat.
   // The Rust set_handler emits `yamet:gateway-message` with the full
-  // MessageEvent; we extract the text and dispatch `yamet:ai-ask` so the
-  // composer picks it up and sends it as a user message.
+  // MessageEvent; we extract text + metadata and dispatch `yamet:ai-ask` so
+  // the composer picks it up and sends it as a user message.  The gateway
+  // bridge module tracks the pending metadata so the LLM response can be
+  // routed back to the originating platform.
   useEffect(() => {
     let unlisten: (() => void) | undefined;
     (async () => {
       unlisten = await listen<Record<string, unknown>>(
         "yamet:gateway-message",
         (e) => {
-          const text = e.payload?.text;
-          if (typeof text === "string" && text.trim()) {
-            window.dispatchEvent(
-              new CustomEvent("yamet:ai-ask", { detail: text }),
-            );
+          const p = e.payload;
+          const text = p?.text;
+          if (typeof text !== "string" || !text.trim()) return;
+
+          // Store metadata for the response router.
+          const platform = String(p?.platform ?? "");
+          const chatId = String(p?.chat_id ?? "");
+          const chatType = String(p?.chat_type ?? "dm") as "dm" | "group";
+          const senderId = String(p?.sender_id ?? "");
+          if (platform && chatId) {
+            setPendingGatewayMeta({ platform, chatId, chatType, senderId });
           }
+
+          window.dispatchEvent(
+            new CustomEvent("yamet:ai-ask", {
+              detail: { text, gateway: true },
+            }),
+          );
         },
       );
     })();
     return () => unlisten?.();
   }, []);
+
+  // Set up the gateway response listener (routes LLM replies back to WeChat).
+  useEffect(() => setupGatewayResponseListener(), []);
 
   const handlePathRenamed = useCallback(
     (from: string, to: string) => {
