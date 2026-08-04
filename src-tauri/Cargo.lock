@@ -7183,7 +7183,7 @@ dependencies = [
 
 [[package]]
 name = "yamet"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "aes",
  "base64 0.22.1",
