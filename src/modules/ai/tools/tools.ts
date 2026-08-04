@@ -1,4 +1,5 @@
 import { buildManagedAgentTools } from "./agent";
+import { buildCreateSkillTools } from "./createSkill";
 import { buildEditTools } from "./edit";
 import { buildExternalAgentTools } from "./externalAgent";
 import { buildFsTools } from "./fs";
@@ -50,6 +51,7 @@ export function buildTools(ctx: import("./context").ToolContext) {
     ...buildMemoryTools(ctx),
     ...buildSearchMemoriesTools(ctx),
     ...buildManagedAgentTools(ctx),
+    ...buildCreateSkillTools(ctx),
     // Dynamic MCP tools (read from the live mcpStore; all needsApproval).
     ...buildMcpTools(),
   } as const;

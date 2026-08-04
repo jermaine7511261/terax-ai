@@ -121,10 +121,10 @@ export function useAiBootstrap(): {
       const fired = e.payload;
       const live = useChatStore.getState().live;
       if (fired.target === "session") {
-        live.spawnManagedAgent(
-          fired.prompt,
-          useChatStore.getState().activeSessionId,
-        );
+        const sessionId = useChatStore.getState().activeSessionId;
+        if (sessionId) {
+          live.spawnManagedAgent(fired.prompt, sessionId);
+        }
       } else {
         void (async () => {
           let granted = await isPermissionGranted();

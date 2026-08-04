@@ -4,7 +4,6 @@ import {
   wrapWithCommandMarker,
   SLASH_COMMANDS,
   tryRunSlashCommand,
-  type SlashOutcome,
 } from "./slashCommands";
 
 // ---------------------------------------------------------------------------
@@ -232,7 +231,7 @@ describe("tryRunSlashCommand — # prefix", () => {
   it("handles # with trailing args", () => {
     const result = tryRunSlashCommand("#review extra stuff");
     expect(result.kind).toBe("send-prompt");
-    expect((result as { kind: "send-prompt" }).commandName).toBe("review");
+    expect((result as { kind: "send-prompt"; commandName?: string }).commandName).toBe("review");
   });
 });
 
@@ -430,13 +429,13 @@ describe("tryRunSlashCommand — edge cases", () => {
   it("handles leading newlines and spaces", () => {
     const result = tryRunSlashCommand("\n  \n/review");
     expect(result.kind).toBe("send-prompt");
-    expect((result as { kind: "send-prompt" }).commandName).toBe("review");
+    expect((result as { kind: "send-prompt"; commandName?: string }).commandName).toBe("review");
   });
 
   it("handles tab characters in input", () => {
     const result = tryRunSlashCommand("\t/test\t");
     expect(result.kind).toBe("send-prompt");
-    expect((result as { kind: "send-prompt" }).commandName).toBe("test");
+    expect((result as { kind: "send-prompt"; commandName?: string }).commandName).toBe("test");
   });
 
   it("case-sensitive: /Plan is not /plan", () => {

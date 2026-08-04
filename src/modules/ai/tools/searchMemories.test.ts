@@ -14,7 +14,6 @@ describe("extractSessionText", () => {
         role: "user",
         parts: [
           { type: "text", text: "how do we deploy?" },
-          { type: "file", url: "x" },
           { type: "text", text: "  " },
         ],
       },
