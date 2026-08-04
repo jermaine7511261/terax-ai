@@ -8,7 +8,7 @@ use std::time::Instant;
 use tokio::sync::mpsc;
 
 use super::adapter::{ChatTarget, PlatformAdapter, PlatformEventSink, SendResult};
-use super::message::MessageEvent;
+use super::message::{ChatType, MessageEvent};
 use super::platform::PlatformId;
 use super::session::SessionRouter;
 
@@ -276,9 +276,18 @@ impl GatewayRegistry {
                 // the agent. Unauthorized messages are queued for approval and
                 // dropped from the agent path — but the pending callback gets a
                 // sender+text summary so the approval UI isn't blind.
-                let authorized = this.inner.sessions.is_authorized(&sk);
+                //
+                // WeChat DM is auto-approved: the QR login already authenticates
+                // the account, so a direct DM is trusted by default (mirrors
+                // Hermes dm_policy where the owner authorizes via scan).
+                let auto_trust =
+                    ev.platform == PlatformId::Weixin && ev.chat_type == ChatType::Dm;
+                if auto_trust {
+                    this.inner.sessions.approve(&sk);
+                }
+                let authorized = auto_trust || this.inner.sessions.is_authorized(&sk);
                 log::info!(
-                    "[gateway] inbound platform={} sk={sk} authorized={authorized}",
+                    "[gateway] inbound platform={} sk={sk} authorized={authorized} auto_trust={auto_trust}",
                     ev.platform.as_str()
                 );
                 if authorized {

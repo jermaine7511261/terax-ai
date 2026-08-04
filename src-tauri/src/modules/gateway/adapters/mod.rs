@@ -19,6 +19,36 @@ use crate::modules::gateway::platform::PlatformId;
 use crate::modules::gateway::registry::GatewayRegistry;
 use tauri::Manager;
 
+/// Directory holding persisted gateway credentials as one JSON file per
+/// platform. Mirrors Hermes' file-backed credential store (more reliable than
+/// OS keyring on Windows, where Credential Manager may be unavailable).
+fn creds_dir(app: &tauri::AppHandle) -> std::path::PathBuf {
+    app.path()
+        .app_local_data_dir()
+        .unwrap_or_else(|_| std::env::temp_dir())
+        .join("gateway-creds")
+}
+
+fn creds_file(app: &tauri::AppHandle, id: PlatformId) -> std::path::PathBuf {
+    creds_dir(app).join(format!("{}.json", id.as_str()))
+}
+
+/// Persist a platform's credentials to a file in the app data dir (in addition
+/// to the OS keychain), so configured platforms survive restarts even when the
+/// keyring is unavailable.
+pub fn persist_creds_to_file(app: &tauri::AppHandle, id: PlatformId, config_json: &str) {
+    let dir = creds_dir(app);
+    if std::fs::create_dir_all(&dir).is_err() {
+        return;
+    }
+    let _ = std::fs::write(creds_file(app, id), config_json);
+}
+
+/// Read a platform's credentials from the file store if present.
+pub fn read_creds_from_file(app: &tauri::AppHandle, id: PlatformId) -> Option<String> {
+    std::fs::read_to_string(creds_file(app, id)).ok()
+}
+
 pub fn register_all(registry: &GatewayRegistry) {
     registry.register(Box::new(dingtalk::DingTalkAdapter::new(
         dingtalk::DingTalkConfig::default(),
@@ -78,20 +108,22 @@ pub async fn restore_from_keychain(registry: &GatewayRegistry, app: &tauri::AppH
     for id in PLATFORMS {
         let secrets_state = app.state::<crate::modules::secrets::SecretsState>();
         let account = format!("gateway:{}", id.as_str());
-        match crate::modules::secrets::secrets_get(
-            app.clone(),
-            secrets_state,
-            "yamet-ai".to_string(),
-            account,
-        )
-        .await
-        {
-            Ok(Some(cfg)) => {
-                if let Ok(adapter) = build_adapter(id, &cfg) {
-                    registry.register(adapter);
-                }
+        // Prefer the file store (reliable across restarts on every OS), then
+        // fall back to the OS keychain.
+        let cfg = read_creds_from_file(app, id).or_else(|| {
+            tauri::async_runtime::block_on(crate::modules::secrets::secrets_get(
+                app.clone(),
+                secrets_state,
+                "yamet-ai".to_string(),
+                account,
+            ))
+            .ok()
+            .flatten()
+        });
+        if let Some(cfg) = cfg {
+            if let Ok(adapter) = build_adapter(id, &cfg) {
+                registry.register(adapter);
             }
-            _ => {}
         }
     }
 }

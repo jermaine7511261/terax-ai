@@ -20,15 +20,16 @@ pub async fn gateway_configure(
     config_json: String,
 ) -> Result<(), String> {
     let secrets_state = app.state::<crate::modules::secrets::SecretsState>();
-    crate::modules::secrets::secrets_set(
+    let _ = crate::modules::secrets::secrets_set(
         app.clone(),
         secrets_state,
         "yamet-ai".to_string(),
         format!("gateway:{platform}"),
         config_json.clone(),
     )
-    .await?;
+    .await;
     let id: PlatformId = platform.parse().map_err(|e: String| e)?;
+    super::adapters::persist_creds_to_file(&app, id, &config_json);
     state.register(super::adapters::build_adapter(id, &config_json)?);
     Ok(())
 }
@@ -200,16 +201,22 @@ pub async fn gateway_weixin_qr_login(
                 account_id: account_id.clone(),
             };
             let config_json = serde_json::to_string(&config).map_err(|e| e.to_string())?;
-            // Persist to keychain + re-register so the fresh token survives.
+            // Persist to keychain + file store + re-register so the fresh token
+            // survives restarts even when the OS keyring is unavailable.
             let secrets_state = app.state::<crate::modules::secrets::SecretsState>();
-            crate::modules::secrets::secrets_set(
+            let _ = crate::modules::secrets::secrets_set(
                 app.clone(),
                 secrets_state,
                 "yamet-ai".to_string(),
                 "gateway:weixin".to_string(),
                 config_json.clone(),
             )
-            .await?;
+            .await;
+            super::adapters::persist_creds_to_file(
+                &app,
+                super::platform::PlatformId::Weixin,
+                &config_json,
+            );
             state.register(Box::new(WeixinAdapter::new(config)));
             Ok((account_id, token, base_url))
         }
@@ -250,14 +257,20 @@ pub async fn gateway_weixin_persist(
     };
     let config_json = serde_json::to_string(&config).map_err(|e| e.to_string())?;
     let secrets_state = app.state::<crate::modules::secrets::SecretsState>();
-    crate::modules::secrets::secrets_set(
+    let _ = crate::modules::secrets::secrets_set(
         app.clone(),
         secrets_state,
         "yamet-ai".to_string(),
         "gateway:weixin".to_string(),
-        config_json,
+        config_json.clone(),
     )
-    .await
+    .await;
+    super::adapters::persist_creds_to_file(
+        &app,
+        super::platform::PlatformId::Weixin,
+        &config_json,
+    );
+    Ok(())
 }
 
 #[derive(Serialize)]
