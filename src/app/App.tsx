@@ -658,6 +658,28 @@ export default function App() {
     return () => unlisten?.();
   }, [handleOpenFile]);
 
+  // Bridge inbound gateway messages into the active AI chat.
+  // The Rust set_handler emits `yamet:gateway-message` with the full
+  // MessageEvent; we extract the text and dispatch `yamet:ai-ask` so the
+  // composer picks it up and sends it as a user message.
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    (async () => {
+      unlisten = await listen<Record<string, unknown>>(
+        "yamet:gateway-message",
+        (e) => {
+          const text = e.payload?.text;
+          if (typeof text === "string" && text.trim()) {
+            window.dispatchEvent(
+              new CustomEvent("yamet:ai-ask", { detail: text }),
+            );
+          }
+        },
+      );
+    })();
+    return () => unlisten?.();
+  }, []);
+
   const handlePathRenamed = useCallback(
     (from: string, to: string) => {
       for (const t of tabs) {
