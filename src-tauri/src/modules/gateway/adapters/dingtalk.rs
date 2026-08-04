@@ -298,9 +298,78 @@ fn extract_media(body: &serde_json::Value) -> Vec<MediaItem> {
             name,
             size: None,
             encrypted_query: None,
+            local_path: None,
         });
     }
     items
+}
+
+/// Download a DingTalk media file given its `download_code`. Returns the
+/// local filesystem path on success, or an error string.
+///
+/// Flow: fetch access token → POST
+/// `/v1.0/robot/messageFiles/download` to resolve a temporary download URL
+/// → HTTP-GET the binary content → write to `~/.yamet/media/`.
+async fn download_dingtalk_media(
+    app_key: &str,
+    app_secret: &str,
+    robot_code: &str,
+    download_code: &str,
+) -> Result<String, String> {
+    let token = fetch_access_token(app_key, app_secret).await?;
+    let client = http_client();
+
+    // 1. Resolve the temporary download URL.
+    let url = format!("{OPENAPI_BASE}/v1.0/robot/messageFiles/download");
+    let resp = client
+        .post(&url)
+        .header("x-acs-dingtalk-access-token", &token)
+        .header("Content-Type", "application/json")
+        .json(&json!({ "downloadCode": download_code, "robotCode": robot_code }))
+        .send()
+        .await
+        .map_err(|e| format!("media download request failed: {e}"))?;
+    let v: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|e| format!("media download response parse failed: {e}"))?;
+    let download_url = v
+        .get("downloadUrl")
+        .and_then(|u| u.as_str())
+        .ok_or_else(|| format!("no downloadUrl in media response: {v}"))?;
+
+    // 2. Fetch the actual binary content.
+    let resp = client
+        .get(download_url)
+        .send()
+        .await
+        .map_err(|e| format!("media binary fetch failed: {e}"))?;
+    let bytes = resp
+        .bytes()
+        .await
+        .map_err(|e| format!("media binary read failed: {e}"))?;
+
+    // 3. Persist to the local media directory.
+    let media_dir = dirs::home_dir()
+        .unwrap_or_else(|| std::env::temp_dir())
+        .join(".yamet")
+        .join("media");
+    std::fs::create_dir_all(&media_dir)
+        .map_err(|e| format!("media dir create failed: {e}"))?;
+    let path = media_dir.join(format!(
+        "dingtalk-{}-{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis(),
+        download_code
+            .chars()
+            .take(16)
+            .collect::<String>()
+    ));
+    std::fs::write(&path, &bytes)
+        .map_err(|e| format!("media write failed: {e}"))?;
+    Ok(path.to_string_lossy().into_owned())
 }
 
 // ---------------------------------------------------------------------------
@@ -313,6 +382,7 @@ fn extract_media(body: &serde_json::Value) -> Vec<MediaItem> {
 async fn run_stream_session(
     app_key: &str,
     app_secret: &str,
+    robot_code: &str,
     stop: &Arc<AtomicBool>,
     tx: EventTx,
 ) -> Result<(), String> {
@@ -361,7 +431,17 @@ async fn run_stream_session(
         let body = frame.body.clone();
 
         if topic == CHATBOT_TOPIC {
-            if let Some(ev) = parse_chatbot_message(&body) {
+            if let Some(mut ev) = parse_chatbot_message(&body) {
+                // Resolve media downloads: convert downloadCode → local file.
+                for item in &mut ev.media {
+                    if let Some(code) = item.url.as_deref() {
+                        if let Ok(local) =
+                            download_dingtalk_media(app_key, app_secret, robot_code, code).await
+                        {
+                            item.local_path = Some(local);
+                        }
+                    }
+                }
                 if tx.send(ev).await.is_err() {
                     // Receiver (registry) gone; treat as clean stop.
                     break;
@@ -515,6 +595,7 @@ impl PlatformAdapter for DingTalkAdapter {
     fn connect(&self, tx: EventTx) -> BoxFuture<'static, Result<(), String>> {
         let app_key = self.cfg.app_key.clone();
         let app_secret = self.cfg.app_secret.clone();
+        let robot_code = self.cfg.robot_code.clone().unwrap_or_else(|| app_key.clone());
         let stop = Arc::clone(&self.stop);
 
         let mut guard = self.task.lock().unwrap();
@@ -528,7 +609,7 @@ impl PlatformAdapter for DingTalkAdapter {
                 if stop.load(Ordering::SeqCst) {
                     break;
                 }
-                match run_stream_session(&app_key, &app_secret, &stop, tx.clone()).await {
+                match run_stream_session(&app_key, &app_secret, &robot_code, &stop, tx.clone()).await {
                     Ok(()) => {
                         backoff = 2;
                     }

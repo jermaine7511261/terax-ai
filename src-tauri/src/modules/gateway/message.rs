@@ -21,6 +21,8 @@ pub struct MediaItem {
     pub size: Option<u64>,
     /// For iLink-style platforms, the AES-encrypted CDN query param.
     pub encrypted_query: Option<String>,
+    /// Local filesystem path after download (e.g. `/tmp/yamet/media-xxx.bin`).
+    pub local_path: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

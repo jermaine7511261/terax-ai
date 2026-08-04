@@ -543,7 +543,8 @@ impl WeixinAdapter {
         }
         // Surface the QR to the UI (background re-login) so the user knows a
         // scan is required instead of the session silently dying.
-        if let Ok(svg) = qr_svg_data_url(&qrcode_value) {
+        // The raw token must be wrapped in a URL that WeChat can recognize.
+        if let Ok(svg) = qr_svg_data_url(&ilink_qr_url(&qrcode_value)) {
             self.emit(QrLoginFrame::Qr { svg_data_url: svg });
         }
 
@@ -937,6 +938,8 @@ pub enum QrLoginFrame {
 }
 
 /// Render `content` as an SVG QR code and return it as an inline `data:` URL.
+/// `content` should be a full URL that WeChat can recognize (e.g. the iLink
+/// bot-scan URL), not a raw token.
 fn qr_svg_data_url(content: &str) -> Result<String, String> {
     use qrcode::{EcLevel, QrCode, Version};
     let code = QrCode::with_version(content, Version::Normal(5), EcLevel::L)
@@ -953,6 +956,13 @@ fn qr_svg_data_url(content: &str) -> Result<String, String> {
         "data:image/svg+xml;base64,{}",
         base64::engine::general_purpose::STANDARD.encode(svg)
     ))
+}
+
+/// Wrap a raw iLink QR token into a URL that WeChat can recognize when scanned.
+/// The iLink Bot API returns just a token; WeChat needs a full URL to trigger
+/// the bot-pairing flow.
+fn ilink_qr_url(token: &str) -> String {
+    format!("{ILINK_BASE_URL}/bot/scan?qrcode={token}")
 }
 
 /// Fetch a fresh QR frame and emit it via `emit`.
@@ -975,7 +985,7 @@ async fn emit_fresh_qr(
     if qrcode_value.is_empty() {
         return Err("weixin: QR response missing qrcode".into());
     }
-    let svg = qr_svg_data_url(&qrcode_value)?;
+    let svg = qr_svg_data_url(&ilink_qr_url(&qrcode_value))?;
     emit(QrLoginFrame::Qr { svg_data_url: svg });
     Ok(qrcode_value)
 }

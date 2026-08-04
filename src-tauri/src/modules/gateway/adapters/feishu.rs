@@ -244,6 +244,8 @@ async fn handle_ws_frame<S>(
     write: &mut S,
     text: &str,
     tx: EventTx,
+    token: &str,
+    client: &reqwest::Client,
 ) -> Result<(), String>
 where
     S: futures_util::Sink<Message> + Unpin,
@@ -255,7 +257,26 @@ where
     match frame.get("type").and_then(|t| t.as_str()) {
         Some("http_callback") => {
             if let Some(data) = frame.get("data") {
-                handle_inbound_event(data, &tx);
+                if let Some(mut ev) = handle_inbound_event(data) {
+                    // Resolve media downloads for the event.
+                    for item in &mut ev.media {
+                        if let Some(key) = item.url.as_deref() {
+                            let msg_id = ev.message_id.as_deref().unwrap_or("");
+                            let media_type = match item.kind {
+                                crate::modules::gateway::message::MediaKind::Image => "image",
+                                crate::modules::gateway::message::MediaKind::Voice => "audio",
+                                crate::modules::gateway::message::MediaKind::Video => "video",
+                                crate::modules::gateway::message::MediaKind::File => "file",
+                            };
+                            if let Ok(local) =
+                                download_feishu_media(client, token, msg_id, key, media_type).await
+                            {
+                                item.local_path = Some(local);
+                            }
+                        }
+                    }
+                    let _ = tx.try_send(ev);
+                }
             }
             let ack = serde_json::to_string(&json!({"type": "ack", "status": {"code": 0}}))
                 .unwrap_or_else(|_| r#"{"type":"ack","status":{"code":0}}"#.to_string());
@@ -282,14 +303,14 @@ where
 }
 
 /// Normalize a Feishu `im.message.receive_v1` event into a gateway
-/// `MessageEvent` and push it onto the inbound channel.
-fn handle_inbound_event(data: &Value, tx: &EventTx) {
+/// `MessageEvent`. Returns `None` for unrecognized event types.
+fn handle_inbound_event(data: &Value) -> Option<MessageEvent> {
     let event_type = data
         .pointer("/header/event_type")
         .and_then(|v| v.as_str())
         .unwrap_or("");
     if event_type != "im.message.receive_v1" {
-        return;
+        return None;
     }
 
     // Never echo our own (bot/app) messages back into the loop.
@@ -298,12 +319,12 @@ fn handle_inbound_event(data: &Value, tx: &EventTx) {
         .and_then(|v| v.as_str())
         .unwrap_or("");
     if sender_type == "bot" || sender_type == "app" {
-        return;
+        return None;
     }
 
     let message = match data.pointer("/event/message") {
         Some(m) => m,
-        None => return,
+        None => return None,
     };
 
     let message_id = message
@@ -312,7 +333,7 @@ fn handle_inbound_event(data: &Value, tx: &EventTx) {
         .unwrap_or("")
         .to_string();
     if message_id.is_empty() {
-        return;
+        return None;
     }
 
     let chat_id = message
@@ -360,13 +381,12 @@ fn handle_inbound_event(data: &Value, tx: &EventTx) {
         text,
         message_id: Some(message_id),
         reply_to,
-        media: Vec::<MediaItem>::new(),
+        media: extract_message_media(message),
         raw: data.clone(),
         timestamp: Utc::now(),
     };
 
-    // Non-blocking push; drop the event if the router is saturated.
-    let _ = tx.try_send(ev);
+    Some(ev)
 }
 
 /// Extract the plain-text payload from a Feishu message. For `text` messages
@@ -385,6 +405,118 @@ fn extract_message_text(message: &Value) -> Option<String> {
         .get("text")
         .and_then(|v| v.as_str())
         .map(|s| s.to_string())
+}
+
+/// Extract media items from a Feishu message's `content` JSON.
+///
+/// For non-text message types (`image`, `file`, `video`, `audio`) the content
+/// field is a JSON string carrying an `image_key` or `file_key`. These are
+/// returned as `MediaItem`s with the key in the `url` field (to be resolved
+/// to a local path by the download step).
+fn extract_message_media(message: &Value) -> Vec<MediaItem> {
+    let msg_type = message
+        .get("message_type")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    if msg_type == "text" {
+        return Vec::new();
+    }
+    let content_str = match message.get("content").and_then(|v| v.as_str()) {
+        Some(s) => s,
+        None => return Vec::new(),
+    };
+    let content_json: Value = match serde_json::from_str(content_str) {
+        Ok(v) => v,
+        Err(_) => return Vec::new(),
+    };
+
+    let (kind, key) = match msg_type {
+        "image" => (
+            crate::modules::gateway::message::MediaKind::Image,
+            content_json
+                .get("image_key")
+                .and_then(|v| v.as_str()),
+        ),
+        "file" => (
+            crate::modules::gateway::message::MediaKind::File,
+            content_json
+                .get("file_key")
+                .and_then(|v| v.as_str()),
+        ),
+        "audio" => (
+            crate::modules::gateway::message::MediaKind::Voice,
+            content_json
+                .get("file_key")
+                .and_then(|v| v.as_str()),
+        ),
+        "video" => (
+            crate::modules::gateway::message::MediaKind::Video,
+            content_json
+                .get("file_key")
+                .and_then(|v| v.as_str()),
+        ),
+        _ => return Vec::new(),
+    };
+    let key = match key {
+        Some(k) if !k.is_empty() => k.to_string(),
+        _ => return Vec::new(),
+    };
+    let name = content_json
+        .get("file_name")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+    vec![MediaItem {
+        kind,
+        url: Some(key),
+        name,
+        size: None,
+        encrypted_query: None,
+        local_path: None,
+    }]
+}
+
+/// Download a Feishu media resource to a local temp file and return its path.
+///
+/// Uses the Feishu `GET /open-apis/im/v1/messages/{message_id}/resources/{file_key}`
+/// endpoint with `type=image|file|audio|video`.
+async fn download_feishu_media(
+    client: &reqwest::Client,
+    token: &str,
+    message_id: &str,
+    file_key: &str,
+    media_type: &str,
+) -> Result<String, String> {
+    let url = format!(
+        "{FEISHU_BASE}/open-apis/im/v1/messages/{message_id}/resources/{file_key}?type={media_type}",
+    );
+    let resp = client
+        .get(&url)
+        .header("Authorization", format!("Bearer {token}"))
+        .send()
+        .await
+        .map_err(|e| format!("feishu media download failed: {e}"))?;
+    let bytes = resp
+        .bytes()
+        .await
+        .map_err(|e| format!("feishu media read failed: {e}"))?;
+
+    let media_dir = dirs::home_dir()
+        .unwrap_or_else(|| std::env::temp_dir())
+        .join(".yamet")
+        .join("media");
+    std::fs::create_dir_all(&media_dir)
+        .map_err(|e| format!("media dir create failed: {e}"))?;
+    let path = media_dir.join(format!(
+        "feishu-{}-{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis(),
+        &file_key[..file_key.len().min(16)],
+    ));
+    std::fs::write(&path, &bytes)
+        .map_err(|e| format!("media write failed: {e}"))?;
+    Ok(path.to_string_lossy().into_owned())
 }
 
 // ---------------------------------------------------------------------------
@@ -422,7 +554,7 @@ async fn run_ws_session(
             Ok(Some(Err(e))) => return Err(format!("feishu ws read error: {e}")),
             Ok(Some(Ok(msg))) => {
                 if let Message::Text(text) = msg {
-                    handle_ws_frame(&mut write, text.as_str(), tx.clone()).await?;
+                    handle_ws_frame(&mut write, text.as_str(), tx.clone(), &token, client).await?;
                 }
             }
         }
