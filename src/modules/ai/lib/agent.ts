@@ -28,6 +28,25 @@ import { createProxyFetch } from "./proxyFetch";
 
 const localProxyFetch = createProxyFetch({ allowPrivateNetwork: true });
 
+/**
+ * Filter a tool registry by an allowlist of tool ids.
+ * `undefined` / empty allowlist = no restriction (full toolset). Unknown ids
+ * in the allowlist are ignored, so a stale allowlist never breaks a run.
+ * Pure function — unit-tested in `lib/agent` (skill allowlist semantics).
+ */
+export function filterTools<T extends Record<string, unknown>>(
+  tools: T,
+  allowlist: string[] | undefined,
+): T {
+  if (!allowlist || allowlist.length === 0) return tools;
+  const allowed = new Set(allowlist);
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(tools)) {
+    if (allowed.has(k)) out[k] = v;
+  }
+  return out as T;
+}
+
 const TOOL_LABELS: Record<string, (input: Record<string, unknown>) => string> =
   {
     read_file: (i) => `Reading ${shortPath(i.path)}`,
@@ -275,7 +294,10 @@ function buildStableSystem(
     projectMemory && projectMemory.trim().length > 0
       ? `\n\n## PROJECT — YAMET.md\n${projectMemory.trim()}`
       : "";
-  return `${base}${memoryBlock}${personaBlock}${customBlock}`;
+  // ★ H2 Hermes: periodic nudge — settle reusable findings into project
+  // memory at task end so future sessions can recall them.
+  const nudgeBlock = `\n\n## MEMORY NUDGE — when you finish a task and discovered reusable facts (decisions, conventions, gotchas), persist them via update_project_memory (source "auto" is only for the UI settle flow; use the default).`;
+  return `${base}${memoryBlock}${nudgeBlock}${personaBlock}${customBlock}`;
 }
 
 export type AgentUsage = {
@@ -314,6 +336,12 @@ export type RunAgentOptions = {
   customEndpoints?: readonly CustomEndpoint[];
   customEndpointKeys?: CustomEndpointKeys;
   planMode?: boolean;
+  /**
+   * Skill-scoped tool allowlist (tool ids the model may call this run).
+   * `undefined` = full toolset. Set by the composer from snippet
+   * `toolAllowlist`s; cleared on the next plain message.
+   */
+  toolAllowlist?: string[];
   projectMemory?: string | null;
   uiMessages: UIMessage[];
   abortSignal?: AbortSignal;
@@ -374,7 +402,7 @@ export async function runAgentStream(opts: RunAgentOptions) {
     system: prompt.system,
     messages: prompt.messages,
     allowSystemInMessages: false,
-    tools: buildTools(opts.toolContext),
+    tools: filterTools(buildTools(opts.toolContext), opts.toolAllowlist),
     stopWhen: stepCountIs(MAX_AGENT_STEPS),
     abortSignal: opts.abortSignal,
     onStepFinish: (step) => {

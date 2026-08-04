@@ -73,6 +73,9 @@ Yamet 是一个快速、轻量的 AI 原生终端（ADE，agentic development en
 - [x] 长上下文自动压缩
 - [x] 会话内首次批准后的自动批准
 - [x] IM 网关：钉钉 / 飞书 / 企微 / QQ / 微信（iLink）/ 公众号适配器，认证门禁驱动 agent
+- [x] MCP client：外部 MCP server（stdio / HTTP）工具接入，全部默认审批 + 脱敏
+- [x] Skill 升级：snippet 工具白名单（技能限定工具回合）+ 内置 `skills/` 目录约定
+- [x] 记忆增强：`list`/`delete` 工具、来源分组（tool/auto）、收尾 nudge、设置页浏览/编辑
 
 ### 网页预览
 
@@ -119,7 +122,7 @@ Yamet 是一个快速、轻量的 AI 原生终端（ADE，agentic development en
 - [ ] 发布自动化（CHANGELOG、版本递增；tag 流程待办）
 - [ ] 打包体积优化（语言包懒加载、UI 原语按需导入、tree-shake）
 - [ ] 依据 profile 数据的选择性 TS → Rust 迁移
-- [ ] AI 工具 / 片段作为可安装 bundle
+- [ ] AI 工具 / 片段作为可安装 bundle（`skills/` 目录约定 + 工具白名单已交付子集；bundle 分享留后续）
 
 ## 欢迎贡献
 

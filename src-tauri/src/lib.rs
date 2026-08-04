@@ -1,6 +1,6 @@
 pub mod modules;
 
-use modules::{agent, fs, gateway, git, history, lsp, net, pty, secrets, shell, workspace};
+use modules::{agent, fs, gateway, git, history, lsp, mcp, mcp_server, net, pty, scheduler, secrets, shell, workspace};
 use std::path::PathBuf;
 use std::sync::Mutex;
 use tauri::{Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder};
@@ -11,6 +11,12 @@ use tauri_plugin_window_state::StateFlags;
 /// Drained on first read so HMR / re-mounts can't replay the launch dir.
 #[derive(Default)]
 struct LaunchDir(Mutex<Option<String>>);
+
+/// Standalone MCP server entry (`yamet __mcp_server`): serves read-only
+/// workspace tools to external agents over stdio JSON-RPC (★ L1 LangBot).
+pub fn mcp_server_run(cwd: &str) -> Result<(), String> {
+    mcp_server::run_server(std::path::Path::new(cwd))
+}
 
 /// Drained on first read so HMR / re-mounts can't replay the launch files.
 #[derive(Default)]
@@ -281,6 +287,29 @@ pub fn run() {
                     }
                 });
             }
+            // Cron scheduler (★ H3 Hermes): own an Arc (shared with the tick
+            // thread), register it as managed state, load persisted tasks,
+            // then tick every 30s emitting `yamet:scheduler-fire` so the
+            // frontend can spawn agent runs (notification / session targets).
+            {
+                let scheduler_arc: std::sync::Arc<scheduler::SchedulerState> =
+                    std::sync::Arc::new(scheduler::SchedulerState::default());
+                app.manage(scheduler_arc.clone());
+                if let Ok(data_dir) = app.path().app_local_data_dir() {
+                    let _ = std::fs::create_dir_all(&data_dir);
+                    scheduler_arc.set_persist_path(data_dir.join("scheduler.json"));
+                    scheduler_arc.load();
+                }
+                let handle = app.handle().clone();
+                std::thread::spawn(move || {
+                    loop {
+                        for fired in scheduler_arc.tick() {
+                            let _ = handle.emit("yamet:scheduler-fire", &fired);
+                        }
+                        std::thread::sleep(std::time::Duration::from_secs(30));
+                    }
+                });
+            }
             Ok(())
         })
         .manage(pty::PtyState::default())
@@ -288,6 +317,7 @@ pub fn run() {
         .manage(secrets::SecretsState::default())
         .manage(fs::watch::FsWatchState::default())
         .manage(history::HistoryState::default())
+        .manage(mcp::McpState::default())
         .manage(lsp::LspState::default())
         .manage(fs::grep::ContentSearchState::default())
         .manage({
@@ -411,6 +441,15 @@ pub fn run() {
             history::history_commands,
             history::history_record,
             history::history_list,
+            mcp::mcp_connect,
+            mcp::mcp_tools_list,
+            mcp::mcp_call,
+            mcp::mcp_disconnect,
+            mcp::mcp_status,
+            scheduler::scheduler_list,
+            scheduler::scheduler_upsert,
+            scheduler::scheduler_delete,
+            scheduler::scheduler_toggle,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

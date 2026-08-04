@@ -9,6 +9,7 @@ import {
   formatSessionMemory,
   getSessionMemory,
 } from "../store/memoryStore";
+import { useMcpStore } from "../store/mcpStore";
 
 export const YAMET_MD_MAX_BYTES = 32 * 1024;
 type MemoryCacheEntry = { content: string | null; mtime: number };
@@ -18,6 +19,8 @@ export type ProjectMemoryEntry = {
   id: string;
   content: string;
   createdAt: number;
+  /** Who wrote this: the agent tool (`tool`) or the auto-settle nudge (`auto`). */
+  source?: "tool" | "auto";
 };
 
 const MEM_START = "<!-- yamet-project-memory:start -->";
@@ -31,13 +34,13 @@ function invalidateCache(workspaceRoot: string): void {
   projectMemoryCache.delete(workspaceRoot);
 }
 
-function renderEntry(e: { content: string }): string {
+export function renderEntry(e: { content: string }): string {
   return `- ${e.content.replace(/\r?\n/g, " ")}`;
 }
 
 type MemoryBlock = { prefix: string; lines: string[]; suffix: string };
 
-function parseBlock(content: string): MemoryBlock {
+export function parseBlock(content: string): MemoryBlock {
   const startIdx = content.indexOf(MEM_START);
   const endIdx = content.indexOf(MEM_END);
   if (startIdx === -1 || endIdx === -1 || endIdx <= startIdx) {
@@ -50,7 +53,7 @@ function parseBlock(content: string): MemoryBlock {
   return { prefix, lines, suffix };
 }
 
-function rebuildBlock(block: MemoryBlock): string {
+export function rebuildBlock(block: MemoryBlock): string {
   let out = block.prefix;
   if (block.lines.length > 0) {
     if (out.length > 0 && !out.endsWith("\n")) out += "\n";
@@ -115,6 +118,31 @@ export async function updateProjectMemory(
   const line = renderEntry(entry);
   block.lines = block.lines.filter((l) => l !== line);
   block.lines.push(line);
+  try {
+    await native.writeFile(path, capBytes(rebuildBlock(block)));
+    invalidateCache(workspaceRoot);
+    return { ok: true, path };
+  } catch (e) {
+    return { ok: false, reason: String(e) };
+  }
+}
+
+/**
+ * Remove a project memory entry from YAMET.md by exact content match (the
+ * persisted block stores plain `- content` lines, so content is the id).
+ */
+export async function removeProjectMemory(
+  workspaceRoot: string,
+  content: string,
+): Promise<{ ok: true; path: string } | { ok: false; reason: string }> {
+  const { content: fileContent, path } = await readMemoryFile(workspaceRoot);
+  const block = parseBlock(fileContent);
+  const line = renderEntry({ content });
+  const next = block.lines.filter((l) => l !== line);
+  if (next.length === block.lines.length) {
+    return { ok: true, path }; // nothing matched — idempotent
+  }
+  block.lines = next;
   try {
     await native.writeFile(path, capBytes(rebuildBlock(block)));
     invalidateCache(workspaceRoot);
@@ -201,6 +229,8 @@ type Deps = {
   onCompact?: (info: { droppedCount: number }) => void;
   onFinishMeta?: (info: { hitStepCap: boolean; finishReason: string }) => void;
   getPlanMode?: () => boolean;
+  /** Skill-scoped tool allowlist for this session (undefined = full tools). */
+  getToolAllowlist?: () => string[] | undefined;
 };
 
 type SendOptions = {
@@ -211,6 +241,9 @@ type SendOptions = {
 
 export function createContextAwareTransport(deps: Deps) {
   const run = async (options: SendOptions) => {
+    // Refresh the dynamic MCP tool registry before every run so newly
+    // connected servers appear and dropped ones disappear from the toolset.
+    await useMcpStore.getState().refresh().catch(() => {});
     const live = deps.getLive();
     const staticMemory = await readYametMd(live.workspaceRoot);
     // Two-level project memory: static YAMET.md (cross-session, on disk) +
@@ -243,6 +276,7 @@ export function createContextAwareTransport(deps: Deps) {
       customEndpoints: deps.getCustomEndpoints?.(),
       customEndpointKeys: deps.getCustomEndpointKeys?.(),
       planMode: deps.getPlanMode?.(),
+      toolAllowlist: deps.getToolAllowlist?.(),
       projectMemory,
       uiMessages: messagesForRun,
       abortSignal: options.abortSignal,

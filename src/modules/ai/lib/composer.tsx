@@ -349,8 +349,11 @@ export function AiComposerProvider({ children }: ProviderProps) {
         (f) =>
           `<selection source="${f.source ?? "terminal"}">\n${f.text ?? ""}\n</selection>`,
       );
-    const { body: bodyAfterTokens, blocks: snippetBlocks } =
-      expandSnippetTokens(effectiveText, useSnippetsStore.getState().snippets);
+    const {
+      body: bodyAfterTokens,
+      blocks: snippetBlocks,
+      used: tokenSnippets,
+    } = expandSnippetTokens(effectiveText, useSnippetsStore.getState().snippets);
     const seenHandles = new Set<string>();
     const allSnippetBlocks: string[] = [];
     for (const s of pickedSnippets) {
@@ -389,6 +392,21 @@ export function AiComposerProvider({ children }: ProviderProps) {
     }
 
     if (!sessionId) return;
+
+    // Skill tool-allowlist: union of `toolAllowlist` across snippets actually
+    // used this turn (#handle expansion + manual picks). Empty set clears the
+    // allowlist → the next run gets the full toolset again.
+    const allowlist = new Set<string>();
+    for (const s of [...tokenSnippets, ...pickedSnippets]) {
+      for (const id of s.toolAllowlist ?? []) allowlist.add(id);
+    }
+    useChatStore
+      .getState()
+      .setSessionToolAllowlist(
+        sessionId,
+        allowlist.size > 0 ? Array.from(allowlist) : undefined,
+      );
+
     const store = useChatStore.getState();
     store.patchAgentMeta({ hitStepCap: false, compactionNotice: null });
     void (async () => {

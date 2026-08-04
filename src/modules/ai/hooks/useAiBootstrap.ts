@@ -1,4 +1,10 @@
 import { useEffect, useState } from "react";
+import { listen } from "@tauri-apps/api/event";
+import {
+  isPermissionGranted,
+  requestPermission,
+  sendNotification,
+} from "@tauri-apps/plugin-notification";
 import { firePendingReviewForSession } from "@/modules/agents/lib/review";
 import { usePreferencesStore } from "@/modules/settings/preferences";
 import { onKeysChanged } from "@/modules/settings/store";
@@ -10,6 +16,8 @@ import {
 import { useAgentsStore } from "../store/agentsStore";
 import { useChatStore } from "../store/chatStore";
 import { useSnippetsStore } from "../store/snippetsStore";
+import { scanSkillsDir } from "../lib/skills";
+import type { FiredTask } from "../lib/scheduler";
 
 /**
  * Startup wiring for the AI subsystem: loads provider keys (and keeps them in
@@ -93,7 +101,51 @@ export function useAiBootstrap(): {
     void hydrateSessions();
     void useAgentsStore.getState().hydrate();
     void useSnippetsStore.getState().hydrate();
+    // Scan the workspace `skills/` directory once at boot (★ L4 LangBot):
+    // builtins merge into the snippet store as `builtin: true` snippets and
+    // honor the user's disabled set.
+    void (async () => {
+      const root = useChatStore.getState().live.getWorkspaceRoot() ?? null;
+      const builtins = await scanSkillsDir(root);
+      if (builtins.length > 0) {
+        useSnippetsStore.getState().mergeBuiltin(builtins);
+      }
+    })();
   }, [hydrateSessions]);
+
+  // Cron scheduler fires (★ H3 Hermes): spawn the agent for session targets,
+  // otherwise send a system notification.
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    void listen<FiredTask>("yamet:scheduler-fire", (e) => {
+      const fired = e.payload;
+      const live = useChatStore.getState().live;
+      if (fired.target === "session") {
+        live.spawnManagedAgent(
+          fired.prompt,
+          useChatStore.getState().activeSessionId,
+        );
+      } else {
+        void (async () => {
+          let granted = await isPermissionGranted();
+          if (!granted) {
+            granted = (await requestPermission()) === "granted";
+          }
+          if (granted) {
+            sendNotification({
+              title: `Yamet · ${fired.name}`,
+              body: fired.prompt.slice(0, 120),
+            });
+          }
+        })();
+      }
+    }).then((fn) => {
+      unlisten = fn;
+    });
+    return () => {
+      unlisten?.();
+    };
+  }, []);
 
   return { hasComposer, keysLoaded };
 }

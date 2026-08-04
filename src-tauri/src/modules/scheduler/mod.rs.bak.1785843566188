@@ -1,0 +1,258 @@
+//! Cron scheduler (★ H3 Hermes). Tasks defined by a natural-language prompt +
+//! a 5-field cron expression fire on schedule; the frontend listens for
+//! `yamet:scheduler-fire` and spawns the agent (notification/session target).
+
+mod cron;
+
+use std::path::PathBuf;
+use std::sync::{Mutex, RwLock};
+
+use chrono::{DateTime, Local};
+use serde::{Deserialize, Serialize};
+use tauri::State;
+
+use cron::{next_trigger, parse_cron};
+
+const TICK_WINDOW_SECS: i64 = 30;
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ScheduledTask {
+    pub id: String,
+    pub name: String,
+    pub prompt: String,
+    /// 5-field cron: `minute hour day-of-month month day-of-week`.
+    pub cron: String,
+    /// "notification" | "session"
+    pub target: String,
+    pub enabled: bool,
+    pub last_fired_at: Option<i64>,
+}
+
+/// Emitted to the frontend when a task fires.
+#[derive(Clone, Serialize)]
+pub struct FiredTask {
+    pub id: String,
+    pub name: String,
+    pub prompt: String,
+    pub target: String,
+}
+
+#[derive(Default)]
+pub struct SchedulerState {
+    tasks: RwLock<Vec<ScheduledTask>>,
+    persist_path: Mutex<Option<PathBuf>>,
+}
+
+impl SchedulerState {
+    pub fn set_persist_path(&self, path: PathBuf) {
+        *self.persist_path.lock().unwrap() = Some(path);
+    }
+
+    pub fn load(&self) {
+        let Some(path) = self.persist_path.lock().unwrap().clone() else {
+            return;
+        };
+        if let Ok(json) = std::fs::read_to_string(&path) {
+            if let Ok(tasks) = serde_json::from_str::<Vec<ScheduledTask>>(&json) {
+                *self.tasks.write().unwrap() = tasks;
+            }
+        }
+    }
+
+    fn save(&self) {
+        let Some(path) = self.persist_path.lock().unwrap().clone() else {
+            return;
+        };
+        let json = serde_json::to_string(&*self.tasks.read().unwrap()).unwrap_or_default();
+        let _ = std::fs::create_dir_all(path.parent().unwrap_or(PathBuf::new().as_path()));
+        let _ = std::fs::write(path, json);
+    }
+
+    /// Fire every enabled task whose next trigger falls inside the tick
+    /// window; updates `last_fired_at` and persists.
+    pub fn tick(&self) -> Vec<FiredTask> {
+        let now: DateTime<Local> = Local::now();
+        let mut fired = Vec::new();
+        {
+            let mut tasks = self.tasks.write().unwrap();
+            for task in tasks.iter_mut() {
+                if !task.enabled {
+                    continue;
+                }
+                let Ok(cron) = parse_cron(&task.cron) else {
+                    continue;
+                };
+                let Some(next) = next_trigger(&cron, now) else {
+                    continue;
+                };
+                let delta = (next - now).num_seconds();
+                if (0..=TICK_WINDOW_SECS).contains(&delta) {
+                    task.last_fired_at = Some(now.timestamp());
+                    fired.push(FiredTask {
+                        id: task.id.clone(),
+                        name: task.name.clone(),
+                        prompt: task.prompt.clone(),
+                        target: task.target.clone(),
+                    });
+                }
+            }
+        }
+        if !fired.is_empty() {
+            self.save();
+        }
+        fired
+    }
+}
+
+fn list_inner(state: &SchedulerState) -> Vec<ScheduledTask> {
+    state.tasks.read().unwrap().clone()
+}
+
+fn upsert_inner(state: &SchedulerState, task: ScheduledTask) -> Result<(), String> {
+    if task.name.trim().is_empty() || task.prompt.trim().is_empty() {
+        return Err("task requires a name and prompt".into());
+    }
+    if !["notification", "session"].contains(&task.target.as_str()) {
+        return Err("target must be notification or session".into());
+    }
+    parse_cron(&task.cron).map_err(|e| format!("bad cron: {e}"))?;
+    {
+        let mut tasks = state.tasks.write().unwrap();
+        if let Some(existing) = tasks.iter_mut().find(|t| t.id == task.id) {
+            *existing = task;
+        } else {
+            tasks.push(task);
+        }
+    }
+    state.save();
+    Ok(())
+}
+
+fn delete_inner(state: &SchedulerState, id: String) {
+    state.tasks.write().unwrap().retain(|t| t.id != id);
+    state.save();
+}
+
+fn toggle_inner(state: &SchedulerState, id: String, enabled: bool) {
+    if let Some(task) = state.tasks.write().unwrap().iter_mut().find(|t| t.id == id) {
+        task.enabled = enabled;
+    }
+    state.save();
+}
+
+#[tauri::command]
+pub fn scheduler_list(state: State<'_, SchedulerState>) -> Vec<ScheduledTask> {
+    list_inner(state.inner())
+}
+
+#[tauri::command]
+pub fn scheduler_upsert(state: State<'_, SchedulerState>, task: ScheduledTask) -> Result<(), String> {
+    upsert_inner(state.inner(), task)
+}
+
+#[tauri::command]
+pub fn scheduler_delete(state: State<'_, SchedulerState>, id: String) {
+    delete_inner(state.inner(), id);
+}
+
+#[tauri::command]
+pub fn scheduler_toggle(state: State<'_, SchedulerState>, id: String, enabled: bool) {
+    toggle_inner(state.inner(), id, enabled);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[test]
+    fn upsert_validates_and_persists() {
+        let state = SchedulerState::default();
+        let tmp = TempDir::new().unwrap();
+        state.set_persist_path(tmp.path().join("scheduler.json"));
+
+        let task = ScheduledTask {
+            id: "t1".into(),
+            name: "每日报告".into(),
+            prompt: "写一份今日进展摘要".into(),
+            cron: "0 9 * * *".into(),
+            target: "notification".into(),
+            enabled: true,
+            last_fired_at: None,
+        };
+        assert!(upsert_inner(&state, task.clone()).is_ok());
+
+        // Invalid cron / target / empty fields are rejected.
+        let mut bad = task.clone();
+        bad.cron = "61 * * * *".into();
+        assert!(upsert_inner(&state, bad).is_err());
+        let mut bad = task.clone();
+        bad.target = "im".into();
+        assert!(upsert_inner(&state, bad).is_err());
+        let mut bad = task.clone();
+        bad.prompt = " ".into();
+        assert!(upsert_inner(&state, bad).is_err());
+
+        assert_eq!(list_inner(&state).len(), 1);
+        // Persisted on disk.
+        assert!(tmp.path().join("scheduler.json").exists());
+    }
+
+    #[test]
+    fn delete_and_toggle() {
+        let state = SchedulerState::default();
+        let task = ScheduledTask {
+            id: "t2".into(),
+            name: "n".into(),
+            prompt: "p".into(),
+            cron: "* * * * *".into(),
+            target: "session".into(),
+            enabled: true,
+            last_fired_at: None,
+        };
+        upsert_inner(&state, task.clone()).unwrap();
+
+        toggle_inner(&state, "t2".into(), false);
+        assert!(!list_inner(&state)[0].enabled);
+
+        delete_inner(&state, "t2".into());
+        assert!(list_inner(&state).is_empty());
+    }
+
+    #[test]
+    fn tick_fires_minutely_task_within_window() {
+        let state = SchedulerState::default();
+        let task = ScheduledTask {
+            id: "t3".into(),
+            name: "n".into(),
+            prompt: "p".into(),
+            cron: "* * * * *".into(),
+            target: "notification".into(),
+            enabled: true,
+            last_fired_at: None,
+        };
+        upsert_inner(&state, task).unwrap();
+
+        let fired = state.tick();
+        assert!(!fired.is_empty());
+        assert_eq!(fired[0].id, "t3");
+        // last_fired_at recorded after tick.
+        assert!(list_inner(&state)[0].last_fired_at.is_some());
+    }
+
+    #[test]
+    fn tick_skips_disabled_tasks() {
+        let state = SchedulerState::default();
+        let task = ScheduledTask {
+            id: "t4".into(),
+            name: "n".into(),
+            prompt: "p".into(),
+            cron: "* * * * *".into(),
+            target: "session".into(),
+            enabled: false,
+            last_fired_at: None,
+        };
+        upsert_inner(&state, task).unwrap();
+        assert!(state.tick().is_empty());
+    }
+}

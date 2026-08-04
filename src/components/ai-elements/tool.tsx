@@ -25,6 +25,7 @@ import {
   ToolsIcon,
 } from "@hugeicons/core-free-icons";
 import { useChatStore } from "@/modules/ai/store/chatStore";
+import { useMcpStore } from "@/modules/ai/store/mcpStore";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { DynamicToolUIPart, ToolUIPart } from "ai";
 import type { ComponentProps, ReactNode } from "react";
@@ -47,6 +48,7 @@ const TOOL_META: Record<string, { label: string; icon: typeof File01Icon }> = {
   bash_kill: { label: "Kill", icon: TerminalIcon },
   grep: { label: "Search", icon: GlobalSearchIcon },
   glob: { label: "Glob", icon: Folder01Icon },
+  search_memories: { label: "Search memories", icon: SparklesIcon },
   suggest_command: { label: "Suggest", icon: SparklesIcon },
   get_terminal_output: { label: "Terminal", icon: TerminalIcon },
   terminal_execute: { label: "Run in terminal", icon: TerminalIcon },
@@ -88,6 +90,17 @@ function deriveSummary(toolName: string, input: unknown): string | null {
   const str = (k: string) =>
     typeof i[k] === "string" ? (i[k] as string) : null;
 
+  // MCP tools: summarize the argument JSON as key=value pairs (capped).
+  if (toolName.startsWith("mcp_")) {
+    const parts = Object.entries(i).map(([k, v]) =>
+      typeof v === "string"
+        ? `${k}=${v.length > 40 ? `${v.slice(0, 39)}…` : v}`
+        : `${k}=${JSON.stringify(v)}`,
+    );
+    const joined = parts.join(", ");
+    return joined.length > 120 ? `${joined.slice(0, 119)}…` : joined;
+  }
+
   switch (toolName) {
     case "read_file":
     case "write_file":
@@ -110,6 +123,8 @@ function deriveSummary(toolName: string, input: unknown): string | null {
       return str("id");
     case "grep":
       return str("pattern") ?? str("query");
+    case "search_memories":
+      return str("query");
     case "glob":
       return str("pattern");
     case "suggest_command":
@@ -172,9 +187,12 @@ const ToolImpl = ({
   defaultOpen,
   ...props
 }: ToolProps) => {
+  const isMcp = toolName.startsWith("mcp_");
   const meta = TOOL_META[toolName];
   const Icon = meta?.icon ?? ToolsIcon;
-  const label = meta?.label ?? toolName;
+  const label = isMcp
+    ? `mcp · ${useMcpStore.getState().toolServerByKey[toolName] ?? "server"}`
+    : (meta?.label ?? toolName);
   const summary = deriveSummary(toolName, input);
   const isError = state === "output-error";
   const open = defaultOpen ?? isError;

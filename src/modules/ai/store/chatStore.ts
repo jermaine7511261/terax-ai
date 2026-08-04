@@ -181,6 +181,15 @@ type StoreState = {
   selectedModelId: string;
   setSelectedModelId: (id: string) => void;
 
+  /**
+   * Per-session tool allowlist set by skill snippets on submit
+   * (`undefined` = full toolset). "技能限定工具的回合" semantics: a skill
+   * with a `toolAllowlist` scopes the NEXT run's tools; a later plain message
+   * clears it back to the full set.
+   */
+  sessionToolAllowlist: Record<string, string[] | undefined>;
+  setSessionToolAllowlist: (sessionId: string, tools: string[] | undefined) => void;
+
   mini: MiniState;
   openMini: () => void;
   closeMini: () => void;
@@ -321,6 +330,12 @@ export const useChatStore = create<StoreState>((set, get) => ({
     set({ selectedModelId: id });
     void pushRecentModel(id);
   },
+
+  sessionToolAllowlist: {},
+  setSessionToolAllowlist: (sessionId, tools) =>
+    set((s) => ({
+      sessionToolAllowlist: { ...s.sessionToolAllowlist, [sessionId]: tools },
+    })),
 
   mini: { open: false },
   openMini: () => set({ mini: { open: true } }),

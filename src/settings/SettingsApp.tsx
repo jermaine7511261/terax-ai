@@ -12,6 +12,7 @@ import {
   PaintBoardIcon,
   Settings01Icon,
   SourceCodeIcon,
+  ToolsIcon,
   UserMultiple02Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -24,6 +25,7 @@ import { GatewaySection } from "./sections/GatewaySection";
 import { GeneralSection } from "./sections/GeneralSection";
 import { ModelsSection } from "./sections/ModelsSection";
 import { ShortcutsSection } from "./sections/ShortcutsSection";
+import { SkillsMcpSection } from "./sections/SkillsMcpSection";
 import { ThemesSection } from "./sections/ThemesSection";
 
 const TABS: {
@@ -36,6 +38,7 @@ const TABS: {
   { id: "themes", icon: PaintBoardIcon, component: ThemesSection },
   { id: "shortcuts", icon: KeyboardIcon, component: ShortcutsSection },
   { id: "models", icon: AiScanIcon, component: ModelsSection },
+  { id: "skills", icon: ToolsIcon, component: SkillsMcpSection },
   { id: "agents", icon: UserMultiple02Icon, component: AgentsSection },
   { id: "gateway", icon: CloudIcon, component: GatewaySection },
   { id: "about", icon: InformationCircleIcon, component: AboutSection },
@@ -47,6 +50,7 @@ const VALID_TABS: SettingsTab[] = [
   "themes",
   "shortcuts",
   "models",
+  "skills",
   "agents",
   "gateway",
   "about",

@@ -5,6 +5,10 @@ Yamet 的所有重要变更都记录于此。版本遵循项目规则：**功能
 ## [未发布]
 
 ### 新增
+- **第六轮（0.1.7）** MCP client：`src-tauri/src/modules/mcp/`（stdio / HTTP 传输 + JSON-RPC 2.0 + 断线重连 + 并发上限 + stderr 环形尾），5 个命令注册；前端动态工具注册（全部 `needsApproval: true` + `redactSensitive` 脱敏 + 工具卡 `mcp · <server>` 来源分支）。
+- **第六轮（0.1.7）** Skill 升级：snippet 支持 `toolAllowlist`（技能限定工具回合，`filterTools` 纯函数）、内置 `skills/` 目录约定（`scanSkillsDir` 启动扫描，builtin 可禁用）、设置页工具白名单多选。
+- **第六轮（0.1.7）** 记忆增强：`ProjectMemoryEntry.source` 来源分组（tool/auto）、`list_project_memory` / `delete_project_memory` 工具、系统提示尾 nudge、设置页项目记忆浏览/编辑区块。
+- **第六轮（0.1.7）** 设置页新增「技能与 MCP」标签（`skillsMcp` 键组，zh/en），MCP 服务器增删改 + 连接/断开 + 工具数展示。
 - AI 工具 `update_project_memory`：两级项目记忆（会话内 store + YAMET.md 落盘），完成 P2-9 写路径。
 - `scripts/version-bump.mjs`：同步四个文件的版本号（四处同步）。
 - `scripts/verify.ps1`：一次性前后端验证门禁（`pnpm verify`：check-types、lint、测试、size、cargo check+test、tauri build）。
@@ -27,6 +31,7 @@ Yamet 的所有重要变更都记录于此。版本遵循项目规则：**功能
 - AI 会话历史面板：完整会话列表，支持搜索、按天分组、行内重命名与删除。
 
 ### 变更
+- **第六轮（0.1.7）** 设置页片段编辑器从「智能体」区迁至「技能与 MCP」区（agents 卡片保留在智能体区）；`TOOL_REGISTRY` 抽为轻量模块，设置窗口不再急切拉取 AI 工具栈。
 - 移除 6 个未使用的 `@ai-sdk/{anthropic,cerebras,google,groq,openai,xai}` 依赖（knip 确认为死依赖，应用只使用 `@ai-sdk/openai-compatible`）。
 
 ## [0.1.5] — 2026-08-04

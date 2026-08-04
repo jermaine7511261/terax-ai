@@ -81,4 +81,9 @@ describe("expandSnippetTokens", () => {
     expect(body).toBe("email#greet");
     expect(blocks).toEqual([]);
   });
+
+  it("reports the snippets actually used (skill allowlist injection)", () => {
+    const { used } = expandSnippetTokens("#greet then #missing", snippets);
+    expect(used.map((s) => s.handle)).toEqual(["greet"]);
+  });
 });

@@ -16,16 +16,8 @@ import {
   type AgentIconId,
   BUILTIN_AGENTS,
 } from "@/modules/ai/lib/agents";
-import {
-  isValidHandle,
-  normalizeHandle,
-  type Snippet,
-} from "@/modules/ai/lib/snippets";
 import { newAgentId, useAgentsStore } from "@/modules/ai/store/agentsStore";
-import {
-  newSnippetId,
-  useSnippetsStore,
-} from "@/modules/ai/store/snippetsStore";
+import { native } from "@/modules/ai/lib/native";
 import { usePreferencesStore } from "@/modules/settings/preferences";
 import { setCustomInstructions } from "@/modules/settings/store";
 import {
@@ -36,7 +28,7 @@ import {
   SparklesIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { SectionHeader } from "../components/SectionHeader";
 
 const ICON_OPTIONS: AgentIconId[] = [
@@ -58,18 +50,11 @@ export function AgentsSection() {
   const removeAgent = useAgentsStore((s) => s.remove);
   const hydrateAgents = useAgentsStore((s) => s.hydrate);
 
-  const snippets = useSnippetsStore((s) => s.snippets);
-  const upsertSnippet = useSnippetsStore((s) => s.upsert);
-  const removeSnippet = useSnippetsStore((s) => s.remove);
-  const hydrateSnippets = useSnippetsStore((s) => s.hydrate);
-
   useEffect(() => {
     void hydrateAgents();
-    void hydrateSnippets();
-  }, [hydrateAgents, hydrateSnippets]);
+  }, [hydrateAgents]);
 
   const [editingAgent, setEditingAgent] = useState<Agent | null>(null);
-  const [editingSnippet, setEditingSnippet] = useState<Snippet | null>(null);
 
   return (
     <div className="flex flex-col gap-7">
@@ -79,6 +64,8 @@ export function AgentsSection() {
       />
 
       <CustomInstructionsBlock value={customInstructions} />
+
+      <ProjectMemoryBlock />
 
       <section className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
@@ -116,95 +103,6 @@ export function AgentsSection() {
         </div>
       </section>
 
-      <section className="flex flex-col gap-2">
-        <div className="flex items-center justify-between">
-          <div className="flex flex-col">
-            <Label>{t("agents.snippets")}</Label>
-            <span className="text-[10.5px] text-muted-foreground">
-              {t("agents.snippetsHint")}
-              <code className="rounded bg-muted/50 px-1 font-mono">
-                #handle
-              </code>
-              。
-            </span>
-          </div>
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-7 gap-1.5 px-2 text-[11px]"
-            onClick={() =>
-              setEditingSnippet({
-                id: newSnippetId(),
-                handle: "",
-                name: "",
-                description: "",
-                content: "",
-              })
-            }
-          >
-            <HugeiconsIcon icon={Add01Icon} size={12} strokeWidth={1.75} />
-            {t("agents.newSnippet")}
-          </Button>
-        </div>
-
-        {snippets.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-border/60 bg-card/30 px-4 py-6 text-center text-[11px] text-muted-foreground">
-            {t("agents.noSnippets")}
-            <code className="font-mono">#handle</code>
-            {t("common.periodSuffix")}
-          </div>
-        ) : (
-          <ul className="flex flex-col gap-1.5">
-            {snippets.map((s) => (
-              <li
-                key={s.id}
-                className="flex items-center gap-2 rounded-lg border border-border/60 bg-card/60 px-3 py-2"
-              >
-                <code className="rounded bg-muted/50 px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
-                  #{s.handle}
-                </code>
-                <div className="flex min-w-0 flex-1 flex-col">
-                  <span className="truncate text-[12px] font-medium">
-                    {s.name}
-                  </span>
-                  {s.description ? (
-                    <span className="truncate text-[10.5px] text-muted-foreground">
-                      {s.description}
-                    </span>
-                  ) : null}
-                </div>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="size-7"
-                  onClick={() => setEditingSnippet(s)}
-                  title={t("common.edit")}
-                >
-                  <HugeiconsIcon
-                    icon={Edit02Icon}
-                    size={12}
-                    strokeWidth={1.75}
-                  />
-                </Button>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="size-7 text-muted-foreground hover:text-destructive"
-                  onClick={() => removeSnippet(s.id)}
-                  title={t("common.delete")}
-                >
-                  <HugeiconsIcon
-                    icon={Delete02Icon}
-                    size={12}
-                    strokeWidth={1.75}
-                  />
-                </Button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
       <AgentEditorDialog
         agent={editingAgent}
         existing={customAgents}
@@ -212,15 +110,6 @@ export function AgentsSection() {
         onSave={(a) => {
           upsertAgent(a);
           setEditingAgent(null);
-        }}
-      />
-      <SnippetEditorDialog
-        snippet={editingSnippet}
-        existing={snippets}
-        onClose={() => setEditingSnippet(null)}
-        onSave={(s) => {
-          upsertSnippet(s);
-          setEditingSnippet(null);
         }}
       />
     </div>
@@ -422,111 +311,171 @@ function AgentEditorDialog({
   );
 }
 
-function SnippetEditorDialog({
-  snippet,
-  existing,
-  onClose,
-  onSave,
-}: {
-  snippet: Snippet | null;
-  existing: Snippet[];
-  onClose: () => void;
-  onSave: (s: Snippet) => void;
-}) {
-  const [draft, setDraft] = useState<Snippet | null>(snippet);
-  useEffect(() => setDraft(snippet), [snippet]);
-  const { t } = useI18n();
-  if (!draft) return null;
 
-  const handleErr = !draft.handle
-    ? t("agents.required")
-    : !isValidHandle(draft.handle)
-      ? t("agents.handleInvalid")
-      : existing.some((s) => s.id !== draft.id && s.handle === draft.handle)
-        ? t("agents.handleTaken")
-        : null;
-  const canSave =
-    !handleErr &&
-    draft.name.trim().length > 0 &&
-    draft.content.trim().length > 0;
+// YAMET.md managed memory block — mirrors the format used by the
+// update_project_memory tool (lib/transport.ts), kept dependency-free here so
+// the settings window doesn't eagerly pull the AI stack (eager-budget test).
+const MEM_START = "<!-- yamet-project-memory:start -->";
+const MEM_END = "<!-- yamet-project-memory:end -->";
+
+/** Read the managed memory block lines from YAMET.md (bare contents). */
+async function readMemoryEntries(root: string): Promise<string[]> {
+  try {
+    const r = await native.readFile(`${root.replace(/\/$/, "")}/YAMET.md`);
+    if (r.kind !== "text") return [];
+    const start = r.content.indexOf(MEM_START);
+    const end = r.content.indexOf(MEM_END);
+    if (start === -1 || end === -1 || end <= start) return [];
+    return r.content
+      .slice(start + MEM_START.length, end)
+      .split("\n")
+      .map((l) => l.trim().replace(/^-\s*/, ""))
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+/** Rebuild YAMET.md preserving everything outside the managed block. */
+function rebuildMemoryBlock(content: string, entries: string[]): string {
+  const start = content.indexOf(MEM_START);
+  const end = content.indexOf(MEM_END);
+  let prefix = content;
+  let suffix = "";
+  if (start !== -1 && end > start) {
+    prefix = content.slice(0, start);
+    suffix = content.slice(end + MEM_END.length);
+  }
+  let out = prefix;
+  if (entries.length > 0) {
+    if (out.length > 0 && !out.endsWith("\n")) out += "\n";
+    out += `${MEM_START}\n${entries
+      .map((e) => `- ${e.replace(/\r?\n/g, " ")}`)
+      .join("\n")}\n${MEM_END}`;
+    if (suffix.length > 0 && !suffix.startsWith("\n")) out += "\n";
+  }
+  out += suffix;
+  return out;
+}
+
+function ProjectMemoryBlock() {
+  const { t } = useI18n();
+  const [entries, setEntries] = useState<string[]>([]);
+  const [workspace, setWorkspace] = useState<string | null>(null);
+  const [draft, setDraft] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(async () => {
+    const root = await native.workspaceCurrentDir().catch(() => "");
+    setWorkspace(root || null);
+    if (!root) {
+      setEntries([]);
+      return;
+    }
+    setEntries(await readMemoryEntries(root));
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const writeEntries = async (root: string, entries: string[]) => {
+    const path = `${root.replace(/\/$/, "")}/YAMET.md`;
+    let content = "";
+    try {
+      const r = await native.readFile(path);
+      if (r.kind === "text") content = r.content;
+    } catch {
+      // YAMET.md may not exist yet — start fresh.
+    }
+    await native.writeFile(path, rebuildMemoryBlock(content, entries));
+  };
+
+  const add = async () => {
+    const content = draft.trim();
+    if (!content || !workspace || busy) return;
+    setBusy(true);
+    const next = [...(await readMemoryEntries(workspace)), content];
+    await writeEntries(workspace, next);
+    setDraft("");
+    setBusy(false);
+    await load();
+  };
+
+  const remove = async (content: string) => {
+    if (!workspace) return;
+    const next = (await readMemoryEntries(workspace)).filter(
+      (c) => c !== content,
+    );
+    await writeEntries(workspace, next);
+    await load();
+  };
 
   return (
-    <Dialog open={!!snippet} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle className="text-[14px]">
-            {existing.some((s) => s.id === draft.id)
-              ? t("agents.editSnippet")
-              : t("agents.newSnippet")}
-          </DialogTitle>
-        </DialogHeader>
-        <div className="-mx-2 max-h-[calc(100vh-14rem)] overflow-y-auto px-2 flex flex-col gap-3">
-          <div className="flex gap-2">
-            <div className="flex w-32 flex-col gap-1">
-              <Label>{t("agents.handle")}</Label>
-              <div className="relative">
-                <span className="absolute top-1/2 left-2 -translate-y-1/2 font-mono text-[11.5px] text-muted-foreground">
-                  #
-                </span>
-                <Input
-                  value={draft.handle}
-                  onChange={(e) =>
-                    setDraft({
-                      ...draft,
-                      handle: normalizeHandle(e.target.value),
-                    })
-                  }
-                  placeholder="review"
-                  className="h-8 pl-5 font-mono text-[11.5px]"
-                />
-              </div>
-              {handleErr ? (
-                <span className="text-[10px] text-destructive">
-                  {handleErr}
-                </span>
-              ) : null}
-            </div>
-            <div className="flex flex-1 flex-col gap-1">
-              <Label>{t("common.name")}</Label>
-              <Input
-                value={draft.name}
-                onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-                placeholder={t("agents.snippetNamePlaceholder")}
-                className="h-8 text-[12px]"
-              />
-            </div>
-          </div>
-          <div className="flex flex-col gap-1">
-            <Label>{t("agents.description")}</Label>
-            <Input
-              value={draft.description}
-              onChange={(e) =>
-                setDraft({ ...draft, description: e.target.value })
-              }
-              placeholder={t("agents.snippetDescriptionPlaceholder")}
-              className="h-8 text-[12px]"
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <Label>{t("agents.content")}</Label>
-            <Textarea
-              value={draft.content}
-              onChange={(e) => setDraft({ ...draft, content: e.target.value })}
-              placeholder={t("agents.snippetContentPlaceholder")}
-              className="min-h-40 resize-y font-mono text-[11.5px] leading-relaxed"
-            />
-          </div>
+    <section className="flex flex-col gap-2">
+      <div className="flex items-center justify-between">
+        <div className="flex flex-col">
+          <Label>{t("agents.memory")}</Label>
+          <span className="text-[10.5px] text-muted-foreground">
+            {t("agents.memoryHint")}
+          </span>
         </div>
-        <DialogFooter>
-          <Button variant="ghost" size="sm" onClick={onClose}>
-            {t("common.cancel")}
+      </div>
+
+      {!workspace ? (
+        <div className="rounded-lg border border-dashed border-border/60 bg-card/30 px-4 py-4 text-center text-[11px] text-muted-foreground">
+          {t("agents.memoryNoWorkspace")}
+        </div>
+      ) : entries.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-border/60 bg-card/30 px-4 py-4 text-center text-[11px] text-muted-foreground">
+          {t("agents.memoryEmpty")}
+        </div>
+      ) : (
+        <ul className="flex max-h-48 flex-col gap-1 overflow-y-auto">
+          {entries.map((c) => (
+            <li
+              key={c}
+              className="flex items-center gap-2 rounded-lg border border-border/60 bg-card/60 px-3 py-1.5"
+            >
+              <span className="min-w-0 flex-1 truncate text-[11.5px]">
+                {c}
+              </span>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="size-6 shrink-0 text-muted-foreground hover:text-destructive"
+                onClick={() => void remove(c)}
+                title={t("agents.memoryDelete")}
+              >
+                <HugeiconsIcon icon={Delete02Icon} size={11} strokeWidth={1.75} />
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {workspace ? (
+        <div className="flex items-center gap-2">
+          <Input
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") void add();
+            }}
+            placeholder={t("agents.memoryPlaceholder")}
+            className="h-8 flex-1 text-[12px]"
+          />
+          <Button
+            size="sm"
+            disabled={busy || !draft.trim()}
+            onClick={() => void add()}
+            className="h-8"
+          >
+            {t("agents.memoryAdd")}
           </Button>
-          <Button size="sm" disabled={!canSave} onClick={() => onSave(draft)}>
-            {t("common.save")}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </div>
+      ) : null}
+    </section>
   );
 }
 

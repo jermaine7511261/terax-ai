@@ -1,0 +1,51 @@
+import { tool } from "ai";
+import {
+  jsonSchemaToZod,
+  mcpCall,
+  sanitizeMcpToolName,
+} from "../lib/mcp";
+import { redactSensitive } from "../lib/redact";
+import { useMcpStore } from "../store/mcpStore";
+
+/**
+ * Build the dynamic tool registry from the live MCP store.
+ *
+ * Every MCP tool is treated as untrusted:
+ *  - `needsApproval: true` — the AI SDK pauses and the UI surfaces the
+ *    existing approval card (same flow as built-in mutating tools).
+ *  - `execute` forwards the (already zod-validated) args to the backend
+ *    JSON-RPC `tools/call` and redacts the result before it reaches the
+ *    conversation, mirroring session-persistence redaction.
+ *
+ * Synchronous: reads `useMcpStore.getState()` at tool-build time, so the
+ * transport must `await refreshMcpTools()` before each run (see transport.ts).
+ */
+export function buildMcpTools(): Record<string, ReturnType<typeof tool>> {
+  const { tools } = useMcpStore.getState();
+  const out: Record<string, ReturnType<typeof tool>> = {};
+  for (const t of tools) {
+    const key = sanitizeMcpToolName(t.server_id, t.name);
+    const description = [
+      t.description?.trim() || `Tool "${t.name}" from MCP server.`,
+      `Source: MCP server "${t.server_name}" (requires approval).`,
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+    out[key] = tool({
+      description,
+      inputSchema: jsonSchemaToZod(t.input_schema),
+      needsApproval: true,
+      execute: async (args) => {
+        const raw = await mcpCall(t.server_id, t.name, args);
+        // Redact secrets inside stringly results before they persist.
+        if (typeof raw === "string") return redactSensitive(raw);
+        try {
+          return JSON.parse(redactSensitive(JSON.stringify(raw ?? null)));
+        } catch {
+          return raw;
+        }
+      },
+    });
+  }
+  return out;
+}

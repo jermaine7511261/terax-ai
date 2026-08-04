@@ -1,0 +1,88 @@
+import { create } from "zustand";
+import {
+  loadMcpServers,
+  mcpConnect,
+  mcpDisconnect,
+  mcpStatus,
+  mcpToolsList,
+  sanitizeMcpToolName,
+  saveMcpServers,
+  type McpServerConfig,
+  type McpServerStatus,
+  type McpToolInfo,
+} from "../lib/mcp";
+
+/**
+ * MCP client store. Owns:
+ *  - server configurations (persisted to `yamet-ai-mcp.json`)
+ *  - per-server connection status (from the backend `mcp_status`)
+ *  - the live tool registry (`tools`), rebuilt from the backend on every
+ *    agent run via `refresh()` — servers that dropped off are naturally
+ *    removed because `mcp_tools_list` only returns connected servers.
+ *
+ * `buildMcpTools()` reads this store synchronously to assemble the dynamic
+ * tools injected into `buildTools()`.
+ */
+type McpStoreState = {
+  hydrated: boolean;
+  servers: McpServerConfig[];
+  statusByServer: Record<string, McpServerStatus>;
+  tools: McpToolInfo[];
+  hydrate: () => Promise<void>;
+  upsert: (server: McpServerConfig) => Promise<void>;
+  remove: (id: string) => Promise<void>;
+  connect: (id: string) => Promise<void>;
+  disconnect: (id: string) => Promise<void>;
+  /** Pull the latest tool list + statuses from the backend and update state. */
+  refresh: () => Promise<void>;
+};
+
+export const useMcpStore = create<McpStoreState>((set, get) => ({
+  hydrated: false,
+  servers: [],
+  statusByServer: {},
+  tools: [],
+
+  hydrate: async () => {
+    if (get().hydrated) return;
+    set({ servers: await loadMcpServers(), hydrated: true });
+    await get().refresh();
+  },
+
+  upsert: async (server) => {
+    const list = get().servers;
+    const idx = list.findIndex((s) => s.id === server.id);
+    const next = idx === -1 ? [...list, server] : list.map((s) => (s.id === server.id ? server : s));
+    set({ servers: next });
+    await saveMcpServers(next);
+  },
+
+  remove: async (id) => {
+    await mcpDisconnect(id).catch(() => {});
+    const next = get().servers.filter((s) => s.id !== id);
+    set({ servers: next });
+    await saveMcpServers(next);
+    await get().refresh();
+  },
+
+  connect: async (id) => {
+    const server = get().servers.find((s) => s.id === id);
+    if (!server) return;
+    await mcpConnect(server);
+    await get().refresh();
+  },
+
+  disconnect: async (id) => {
+    await mcpDisconnect(id).catch(() => {});
+    await get().refresh();
+  },
+
+  refresh: async () => {
+    const [tools, statuses] = await Promise.all([mcpToolsList(), mcpStatus()]).catch(
+      () => [[], []] as [McpToolInfo[], McpServerStatus[]],
+    );
+    const statusByServer: Record<string, McpServerStatus> = {};
+    for (const s of statuses) statusByServer[s.id] = s;
+    set({ tools, statusByServer });
+  },
+}));

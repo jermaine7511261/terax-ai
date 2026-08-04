@@ -3,7 +3,9 @@ import { buildEditTools } from "./edit";
 import { buildExternalAgentTools } from "./externalAgent";
 import { buildFsTools } from "./fs";
 import { buildGitTools } from "./git";
+import { buildMcpTools } from "./mcp";
 import { buildMemoryTools } from "./memory";
+import { buildSearchMemoriesTools } from "./searchMemories";
 import { buildSearchTools } from "./search";
 import { buildShellTools } from "./shell";
 import { buildSubagentTools } from "./subagent";
@@ -11,6 +13,9 @@ import { buildTerminalTools } from "./terminal";
 import { buildTodoTools } from "./todo";
 
 export { resolvePath, type ToolContext } from "./context";
+// Registry lives in a separate lightweight module so the settings window can
+// render the tool-allowlist picker without eagerly pulling the AI tool stack.
+export { TOOL_REGISTRY } from "./registry";
 
 /**
  * AI tool definitions.
@@ -43,7 +48,10 @@ export function buildTools(ctx: import("./context").ToolContext) {
     ...buildTerminalTools(ctx),
     ...buildTodoTools(ctx),
     ...buildMemoryTools(ctx),
+    ...buildSearchMemoriesTools(ctx),
     ...buildManagedAgentTools(ctx),
+    // Dynamic MCP tools (read from the live mcpStore; all needsApproval).
+    ...buildMcpTools(),
   } as const;
 }
 

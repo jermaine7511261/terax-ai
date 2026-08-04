@@ -3,6 +3,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useMemoryStore } from "../store/memoryStore";
 import type { ToolContext } from "./context";
 
+const MEM_START = "<!-- yamet-project-memory:start -->";
+const MEM_END = "<!-- yamet-project-memory:end -->";
+
 const transportMock = vi.hoisted(() => ({
   appendProjectMemory: vi.fn(async () => ({
     ok: true as const,
@@ -12,9 +15,38 @@ const transportMock = vi.hoisted(() => ({
     ok: true as const,
     path: "/w/YAMET.md",
   })),
+  removeProjectMemory: vi.fn(async () => ({
+    ok: true as const,
+    path: "/w/YAMET.md",
+  })),
+  parseBlock: (content: string) => {
+    const start = content.indexOf("<!-- yamet-project-memory:start -->");
+    const end = content.indexOf("<!-- yamet-project-memory:end -->");
+    if (start === -1 || end === -1 || end <= start) {
+      return { prefix: content, lines: [], suffix: "" };
+    }
+    return {
+      prefix: content.slice(0, start),
+      lines: content
+        .slice(start + "<!-- yamet-project-memory:start -->".length, end)
+        .split("\n")
+        .filter((l) => l.trim().length > 0),
+      suffix: content.slice(end + "<!-- yamet-project-memory:end -->".length),
+    };
+  },
 }));
 
 vi.mock("../lib/transport", () => transportMock);
+
+const nativeMock = vi.hoisted(() => ({
+  readFile: vi.fn(async () => ({
+    kind: "text" as const,
+    content: "",
+    size: 0,
+  })),
+}));
+
+vi.mock("../lib/native", () => ({ native: nativeMock }));
 
 import { buildMemoryTools } from "./memory";
 
@@ -134,5 +166,66 @@ describe("update_project_memory", () => {
     expect(transportMock.appendProjectMemory).toHaveBeenCalledTimes(1);
     // No session key in the store.
     expect(Object.keys(useMemoryStore.getState().bySession)).toHaveLength(0);
+  });
+});
+
+describe("update_project_memory source", () => {
+  it("marks auto-settled entries 'auto' and defaults to 'tool'", async () => {
+    await runMemory(makeContext(), { entry: "settled fact", source: "auto" });
+    const autoEntry = useMemoryStore.getState().bySession["session"]?.[0];
+    expect(autoEntry?.source).toBe("auto");
+
+    useMemoryStore.getState().clearSession("session");
+    await runMemory(makeContext(), { entry: "agent fact" });
+    const toolEntry = useMemoryStore.getState().bySession["session"]?.[0];
+    expect(toolEntry?.source).toBe("tool");
+  });
+});
+
+describe("list_project_memory", () => {
+  it("merges session entries with persisted YAMET.md entries", async () => {
+    await runMemory(makeContext(), { entry: "session fact" });
+    nativeMock.readFile.mockResolvedValue({
+      kind: "text",
+      content: `# Y\n${MEM_START}\n- persisted fact\n${MEM_END}\n`,
+      size: 0,
+    });
+    const execute = buildMemoryTools(makeContext()).list_project_memory.execute;
+    const res = (await execute?.({} as never, toolOptions)) as {
+      entries: Array<{ id: string; content: string; source: string }>;
+    };
+    expect(res.entries.length).toBe(2);
+    expect(res.entries.some((e) => e.content === "session fact")).toBe(true);
+    expect(res.entries.some((e) => e.id.startsWith("file:"))).toBe(true);
+  });
+});
+
+describe("delete_project_memory", () => {
+  it("deletes a persisted file entry via removeProjectMemory", async () => {
+    const execute = buildMemoryTools(makeContext()).delete_project_memory.execute;
+    const res = (await execute?.(
+      { id: "file:persisted fact" } as never,
+      toolOptions,
+    )) as { ok: boolean };
+    expect(res.ok).toBe(true);
+    expect(transportMock.removeProjectMemory).toHaveBeenCalledWith(
+      "/workspace",
+      "persisted fact",
+    );
+  });
+
+  it("removes a session entry from the store and the persisted copy", async () => {
+    const created = await runMemory(makeContext(), { entry: "session fact" });
+    const execute = buildMemoryTools(makeContext()).delete_project_memory.execute;
+    const res = (await execute?.(
+      { id: created.id } as never,
+      toolOptions,
+    )) as { ok: boolean };
+    expect(res.ok).toBe(true);
+    expect(useMemoryStore.getState().bySession["session"] ?? []).toHaveLength(0);
+    expect(transportMock.removeProjectMemory).toHaveBeenCalledWith(
+      "/workspace",
+      "session fact",
+    );
   });
 });

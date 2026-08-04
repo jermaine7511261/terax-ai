@@ -14,12 +14,15 @@ export type ProjectMemoryEntry = {
   id: string;
   content: string;
   createdAt: number;
+  /** Who wrote this: the agent tool (`tool`) or the auto-settle nudge (`auto`). */
+  source?: "tool" | "auto";
 };
 
 type MemoryState = {
   /** Map of sessionId -> memory entries written this session. */
   bySession: Record<string, ProjectMemoryEntry[]>;
   addMemory: (sessionId: string, entry: ProjectMemoryEntry) => void;
+  removeMemory: (sessionId: string, id: string) => void;
   clearSession: (sessionId: string) => void;
 };
 
@@ -34,6 +37,14 @@ export const useMemoryStore = create<MemoryState>((set) => ({
           ...(s.bySession[sessionId] ?? []).filter((e) => e.id !== entry.id),
           entry,
         ],
+      },
+    })),
+
+  removeMemory: (sessionId, id) =>
+    set((s) => ({
+      bySession: {
+        ...s.bySession,
+        [sessionId]: (s.bySession[sessionId] ?? []).filter((e) => e.id !== id),
       },
     })),
 

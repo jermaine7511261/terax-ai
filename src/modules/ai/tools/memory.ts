@@ -1,11 +1,14 @@
 import { tool } from "ai";
 import { z } from "zod";
+import { native } from "../lib/native";
 import {
   appendProjectMemory,
-  type ProjectMemoryEntry,
+  parseBlock,
+  removeProjectMemory,
   updateProjectMemory,
+  type ProjectMemoryEntry,
 } from "../lib/transport";
-import { useMemoryStore } from "../store/memoryStore";
+import { getSessionMemory, useMemoryStore } from "../store/memoryStore";
 import type { ToolContext } from "./context";
 
 let nextMemoryId = 0;
@@ -13,11 +16,15 @@ function newMemoryId(): string {
   return `mem-${Date.now().toString(36)}-${(nextMemoryId++).toString(36)}`;
 }
 
+function describeEntry(id: string, content: string, source: string): string {
+  return `${content}（${source}${id.startsWith("file:") ? " · 已落盘" : ""}）`;
+}
+
 export function buildMemoryTools(ctx: ToolContext) {
   return {
     update_project_memory: tool({
       description:
-        "Persist a short, reusable fact or decision about this project so future sessions can recall it. Two-level: written to this session's memory immediately (visible to later turns) AND appended to YAMET.md on disk (survives restart). Use it for stable project facts — architecture decisions, naming conventions, gotchas, chosen libraries, avoided approaches. Keep each entry to one concise sentence. Replace an existing entry by passing the same id; omit id to append a new one. Auto-executes (no approval); refuses paths outside the workspace.",
+        "Persist a short, reusable fact or decision about this project so future sessions can recall it. Two-level: written to this session's memory immediately (visible to later turns) AND appended to YAMET.md on disk (survives restart). Use it for stable project facts — architecture decisions, naming conventions, gotchas, chosen libraries, avoided approaches. Keep each entry to one concise sentence. Replace an existing entry by passing the same id; omit id to append a new one. Auto-executes (no approval); refuses paths outside the workspace. When finishing a task with reusable findings, prefer persisting them here.",
       inputSchema: z.object({
         entry: z
           .string()
@@ -28,10 +35,16 @@ export function buildMemoryTools(ctx: ToolContext) {
           .string()
           .optional()
           .describe(
-            "Existing entry id to replace (from a prior read); omit to append a new entry.",
+            "Existing entry id to replace (from a prior list_project_memory call); omit to append a new entry.",
+          ),
+        source: z
+          .enum(["tool", "auto"])
+          .optional()
+          .describe(
+            "Write source: agent tool (tool, default) or auto-settled at conversation end (auto).",
           ),
       }),
-      execute: async ({ entry, id }) => {
+      execute: async ({ entry, id, source }) => {
         const sessionId = ctx.getSessionId();
         const trimmed = entry.trim();
         if (!trimmed)
@@ -43,6 +56,7 @@ export function buildMemoryTools(ctx: ToolContext) {
           id: memId,
           content: trimmed,
           createdAt: now,
+          source: source ?? "tool",
         };
 
         // Level 1 — in-session store: immediately available to later turns.
@@ -67,7 +81,92 @@ export function buildMemoryTools(ctx: ToolContext) {
           id: memId,
           sessionOnly: !workspaceRoot,
           persisted: persisted?.ok ?? false,
+          source: memEntry.source,
         };
+      },
+    }),
+
+    list_project_memory: tool({
+      description:
+        "List all project memory entries: this session's in-memory notes plus the persisted YAMET.md block. Returns each entry's id (for delete_project_memory), content, source (tool/auto), and persisted flag. Use it before replacing or deleting an entry.",
+      inputSchema: z.object({}),
+      execute: async () => {
+        const sessionId = ctx.getSessionId();
+        const session = getSessionMemory(sessionId);
+        const workspaceRoot = ctx.getWorkspaceRoot();
+        const entries: Array<{
+          id: string;
+          content: string;
+          source: "tool" | "auto";
+          persisted: boolean;
+        }> = [];
+        const seen = new Set<string>();
+
+        for (const e of session) {
+          entries.push({
+            id: e.id,
+            content: e.content,
+            source: e.source ?? "tool",
+            persisted: Boolean(workspaceRoot),
+          });
+          seen.add(e.content.trim().toLowerCase());
+        }
+
+        if (workspaceRoot) {
+          try {
+            const r = await native.readFile(`${workspaceRoot.replace(/\/$/, "")}/YAMET.md`);
+            if (r.kind === "text") {
+              for (const line of parseBlock(r.content).lines) {
+                const content = line.replace(/^-\s*/, "").trim();
+                if (!content || seen.has(content.toLowerCase())) continue;
+                seen.add(content.toLowerCase());
+                entries.push({
+                  id: `file:${content}`,
+                  content,
+                  source: "tool",
+                  persisted: true,
+                });
+              }
+            }
+          } catch {
+            // No YAMET.md yet — nothing persisted.
+          }
+        }
+
+        return {
+          entries,
+          rendered: entries.map((e) => describeEntry(e.id, e.content, e.source)),
+        };
+      },
+    }),
+
+    delete_project_memory: tool({
+      description:
+        "Delete a project memory entry by its id (from a prior list_project_memory call). Both the in-session copy and the persisted YAMET.md copy (if any) are removed. Idempotent for missing entries.",
+      inputSchema: z.object({
+        id: z.string().describe("Entry id returned by list_project_memory."),
+      }),
+      execute: async ({ id }) => {
+        const sessionId = ctx.getSessionId();
+        const workspaceRoot = ctx.getWorkspaceRoot();
+
+        // Persisted file entries use `file:<content>` synthetic ids.
+        if (id.startsWith("file:")) {
+          const content = id.slice("file:".length);
+          if (!workspaceRoot) return { ok: false, reason: "no workspace open" };
+          const res = await removeProjectMemory(workspaceRoot, content);
+          return res.ok ? { ok: true } : { ok: false, reason: res.reason };
+        }
+
+        // Session entry: remove from store + persisted copy (matched by content).
+        const entry = getSessionMemory(sessionId).find((e) => e.id === id);
+        if (!entry) return { ok: false, reason: "entry not found" };
+        if (sessionId) useMemoryStore.getState().removeMemory(sessionId, id);
+        if (workspaceRoot) {
+          const res = await removeProjectMemory(workspaceRoot, entry.content);
+          return res.ok ? { ok: true } : { ok: false, reason: res.reason };
+        }
+        return { ok: true };
       },
     }),
   } as const;

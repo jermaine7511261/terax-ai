@@ -6,6 +6,7 @@ export type SettingsTab =
   | "themes"
   | "shortcuts"
   | "models"
+  | "skills"
   | "agents"
   | "gateway"
   | "about";

@@ -1,0 +1,188 @@
+//! Minimal 5-field cron parser + next-trigger computation (★ H3 Hermes).
+//! No external dependency — a hand-rolled subset: `*`, `N`, `a-b`, `*/n`,
+//! `a-b/n`, comma lists. Day-of-month and day-of-week are ANDed (standard
+//! cron ORs them; the simpler AND is fine for task scheduling).
+
+use chrono::{DateTime, Local, Timelike, Datelike, Weekday};
+
+const FIELDS: [(&str, usize); 5] = [
+    ("minute", 60),
+    ("hour", 24),
+    ("day-of-month", 31),
+    ("month", 12),
+    ("day-of-week", 7),
+];
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct CronExpr {
+    pub minute: Vec<bool>,
+    pub hour: Vec<bool>,
+    pub dom: Vec<bool>,
+    pub month: Vec<bool>,
+    pub dow: Vec<bool>,
+}
+
+fn parse_field(spec: &str, label: &str, max: usize) -> Result<Vec<bool>, String> {
+    let mut bits = vec![false; max];
+    for part in spec.split(',') {
+        let part = part.trim();
+        if part.is_empty() {
+            return Err(format!("empty {label} field"));
+        }
+        let (range, step) = match part.split_once('/') {
+            Some((r, s)) => {
+                let step = s
+                    .parse::<usize>()
+                    .map_err(|_| format!("bad step in {label}: {s}"))?;
+                (r, step)
+            }
+            None => (part, 1),
+        };
+        if step == 0 {
+            return Err(format!("step must be > 0 in {label}"));
+        }
+        let (lo, hi) = if range == "*" {
+            (0, max - 1)
+        } else if let Some((a, b)) = range.split_once('-') {
+            let lo = a
+                .trim()
+                .parse::<usize>()
+                .map_err(|_| format!("bad range in {label}: {a}"))?;
+            let hi = b
+                .trim()
+                .parse::<usize>()
+                .map_err(|_| format!("bad range in {label}: {b}"))?;
+            (lo, hi)
+        } else {
+            let v = range
+                .parse::<usize>()
+                .map_err(|_| format!("bad value in {label}: {range}"))?;
+            (v, v)
+        };
+        if lo > hi || hi >= max {
+            return Err(format!("range out of bounds in {label}: {lo}-{hi} (max {max})"));
+        }
+        let mut i = lo;
+        while i <= hi {
+            bits[i] = true;
+            i += step;
+        }
+    }
+    Ok(bits)
+}
+
+pub fn parse_cron(expr: &str) -> Result<CronExpr, String> {
+    let fields: Vec<&str> = expr.split_whitespace().collect();
+    if fields.len() != 5 {
+        return Err(format!(
+            "expected 5 fields (minute hour day-of-month month day-of-week), got {}",
+            fields.len()
+        ));
+    }
+    let mut parsed = Vec::with_capacity(5);
+    for (i, (label, max)) in FIELDS.iter().enumerate() {
+        parsed.push(parse_field(fields[i], label, *max)?);
+    }
+    Ok(CronExpr {
+        minute: parsed[0].clone(),
+        hour: parsed[1].clone(),
+        dom: parsed[2].clone(),
+        month: parsed[3].clone(),
+        dow: parsed[4].clone(),
+    })
+}
+
+fn dow_index(wd: Weekday) -> usize {
+    wd.num_days_from_sunday() as usize
+}
+
+/// Next trigger strictly after `after`. Scans minute-by-minute with a 5-year
+/// horizon to avoid infinite loops on unsatisfiable expressions.
+pub fn next_trigger(cron: &CronExpr, after: DateTime<Local>) -> Option<DateTime<Local>> {
+    const HORIZON_DAYS: i64 = 365 * 5;
+    let mut t = after + chrono::Duration::minutes(1);
+    let cap = after + chrono::Duration::days(HORIZON_DAYS);
+    while t <= cap {
+        if cron.month[t.month0() as usize]
+            && cron.dom[t.day0() as usize]
+            && cron.dow[dow_index(t.weekday())]
+            && cron.hour[t.hour() as usize]
+            && cron.minute[t.minute() as usize]
+        {
+            return Some(t);
+        }
+        t += chrono::Duration::minutes(1);
+    }
+    None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_star_and_numbers() {
+        let c = parse_cron("* * * * *").unwrap();
+        assert!(c.minute.iter().all(|b| *b));
+        assert!(c.month.iter().all(|b| *b));
+
+        let c = parse_cron("30 9 * * 1").unwrap();
+        assert_eq!(c.minute.iter().filter(|b| **b).count(), 1);
+        assert!(c.minute[30]);
+        assert!(c.hour[9]);
+        assert!(c.dow[1]);
+        assert!(!c.dow[2]);
+    }
+
+    #[test]
+    fn parses_ranges_steps_and_lists() {
+        let c = parse_cron("0,30 8-10 */2 * *").unwrap();
+        assert!(c.minute[0] && c.minute[30] && !c.minute[15]);
+        assert!(c.hour[8] && c.hour[9] && c.hour[10] && !c.hour[11]);
+        // */2 on 31 values: every other day-of-month
+        assert!(c.dom[0] && c.dom[2] && !c.dom[1]);
+    }
+
+    #[test]
+    fn rejects_bad_expressions() {
+        assert!(parse_cron("").is_err());
+        assert!(parse_cron("* * * *").is_err()); // 4 fields
+        assert!(parse_cron("61 * * * *").is_err()); // minute out of range
+        assert!(parse_cron("5-2 * * * *").is_err()); // lo > hi
+        assert!(parse_cron("*/0 * * * *").is_err()); // step 0
+        assert!(parse_cron("a * * * *").is_err()); // non-numeric
+    }
+
+    #[test]
+    fn next_trigger_minutely_and_daily() {
+        let c = parse_cron("* * * * *").unwrap();
+        let now = Local::now();
+        let next = next_trigger(&c, now).unwrap();
+        assert!(next > now);
+        assert!((next - now).num_seconds() <= 120);
+
+        // Daily 09:30 — a fixed time tomorrow (or later today).
+        let c = parse_cron("30 9 * * *").unwrap();
+        let next = next_trigger(&c, now).unwrap();
+        assert_eq!(next.hour(), 9);
+        assert_eq!(next.minute(), 30);
+        assert!((next - now).num_hours() <= 24);
+    }
+
+    #[test]
+    fn next_trigger_weekly_monday() {
+        let c = parse_cron("0 0 * * 1").unwrap();
+        let now = Local::now();
+        let next = next_trigger(&c, now).unwrap();
+        assert_eq!(dow_index(next.weekday()), 1);
+        assert_eq!(next.hour(), 0);
+        assert!((next - now).num_days() <= 7);
+    }
+
+    #[test]
+    fn next_trigger_none_on_feb_30() {
+        let c = parse_cron("0 0 30 2 *").unwrap(); // Feb 30 never exists
+        let now = Local::now();
+        assert!(next_trigger(&c, now).is_none());
+    }
+}
