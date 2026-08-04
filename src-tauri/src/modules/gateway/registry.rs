@@ -21,10 +21,21 @@ pub type PlatformEventHandler = Arc<dyn Fn(String, serde_json::Value) + Send + S
 
 /// Per-platform token bucket for inbound rate limiting: bursts of up to
 /// `RATE_CAPACITY` events pass, then refill at `RATE_REFILL_PER_SEC`.
-#[derive(Default)]
 struct TokenBucket {
     tokens: f64,
     last: Option<Instant>,
+}
+
+impl Default for TokenBucket {
+    /// Start full: an empty bucket has 0 tokens and the first `allow()` call
+    /// has no elapsed time to refill from, so it would always reject the
+    /// first inbound message of a session.
+    fn default() -> Self {
+        Self {
+            tokens: RATE_CAPACITY,
+            last: None,
+        }
+    }
 }
 
 impl TokenBucket {
@@ -229,21 +240,9 @@ impl GatewayRegistry {
                     .unwrap_or(0)
             };
             while let Some(ev) = rx.recv().await {
-                // Inbound rate limit (per platform): bursts are allowed, floods
-                // are dropped so a misbehaving peer can't hammer the agent.
-                {
-                    let mut rates = this.inner.rates.lock().unwrap();
-                    let bucket = rates.entry(ev.platform).or_default();
-                    if !bucket.allow() {
-                        log::warn!(
-                            "gateway: dropping inbound from {} (rate limited)",
-                            ev.platform.as_str()
-                        );
-                        continue;
-                    }
-                }
                 // Duplicate suppression: platforms re-deliver on network blips;
-                // a repeated message_id within the window is dropped once.
+                // a repeated message_id within the window is dropped once. Runs
+                // before rate limiting so replays don't consume burst tokens.
                 if let Some(mid) = &ev.message_id {
                     let mut seen = this.inner.seen.lock().unwrap();
                     if seen.len() >= DEDUP_CAP {
@@ -256,6 +255,19 @@ impl GatewayRegistry {
                     if seen.insert(mid.clone(), now_ms()).is_some() {
                         log::debug!(
                             "gateway: dropping duplicate message_id {mid} from {}",
+                            ev.platform.as_str()
+                        );
+                        continue;
+                    }
+                }
+                // Inbound rate limit (per platform): bursts are allowed, floods
+                // are dropped so a misbehaving peer can't hammer the agent.
+                {
+                    let mut rates = this.inner.rates.lock().unwrap();
+                    let bucket = rates.entry(ev.platform).or_default();
+                    if !bucket.allow() {
+                        log::warn!(
+                            "gateway: dropping inbound from {} (rate limited)",
                             ev.platform.as_str()
                         );
                         continue;
@@ -348,5 +360,35 @@ impl GatewayRegistry {
 impl Default for GatewayRegistry {
     fn default() -> Self {
         Self::new()
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn first_allow_passes() {
+        let mut b = TokenBucket::default();
+        assert!(b.allow(), "first inbound event of a session must pass");
+    }
+
+    #[test]
+    fn burst_capacity_exhausts_then_drops() {
+        let mut b = TokenBucket::default();
+        for _ in 0..RATE_CAPACITY as usize {
+            assert!(b.allow());
+        }
+        assert!(!b.allow(), "immediate excess call must be dropped");
+    }
+
+    #[test]
+    fn refills_after_idle() {
+        let mut b = TokenBucket::default();
+        for _ in 0..RATE_CAPACITY as usize {
+            b.allow();
+        }
+        assert!(!b.allow());
+        std::thread::sleep(std::time::Duration::from_millis(200));
+        assert!(b.allow(), "idle time must refill tokens");
     }
 }
