@@ -4,7 +4,10 @@ import {
   type GitDiscardEntry,
   type GitRepoInfo,
   type GitStatusSnapshot,
+  type GitStashEntry,
+  type GitSubmoduleStatus,
 } from "@/modules/ai/lib/native";
+import { tStatic } from "@/lib/i18n";
 import { useChatStore } from "@/modules/ai/store/chatStore";
 import {
   modelSupportsTemperature,
@@ -112,6 +115,22 @@ type SourceControlPanelState = {
   generateCommitMessage: () => Promise<void>;
   commit: () => Promise<void>;
   push: () => Promise<void>;
+  pendingPublish: boolean;
+  dismissPublish: () => void;
+  stashes: GitStashEntry[];
+  submodules: GitSubmoduleStatus[];
+  hasUncommitted: boolean;
+  loadStashes: () => Promise<void>;
+  stashSave: (message?: string) => Promise<void>;
+  stashApply: (index: string) => Promise<void>;
+  stashPop: (index: string) => Promise<void>;
+  stashDrop: (index: string) => Promise<void>;
+  pullWithStrategy: (strategy: "ff" | "rebase" | "merge") => Promise<void>;
+  publishBranch: () => Promise<void>;
+  abortMerge: () => Promise<void>;
+  checkoutOurs: (path: string) => Promise<void>;
+  checkoutTheirs: (path: string) => Promise<void>;
+  updateSubmodules: () => Promise<void>;
 };
 
 function normalizeError(error: unknown): string {
@@ -401,6 +420,9 @@ export function useSourceControlPanel(
     | { scope: "all"; entries: SourceControlEntry[] }
     | null
   >(null);
+  const [stashes, setStashes] = useState<GitStashEntry[]>([]);
+  const [submodules, setSubmodules] = useState<GitSubmoduleStatus[]>([]);
+  const [pendingPublish, setPendingPublish] = useState(false);
   const selectedRef = useRef<DiffSelection | null>(null);
   const reconcileTimerRef = useRef(0);
 
@@ -463,6 +485,7 @@ export function useSourceControlPanel(
   }, [fileEntries]);
 
   const allClean = stagedEntries.length === 0 && unstagedEntries.length === 0;
+  const hasUncommitted = fileEntries.length > 0;
   const canPush = !!status?.upstream && status.behind === 0;
   const selectedModel = resolveModel(selectedModelId);
   const selectedModelSupportsTemperature = modelSupportsTemperature(
@@ -948,15 +971,191 @@ export function useSourceControlPanel(
     setActionError(null);
     const result = await summary.runRemoteAction("push");
     if (result.ok) {
+      setPendingPublish(false);
       setActionMessage(
         status?.upstream ? `Pushed to ${status.upstream}` : "Push completed",
       );
       return;
     }
+    if (result.blocked === "missing-upstream") {
+      setPendingPublish(true);
+    }
     if (result.error) {
       setActionError(result.error);
     }
   }, [repo, status?.upstream, summary]);
+
+  const runFullRefreshAction = useCallback(
+    async (
+      busyKey: string,
+      ipc: () => Promise<unknown>,
+      successMessage?: string | null,
+    ) => {
+      if (!repo || summary.busyAction) return;
+      setLocalActionBusy(busyKey);
+      setActionMessage(null);
+      setActionError(null);
+      try {
+        await ipc();
+        if (successMessage) setActionMessage(successMessage);
+        await refresh();
+      } catch (error) {
+        setActionError(normalizeError(error));
+        await refresh().catch(() => {});
+      } finally {
+        setLocalActionBusy(null);
+      }
+    },
+    [refresh, repo, summary.busyAction],
+  );
+
+  const loadStashes = useCallback(async () => {
+    if (!repo) {
+      setStashes([]);
+      return;
+    }
+    try {
+      const list = await native.gitStashList(repo.repoRoot);
+      setStashes(list);
+    } catch {
+      setStashes([]);
+    }
+  }, [repo]);
+
+  const loadSubmoduleStatus = useCallback(async () => {
+    if (!repo) {
+      setSubmodules([]);
+      return;
+    }
+    try {
+      const result = await native.gitSubmoduleStatus(repo.repoRoot);
+      setSubmodules(result.submodules);
+    } catch {
+      setSubmodules([]);
+    }
+  }, [repo]);
+
+  const stashSave = useCallback(
+    async (message?: string) => {
+      if (!repo) return;
+      await runFullRefreshAction(
+        "stash",
+        () => native.gitStashSave(repo.repoRoot, message ?? null),
+        tStatic("git.stashSaved"),
+      );
+      await loadStashes();
+    },
+    [loadStashes, repo, runFullRefreshAction],
+  );
+
+  const stashApply = useCallback(
+    async (index: string) => {
+      if (!repo) return;
+      await runFullRefreshAction(
+        "stash",
+        () => native.gitStashApply(repo.repoRoot, index),
+        tStatic("git.stashApplied"),
+      );
+      await loadStashes();
+    },
+    [loadStashes, repo, runFullRefreshAction],
+  );
+
+  const stashPop = useCallback(
+    async (index: string) => {
+      if (!repo) return;
+      await runFullRefreshAction(
+        "stash",
+        () => native.gitStashPop(repo.repoRoot, index),
+        tStatic("git.stashPopped"),
+      );
+      await loadStashes();
+    },
+    [loadStashes, repo, runFullRefreshAction],
+  );
+
+  const stashDrop = useCallback(
+    async (index: string) => {
+      if (!repo) return;
+      await runFullRefreshAction(
+        "stash",
+        () => native.gitStashDrop(repo.repoRoot, index),
+        tStatic("git.stashDropped"),
+      );
+      await loadStashes();
+    },
+    [loadStashes, repo, runFullRefreshAction],
+  );
+
+  const pullWithStrategy = useCallback(
+    async (strategy: "ff" | "rebase" | "merge") => {
+      if (!repo) return;
+      await runFullRefreshAction(
+        "pull",
+        () => native.gitPull(repo.repoRoot, strategy),
+        tStatic("git.pullCompleted"),
+      );
+    },
+    [repo, runFullRefreshAction],
+  );
+
+  const publishBranch = useCallback(async () => {
+    if (!repo) return;
+    await runFullRefreshAction(
+      "push",
+      () => native.gitPushUpstream(repo.repoRoot),
+      tStatic("git.branchPublished", { branch: status?.branch ?? "" }),
+    );
+  }, [repo, runFullRefreshAction, status?.branch]);
+
+  const abortMerge = useCallback(async () => {
+    if (!repo) return;
+    await runFullRefreshAction(
+      "merge-abort",
+      () => native.gitMergeAbort(repo.repoRoot),
+      tStatic("git.mergeAborted"),
+    );
+  }, [repo, runFullRefreshAction]);
+
+  const checkoutOurs = useCallback(
+    async (path: string) => {
+      if (!repo) return;
+      await runFullRefreshAction(
+        `resolve:${path}`,
+        () => native.gitCheckoutOurs(repo.repoRoot, path),
+        tStatic("git.resolvedFile", {
+          path,
+          side: tStatic("git.ours"),
+        }),
+      );
+    },
+    [repo, runFullRefreshAction],
+  );
+
+  const checkoutTheirs = useCallback(
+    async (path: string) => {
+      if (!repo) return;
+      await runFullRefreshAction(
+        `resolve:${path}`,
+        () => native.gitCheckoutTheirs(repo.repoRoot, path),
+        tStatic("git.resolvedFile", {
+          path,
+          side: tStatic("git.theirs"),
+        }),
+      );
+    },
+    [repo, runFullRefreshAction],
+  );
+
+  const updateSubmodules = useCallback(async () => {
+    if (!repo) return;
+    await runFullRefreshAction(
+      "submodules",
+      () => native.gitSubmoduleUpdate(repo.repoRoot),
+      tStatic("git.submodulesUpdated"),
+    );
+    await loadSubmoduleStatus();
+  }, [loadSubmoduleStatus, repo, runFullRefreshAction]);
 
   const pendingDiscardView = useMemo<PendingDiscard | null>(() => {
     if (!pendingDiscard) return null;
@@ -1018,5 +1217,21 @@ export function useSourceControlPanel(
     generateCommitMessage,
     commit,
     push,
+    pendingPublish,
+    dismissPublish: () => setPendingPublish(false),
+    stashes,
+    submodules,
+    hasUncommitted,
+    loadStashes,
+    stashSave,
+    stashApply,
+    stashPop,
+    stashDrop,
+    pullWithStrategy,
+    publishBranch,
+    abortMerge,
+    checkoutOurs,
+    checkoutTheirs,
+    updateSubmodules,
   };
 }

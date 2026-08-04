@@ -32,6 +32,24 @@ export {
 
 type LspPos = { line: number; character: number };
 type LspRange = { start: LspPos };
+type LspRangeFull = { start: LspPos; end: LspPos };
+
+type LspWorkspaceEdit = {
+  changes?: Record<string, { range: LspRangeFull; newText: string }[]>;
+  documentChanges?: {
+    textDocument?: { uri: string };
+    edits?: { range: LspRangeFull; newText: string }[];
+  }[];
+};
+
+type LspCodeAction = {
+  title: string;
+  kind?: string;
+  diagnostics?: { range: LspRangeFull; message: string }[];
+  edit?: LspWorkspaceEdit;
+  command?: { title: string; command: string; arguments?: unknown[] };
+  data?: unknown;
+};
 
 type LspLocation = { uri: string; range: LspRange };
 type LspLocationLink = {
@@ -235,6 +253,41 @@ const linkHover: Extension = [
       color: "var(--primary)",
       cursor: "pointer",
     },
+    ".cm-codeaction-menu": {
+      position: "absolute",
+      zIndex: 30,
+      minWidth: "220px",
+      maxWidth: "360px",
+      background: "var(--popover)",
+      border: "1px solid var(--border)",
+      borderRadius: "8px",
+      boxShadow: "0 8px 24px rgba(0,0,0,0.25)",
+      padding: "4px",
+    },
+    ".cm-codeaction-title": {
+      fontSize: "11px",
+      fontWeight: 600,
+      opacity: 0.6,
+      padding: "4px 8px",
+      textTransform: "uppercase",
+      letterSpacing: "0.04em",
+    },
+    ".cm-codeaction-item": {
+      display: "block",
+      width: "100%",
+      textAlign: "left",
+      padding: "6px 8px",
+      fontSize: "13px",
+      background: "none",
+      border: "none",
+      borderRadius: "4px",
+      cursor: "pointer",
+      color: "var(--popover-foreground)",
+    },
+    ".cm-codeaction-item:hover": {
+      background: "var(--accent)",
+      color: "var(--accent-foreground)",
+    },
   }),
 ];
 
@@ -342,6 +395,127 @@ export function lspInteractions(opts: {
     showResults(view, "References", result ?? []);
   };
 
+  const runCodeActions = async (
+    view: EditorView,
+    pos: number,
+  ): Promise<void> => {
+    const line = view.state.doc.lineAt(pos);
+    const range: LspRangeFull = {
+      start: { line: line.number - 1, character: 0 },
+      end: { line: line.number - 1, character: line.length },
+    };
+    let actions: LspCodeAction[] | null;
+    try {
+      actions = await opts.client.textDocumentCodeAction({
+        textDocument: { uri: opts.documentUri },
+        range,
+        context: { diagnostics: [] },
+      });
+    } catch {
+      return;
+    }
+    if (!actions || actions.length === 0) return;
+    // Prefer quick-fixes; fall back to the full list.
+    const candidates = actions.filter((a) =>
+      !a.kind || a.kind.startsWith("quickfix"),
+    );
+    const list = candidates.length > 0 ? candidates : actions;
+    if (list.length === 1) {
+      void applyCodeAction(view, list[0]);
+      return;
+    }
+    showCodeActionMenu(view, list, (a) => void applyCodeAction(view, a));
+  };
+
+  const applyCodeAction = async (
+    view: EditorView,
+    action: LspCodeAction,
+  ): Promise<void> => {
+    // Apply the edit first (fastest, deterministic), then run the command if the
+    // action carries one (e.g. the command completes the refactor).
+    if (action.edit) {
+      applyWorkspaceEdit(view, action.edit);
+    }
+    if (action.command) {
+      try {
+        await opts.client.workspaceExecuteCommand({
+          command: action.command.command,
+          arguments: action.command.arguments,
+        });
+      } catch {
+        // Command failed; the edit (if any) already applied.
+      }
+    }
+  };
+
+  const applyWorkspaceEdit = (
+    view: EditorView,
+    edit: LspWorkspaceEdit,
+  ): void => {
+    const doc = view.state.doc;
+    const collect = (uri: string, edits: { range: LspRangeFull; newText: string }[]) => {
+      if (uri !== opts.documentUri) {
+        // Cross-file edits require opening the target; defer to external open.
+        return;
+      }
+      for (const e of edits) {
+        view.dispatch({
+          changes: {
+            from: offsetOf(doc, e.range.start),
+            to: offsetOf(doc, e.range.end),
+            insert: e.newText,
+          },
+        });
+      }
+    };
+    if (edit.changes) {
+      for (const [uri, edits] of Object.entries(edit.changes)) {
+        collect(uri, edits);
+      }
+    }
+    for (const dc of edit.documentChanges ?? []) {
+      if (dc.textDocument && dc.edits) {
+        collect(dc.textDocument.uri, dc.edits);
+      }
+    }
+  };
+
+  const showCodeActionMenu = (
+    view: EditorView,
+    actions: LspCodeAction[],
+    onPick: (a: LspCodeAction) => void,
+  ): void => {
+    const panel = document.createElement("div");
+    panel.className = "cm-codeaction-menu";
+    const title = document.createElement("div");
+    title.className = "cm-codeaction-title";
+    title.textContent = "Code Actions";
+    panel.appendChild(title);
+    for (const action of actions) {
+      const item = document.createElement("button");
+      item.type = "button";
+      item.className = "cm-codeaction-item";
+      item.textContent = action.title;
+      item.addEventListener("click", () => {
+        panel.remove();
+        void onPick(action);
+      });
+      panel.appendChild(item);
+    }
+    const dismiss = () => panel.remove();
+    document.addEventListener("mousedown", dismiss, { once: true });
+    panel.addEventListener("mousedown", (e) => e.stopPropagation());
+    view.dom.appendChild(panel);
+    // Position near the cursor.
+    const rect = view.dom.getBoundingClientRect();
+    const line = view.state.doc.lineAt(view.state.selection.main.head);
+    const lineRect = view.coordsAtPos(line.from);
+    if (lineRect) {
+      panel.style.top = `${lineRect.bottom - rect.top + 6}px`;
+      panel.style.left = `${Math.max(4, lineRect.left - rect.left)}px`;
+    }
+  };
+
   return [
     locationsPanel,
     hoverCodeHighlight,
@@ -373,6 +547,14 @@ export function lspInteractions(opts: {
         preventDefault: true,
         run: (view) => {
           void formatDocumentAndWait(view);
+          return true;
+        },
+      },
+      {
+        key: "Shift-Alt-a",
+        preventDefault: true,
+        run: (view) => {
+          void runCodeActions(view, view.state.selection.main.head);
           return true;
         },
       },
@@ -411,6 +593,20 @@ export class YametLspClient extends LanguageServerClient {
       ...params.capabilities.textDocument,
       publishDiagnostics: { relatedInformation: true },
       references: { dynamicRegistration: false },
+      codeAction: {
+        dynamicRegistration: false,
+        codeActionLiteralSupport: {
+          codeActionKind: {
+            valueSet: [
+              "quickfix",
+              "refactor",
+              "source",
+              "source.fixAll",
+              "source.organizeImports",
+            ],
+          },
+        },
+      },
     };
     return params;
   }
@@ -422,6 +618,22 @@ export class YametLspClient extends LanguageServerClient {
   }): Promise<LspLocation[] | null> {
     return this.raw.request("textDocument/references", params, 10_000) as
       Promise<LspLocation[] | null>;
+  }
+
+  textDocumentCodeAction(params: {
+    textDocument: { uri: string };
+    range: LspRangeFull;
+    context: { diagnostics: { range: LspRangeFull; message: string }[] };
+  }): Promise<LspCodeAction[] | null> {
+    return this.raw.request("textDocument/codeAction", params, 10_000) as
+      Promise<LspCodeAction[] | null>;
+  }
+
+  workspaceExecuteCommand(params: {
+    command: string;
+    arguments?: unknown[];
+  }): Promise<unknown> {
+    return this.raw.request("workspace/executeCommand", params, 15_000);
   }
 
   textDocumentDidClose(uri: string): void {

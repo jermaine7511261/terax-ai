@@ -15,11 +15,20 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { ToolUIPart } from "ai";
 import { memo } from "react";
+import type { ApprovalOptions } from "../store/chatStore";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 type Props = {
   part: Extract<ToolUIPart, { state: "approval-requested" }>;
   toolName: string;
-  onRespond: (approved: boolean) => void;
+  onRespond: (approved: boolean, opts?: ApprovalOptions) => void;
 };
 
 const TOOL_META: Record<string, { label: string; icon: typeof FilePlusIcon }> =
@@ -66,6 +75,43 @@ function AiToolApprovalImpl({ part, toolName, onRespond }: Props) {
       </div>
 
       <div className="flex items-center justify-end gap-1.5 border-t border-border/60 px-3 py-2">
+        {/* Third action dropdown: remember a decision at a persistence scope,
+            or deny & blacklist this tool. */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 gap-1 text-[11px] text-muted-foreground"
+            >
+              <HugeiconsIcon icon={ToolsIcon} size={12} strokeWidth={2} />
+              {t("ai.remember")}
+              <span className="text-[9px]">▾</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" side="top" className="min-w-52">
+            <DropdownMenuLabel className="text-[11px]">
+              {t("ai.rememberLabel")}
+            </DropdownMenuLabel>
+            <DropdownMenuItem
+              onSelect={() => onRespond(true, { rememberScope: "session" })}
+            >
+              {t("ai.rememberSession")}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={() => onRespond(true, { rememberScope: "project" })}
+            >
+              {t("ai.rememberProject")}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onSelect={() => onRespond(false, { rememberDeniedTool: true })}
+            >
+              {t("ai.denyRememberTool")}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
         <Button
           size="sm"
           variant="ghost"

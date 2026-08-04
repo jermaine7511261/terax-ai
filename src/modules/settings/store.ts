@@ -181,6 +181,9 @@ export type Preferences = {
   /** When on, the first tool approval per window session still asks; afterwards
    *  the rest are auto-approved until the app restarts. */
   autoApproveTools: boolean;
+  /** Persisted project-level auto-approve arming. Set when the user picks
+   *  "remember for this project" on an approval — survives window restart. */
+  autoApproveProjectArmed: boolean;
 };
 
 export type EditorFormatter =
@@ -267,6 +270,7 @@ const KEY_EDITOR_CUSTOM_FORMAT_COMMAND = "editorCustomFormatCommand";
 const KEY_LSP_ACTIVATION = "lspActivation";
 const KEY_LSP_CUSTOM_SERVERS = "lspCustomServers";
 const KEY_AUTO_APPROVE_TOOLS = "autoApproveTools";
+const KEY_AUTO_APPROVE_PROJECT = "autoApproveProjectArmed";
 
 export const TERMINAL_FONT_SIZE_DEFAULT = 14;
 export const TERMINAL_FONT_SIZE_MIN = 8;
@@ -347,6 +351,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   lspActivation: {},
   lspCustomServers: [],
   autoApproveTools: false,
+  autoApproveProjectArmed: false,
 };
 
 const store = new LazyStore(STORE_PATH, { defaults: {}, autoSave: 200 });
@@ -549,6 +554,9 @@ export async function loadPreferences(): Promise<Preferences> {
     autoApproveTools:
       get<boolean>(KEY_AUTO_APPROVE_TOOLS) ??
       DEFAULT_PREFERENCES.autoApproveTools,
+    autoApproveProjectArmed:
+      get<boolean>(KEY_AUTO_APPROVE_PROJECT) ??
+      DEFAULT_PREFERENCES.autoApproveProjectArmed,
   };
 }
 
@@ -573,6 +581,10 @@ export async function setLspCustomServers(
 
 export async function setAutoApproveTools(value: boolean): Promise<void> {
   await writePref(KEY_AUTO_APPROVE_TOOLS, value);
+}
+
+export async function setProjectAutoApprove(value: boolean): Promise<void> {
+  await writePref(KEY_AUTO_APPROVE_PROJECT, value);
 }
 
 export async function setTheme(value: ThemePref): Promise<void> {
@@ -937,6 +949,7 @@ export async function onPreferencesChange(
     [KEY_LSP_ACTIVATION]: "lspActivation",
     [KEY_LSP_CUSTOM_SERVERS]: "lspCustomServers",
     [KEY_AUTO_APPROVE_TOOLS]: "autoApproveTools",
+    [KEY_AUTO_APPROVE_PROJECT]: "autoApproveProjectArmed",
   };
   // Same-process writes still fire onChange immediately; cross-window writes
   // arrive via the Tauri event emitted by writePref().

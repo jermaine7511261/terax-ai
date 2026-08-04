@@ -32,7 +32,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { SLASH_COMMANDS, YAMET_CMD_RE } from "../lib/slashCommands";
 import { Spinner } from "@/components/ui/spinner";
-import { useChatStore } from "../store/chatStore";
+import { useChatStore, type ApprovalOptions } from "../store/chatStore";
 import { sendMessage } from "../store/chatRuntime";
 import type {
   ChatStatus,
@@ -45,6 +45,7 @@ import { memo, useCallback, useMemo } from "react";
 import { AiToolApproval } from "./AiToolApproval";
 
 function CommandSnippet({ name }: { name: string }) {
+  const { t } = useI18n();
   const meta = SLASH_COMMANDS[name];
   if (!meta) {
     return (
@@ -65,7 +66,9 @@ function CommandSnippet({ name }: { name: string }) {
         {meta.invocation}
       </span>
       <span className="truncate text-[11px] text-muted-foreground">
-        {meta.label}
+        {meta.labelKey
+          ? t(meta.labelKey as Parameters<typeof t>[0])
+          : meta.label}
       </span>
     </div>
   );
@@ -175,7 +178,10 @@ type Props = {
   status: ChatStatus;
   error: Error | undefined;
   clearError: () => void;
-  addToolApprovalResponse: (arg: ApprovalArg) => void | PromiseLike<void>;
+  addToolApprovalResponse: (
+    arg: ApprovalArg,
+    opts?: ApprovalOptions,
+  ) => void | PromiseLike<void>;
   stop: () => void | PromiseLike<void>;
 };
 
@@ -202,7 +208,8 @@ export function AiChatView({
     !isBusy && hitStepCap && lastMessage?.role === "assistant";
 
   const onApproval = useCallback(
-    (id: string, approved: boolean) => addToolApprovalResponse({ id, approved }),
+    (id: string, approved: boolean, opts?: ApprovalOptions) =>
+      addToolApprovalResponse({ id, approved }, opts),
     [addToolApprovalResponse],
   );
 
@@ -325,7 +332,7 @@ const RenderedMessage = memo(function RenderedMessage({
   streaming,
 }: {
   message: UIMessage;
-  onApproval: (id: string, approved: boolean) => void;
+  onApproval: (id: string, approved: boolean, opts?: ApprovalOptions) => void;
   streaming: boolean;
 }) {
   // Index of the trailing text part — only that one is "live" mid-stream.
@@ -594,7 +601,7 @@ const RenderedPart = memo(function RenderedPart({
   streaming,
 }: {
   part: AnyPart;
-  onApproval: (id: string, approved: boolean) => void;
+  onApproval: (id: string, approved: boolean, opts?: ApprovalOptions) => void;
   streaming: boolean;
 }) {
   if (part.type === "text") {
@@ -636,7 +643,11 @@ const RenderedTool = memo(function RenderedTool({
   onApproval,
 }: {
   part: AnyToolPart;
-  onApproval: (id: string, approved: boolean) => void;
+  onApproval: (
+    id: string,
+    approved: boolean,
+    opts?: ApprovalOptions,
+  ) => void;
 }) {
   const toolName =
     part.type === "dynamic-tool"
@@ -648,7 +659,9 @@ const RenderedTool = memo(function RenderedTool({
       <AiToolApproval
         part={part as Extract<ToolUIPart, { state: "approval-requested" }>}
         toolName={toolName}
-        onRespond={(approved) => onApproval(part.approval.id, approved)}
+        onRespond={(approved, opts) =>
+          onApproval(part.approval.id, approved, { ...opts, toolName })
+        }
       />
     );
   }

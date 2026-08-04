@@ -37,7 +37,11 @@ import {
 } from "@/components/ui/tooltip";
 import { IS_MAC } from "@/lib/platform";
 import { cn } from "@/lib/utils";
-import { type GitBranchEntry, native } from "@/modules/ai/lib/native";
+import {
+  type GitBranchEntry,
+  native,
+} from "@/modules/ai/lib/native";
+import { useI18n } from "@/lib/i18n";
 import {
   copyToClipboard,
   revealInFinder,
@@ -49,8 +53,10 @@ import {
 } from "@/modules/explorer/lib/menuItemClass";
 import { joinPath } from "@/modules/explorer/lib/useFileTree";
 import {
+  Add01Icon,
   AiContentGenerator02Icon,
   Alert02Icon,
+  Archive01Icon,
   ArrowDown01Icon,
   ArrowRight01Icon,
   ArrowUp01Icon,
@@ -63,6 +69,7 @@ import {
   Refresh01Icon,
   RemoveSquareIcon,
   Tick02Icon,
+  UserEdit01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -168,11 +175,20 @@ function BranchDropdown({
   onNavigateToPath?: (path: string) => void;
   onRefresh: () => void;
 }) {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [branches, setBranches] = useState<GitBranchEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [checkingOut, setCheckingOut] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [newBranchOpen, setNewBranchOpen] = useState(false);
+  const [newBranchName, setNewBranchName] = useState("");
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [renameName, setRenameName] = useState("");
+  const [renamingBusy, setRenamingBusy] = useState(false);
+  const [deleteBranch, setDeleteBranch] = useState<string | null>(null);
+  const [deletingBusy, setDeletingBusy] = useState(false);
   const requestRef = useRef(0);
   const checkoutInFlight = useRef(false);
 
@@ -227,6 +243,58 @@ function BranchDropdown({
     [repoRoot, onRefresh],
   );
 
+  const handleCreateBranch = useCallback(async () => {
+    if (!repoRoot || !newBranchName.trim() || creating) return;
+    setCreating(true);
+    try {
+      await native.gitCreateBranch(repoRoot, newBranchName.trim());
+      setNewBranchName("");
+      setNewBranchOpen(false);
+      await loadBranches();
+      onRefresh();
+    } catch (e) {
+      toast.error(String(e));
+    } finally {
+      setCreating(false);
+    }
+  }, [creating, loadBranches, newBranchName, onRefresh, repoRoot]);
+
+  const startRename = useCallback((name: string) => {
+    setRenaming(name);
+    setRenameName(name);
+  }, []);
+
+  const handleRename = useCallback(async () => {
+    if (!repoRoot || !renaming || !renameName.trim() || renamingBusy) return;
+    setRenamingBusy(true);
+    try {
+      await native.gitRenameBranch(repoRoot, renaming, renameName.trim());
+      setRenaming(null);
+      setRenameName("");
+      await loadBranches();
+      onRefresh();
+    } catch (e) {
+      toast.error(String(e));
+    } finally {
+      setRenamingBusy(false);
+    }
+  }, [loadBranches, onRefresh, renameName, renaming, renamingBusy, repoRoot]);
+
+  const handleDelete = useCallback(async () => {
+    if (!repoRoot || !deleteBranch || deletingBusy) return;
+    setDeletingBusy(true);
+    try {
+      await native.gitDeleteBranch(repoRoot, deleteBranch);
+      setDeleteBranch(null);
+      await loadBranches();
+      onRefresh();
+    } catch (e) {
+      toast.error(String(e));
+    } finally {
+      setDeletingBusy(false);
+    }
+  }, [deleteBranch, deletingBusy, loadBranches, onRefresh, repoRoot]);
+
   const localBranches = useMemo(
     () => branches.filter((b) => b.kind === "local"),
     [branches],
@@ -237,107 +305,281 @@ function BranchDropdown({
   );
 
   return (
-    <DropdownMenu open={open} onOpenChange={setOpen}>
-      <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          disabled={checkingOut}
-          className="inline-flex min-w-0 cursor-pointer items-center gap-1.5 rounded-md bg-foreground/5 px-2 py-1 text-[11.5px] font-medium leading-none text-foreground transition-colors hover:bg-foreground/10 disabled:cursor-default disabled:opacity-70"
-        >
-          <HugeiconsIcon
-            icon={FolderGitTwoIcon}
-            size={12}
-            strokeWidth={1.9}
-            className="shrink-0 text-muted-foreground"
-          />
-          <span className="max-w-35 truncate">{repoLabel}</span>
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-56">
-        {loading ? (
-          <div className="flex items-center gap-2 px-3 py-3 text-[11px] text-muted-foreground">
-            <Spinner className="size-3" />
-            Loading branches…
-          </div>
-        ) : error ? (
-          <div className="px-3 py-3 text-[11px] leading-snug text-destructive">
-            {error}
-          </div>
-        ) : (
-          <>
-            {localBranches.length > 0 && (
-              <>
-                <DropdownMenuLabel className="text-[10.5px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/85">
-                  Local Branches
-                </DropdownMenuLabel>
-                <DropdownMenuGroup>
-                  {localBranches.map((b) => (
-                    <DropdownMenuItem
-                      key={b.name}
-                      onSelect={() => void handleCheckout(b.name)}
-                      className="flex cursor-pointer items-center gap-2 text-[12px]"
-                    >
-                      {b.isHead ? (
-                        <HugeiconsIcon
-                          icon={Tick02Icon}
-                          size={14}
-                          strokeWidth={1.8}
-                          className="shrink-0"
-                        />
-                      ) : (
-                        <span className="w-3.5 shrink-0" />
-                      )}
-                      <span className="min-w-0 flex-1 truncate">{b.name}</span>
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuGroup>
-              </>
-            )}
-            {worktrees.length > 0 && (
-              <>
-                {localBranches.length > 0 && <DropdownMenuSeparator />}
-                <DropdownMenuLabel className="text-[10.5px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/85">
-                  Worktrees
-                </DropdownMenuLabel>
-                <DropdownMenuGroup>
-                  {worktrees.map((b) => (
-                    <DropdownMenuItem
-                      key={b.worktreePath ?? b.name}
-                      onSelect={() => {
-                        if (b.worktreePath && onNavigateToPath) {
-                          onNavigateToPath(b.worktreePath);
-                        }
-                      }}
-                      className="flex cursor-pointer items-center gap-2 text-[12px]"
-                    >
-                      <HugeiconsIcon
-                        icon={Folder01Icon}
-                        size={14}
-                        strokeWidth={1.5}
-                        className="shrink-0 text-muted-foreground"
-                      />
-                      <div className="flex min-w-0 flex-col">
-                        <span className="truncate">{b.name}</span>
-                        {b.worktreePath && (
-                          <span className="truncate text-[10px] text-muted-foreground">
-                            {b.worktreePath}
-                          </span>
+    <>
+      <DropdownMenu
+        open={open}
+        onOpenChange={(o) => {
+          setOpen(o);
+          if (!o) {
+            setNewBranchOpen(false);
+            setNewBranchName("");
+            setRenaming(null);
+            setRenameName("");
+          }
+        }}
+      >
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            disabled={checkingOut}
+            className="inline-flex min-w-0 cursor-pointer items-center gap-1.5 rounded-md bg-foreground/5 px-2 py-1 text-[11.5px] font-medium leading-none text-foreground transition-colors hover:bg-foreground/10 disabled:cursor-default disabled:opacity-70"
+          >
+            <HugeiconsIcon
+              icon={FolderGitTwoIcon}
+              size={12}
+              strokeWidth={1.9}
+              className="shrink-0 text-muted-foreground"
+            />
+            <span className="max-w-35 truncate">{repoLabel}</span>
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-64">
+          {loading ? (
+            <div className="flex items-center gap-2 px-3 py-3 text-[11px] text-muted-foreground">
+              <Spinner className="size-3" />
+              Loading branches…
+            </div>
+          ) : error ? (
+            <div className="px-3 py-3 text-[11px] leading-snug text-destructive">
+              {error}
+            </div>
+          ) : (
+            <>
+              {localBranches.length > 0 && (
+                <>
+                  <DropdownMenuLabel className="text-[10.5px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/85">
+                    Local Branches
+                  </DropdownMenuLabel>
+                  <DropdownMenuGroup>
+                    {localBranches.map((b) => (
+                      <div
+                        key={b.name}
+                        className="group flex items-center gap-1 px-1.5 py-0.5"
+                      >
+                        {renaming === b.name ? (
+                          <form
+                            className="flex min-w-0 flex-1 items-center gap-1"
+                            onSubmit={(event) => {
+                              event.preventDefault();
+                              void handleRename();
+                            }}
+                          >
+                            <input
+                              autoFocus
+                              value={renameName}
+                              onChange={(event) =>
+                                setRenameName(event.target.value)
+                              }
+                              onBlur={() => {
+                                setRenaming(null);
+                                setRenameName("");
+                              }}
+                              onKeyDown={(event) => {
+                                if (event.key === "Escape") {
+                                  setRenaming(null);
+                                  setRenameName("");
+                                }
+                              }}
+                              placeholder={t("git.newBranchName")}
+                              className="min-w-0 flex-1 rounded border border-border/60 bg-background px-1.5 py-0.5 text-[12px] outline-none focus:border-primary/50"
+                            />
+                            <button
+                              type="submit"
+                              disabled={renamingBusy || !renameName.trim()}
+                              className="inline-flex size-5 shrink-0 cursor-pointer items-center justify-center rounded text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                              {renamingBusy ? (
+                                <Spinner className="size-3" />
+                              ) : (
+                                <HugeiconsIcon
+                                  icon={Tick02Icon}
+                                  size={12}
+                                  strokeWidth={2}
+                                />
+                              )}
+                            </button>
+                          </form>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => void handleCheckout(b.name)}
+                              className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded px-1.5 py-1 text-[12px] text-foreground/90 transition-colors hover:bg-foreground/[0.05]"
+                            >
+                              {b.isHead ? (
+                                <HugeiconsIcon
+                                  icon={Tick02Icon}
+                                  size={14}
+                                  strokeWidth={1.8}
+                                  className="shrink-0"
+                                />
+                              ) : (
+                                <span className="w-3.5 shrink-0" />
+                              )}
+                              <span className="min-w-0 flex-1 truncate">
+                                {b.name}
+                              </span>
+                            </button>
+                            {!b.isHead ? (
+                              <div className="flex shrink-0 items-center opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+                                <button
+                                  type="button"
+                                  aria-label={t("git.renameBranch")}
+                                  title={t("git.renameBranch")}
+                                  onClick={() => startRename(b.name)}
+                                  className="inline-flex size-5 cursor-pointer items-center justify-center rounded text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground"
+                                >
+                                  <HugeiconsIcon
+                                    icon={UserEdit01Icon}
+                                    size={12}
+                                    strokeWidth={1.9}
+                                  />
+                                </button>
+                                <button
+                                  type="button"
+                                  aria-label={t("git.deleteBranch")}
+                                  title={t("git.deleteBranch")}
+                                  onClick={() => setDeleteBranch(b.name)}
+                                  className="inline-flex size-5 cursor-pointer items-center justify-center rounded text-muted-foreground transition-colors hover:bg-destructive/15 hover:text-destructive"
+                                >
+                                  <HugeiconsIcon
+                                    icon={RemoveSquareIcon}
+                                    size={12}
+                                    strokeWidth={1.9}
+                                  />
+                                </button>
+                              </div>
+                            ) : null}
+                          </>
                         )}
                       </div>
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuGroup>
-              </>
-            )}
-            {branches.length === 0 && (
-              <div className="px-3 py-3 text-[11px] text-muted-foreground">
-                No branches found.
-              </div>
-            )}
-          </>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+                    ))}
+                  </DropdownMenuGroup>
+                </>
+              )}
+              {worktrees.length > 0 && (
+                <>
+                  {localBranches.length > 0 && <DropdownMenuSeparator />}
+                  <DropdownMenuLabel className="text-[10.5px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/85">
+                    Worktrees
+                  </DropdownMenuLabel>
+                  <DropdownMenuGroup>
+                    {worktrees.map((b) => (
+                      <DropdownMenuItem
+                        key={b.worktreePath ?? b.name}
+                        onSelect={() => {
+                          if (b.worktreePath && onNavigateToPath) {
+                            onNavigateToPath(b.worktreePath);
+                          }
+                        }}
+                        className="flex cursor-pointer items-center gap-2 text-[12px]"
+                      >
+                        <HugeiconsIcon
+                          icon={Folder01Icon}
+                          size={14}
+                          strokeWidth={1.5}
+                          className="shrink-0 text-muted-foreground"
+                        />
+                        <div className="flex min-w-0 flex-col">
+                          <span className="truncate">{b.name}</span>
+                          {b.worktreePath && (
+                            <span className="truncate text-[10px] text-muted-foreground">
+                              {b.worktreePath}
+                            </span>
+                          )}
+                        </div>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuGroup>
+                </>
+              )}
+              {branches.length === 0 && (
+                <div className="px-3 py-3 text-[11px] text-muted-foreground">
+                  No branches found.
+                </div>
+              )}
+              <DropdownMenuSeparator />
+              {newBranchOpen ? (
+                <form
+                  className="flex items-center gap-1 px-2 py-1.5"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void handleCreateBranch();
+                  }}
+                >
+                  <input
+                    autoFocus
+                    value={newBranchName}
+                    onChange={(event) => setNewBranchName(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Escape") {
+                        setNewBranchOpen(false);
+                        setNewBranchName("");
+                      }
+                    }}
+                    placeholder={t("git.branchName")}
+                    className="min-w-0 flex-1 rounded border border-border/60 bg-background px-1.5 py-0.5 text-[12px] outline-none focus:border-primary/50"
+                  />
+                  <button
+                    type="submit"
+                    disabled={creating || !newBranchName.trim()}
+                    className="inline-flex size-5 shrink-0 cursor-pointer items-center justify-center rounded text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {creating ? (
+                      <Spinner className="size-3" />
+                    ) : (
+                      <HugeiconsIcon icon={Tick02Icon} size={12} strokeWidth={2} />
+                    )}
+                  </button>
+                </form>
+              ) : (
+                <DropdownMenuItem
+                  onSelect={(event) => {
+                    event.preventDefault();
+                    setNewBranchOpen(true);
+                  }}
+                  className="flex cursor-pointer items-center gap-2 text-[12px]"
+                >
+                  <HugeiconsIcon
+                    icon={Add01Icon}
+                    size={13}
+                    strokeWidth={1.9}
+                    className="shrink-0 text-muted-foreground"
+                  />
+                  {t("git.newBranch")}
+                </DropdownMenuItem>
+              )}
+            </>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <AlertDialog
+        open={deleteBranch !== null}
+        onOpenChange={(o) => {
+          if (!o) setDeleteBranch(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("git.deleteBranch")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteBranch
+                ? t("git.deleteBranchConfirm", { branch: deleteBranch })
+                : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeleteBranch(null)}>
+              {t("common.cancel")}
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={() => void handleDelete()}>
+              {deletingBusy ? t("common.loading") : t("common.delete")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
 
@@ -352,6 +594,7 @@ export const SourceControlPanel = memo(function SourceControlPanel({
   const scm = useSourceControlPanel(open, sourceControl, onOpenDiff);
   const refreshAnimationRef = useRef<number | null>(null);
   const [refreshAnimating, setRefreshAnimating] = useState(false);
+  const [stashOpen, setStashOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [focusedRowKey, setFocusedRowKey] = useState<string | null>(null);
@@ -456,6 +699,20 @@ export const SourceControlPanel = memo(function SourceControlPanel({
   const handlePull = useCallback(() => {
     void sourceControl.runRemoteAction("pull");
   }, [sourceControl]);
+
+  const handleStash = useCallback(() => {
+    if (!stashOpen) {
+      void scm.loadStashes();
+      setStashOpen(true);
+      return;
+    }
+    setStashOpen(false);
+  }, [scm, stashOpen]);
+
+  const conflicts = useMemo(
+    () => scm.fileEntries.filter((e) => e.statusLabel === "Unmerged"),
+    [scm.fileEntries],
+  );
 
   const rows = useMemo<RowDescriptor[]>(() => {
     const result: RowDescriptor[] = [];
@@ -698,6 +955,22 @@ export const SourceControlPanel = memo(function SourceControlPanel({
               )}
             </IconActionButton>
             <IconActionButton
+              label={
+                !scm.hasUncommitted
+                  ? "No changes to stash"
+                  : "Stash changes"
+              }
+              disabled={!scm.hasUncommitted || !!scm.actionBusy}
+              onClick={handleStash}
+              side="bottom"
+            >
+              <HugeiconsIcon
+                icon={Archive01Icon}
+                size={14}
+                strokeWidth={1.9}
+              />
+            </IconActionButton>
+            <IconActionButton
               label="Refresh source control"
               disabled={isRefreshing || !!scm.actionBusy}
               onClick={handleRefresh}
@@ -765,6 +1038,130 @@ export const SourceControlPanel = memo(function SourceControlPanel({
         {scm.panelState === "ready" && scm.status ? (
           <>
             <div className="relative shrink-0 space-y-2 border-b border-border/40 bg-gradient-to-b from-card/65 to-card/30 px-2.5 pb-2.5 pt-2.5">
+              {conflicts.length > 0 ? (
+                <div className="space-y-1.5 rounded-lg border border-destructive/40 bg-destructive/[0.07] p-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-semibold text-destructive">
+                      {conflicts.length} unmerged file{conflicts.length > 1 ? "s" : ""} — resolve before committing
+                    </span>
+                    <Button
+                      size="xs"
+                      variant="ghost"
+                      className="h-6 px-2 text-[10px] text-destructive"
+                      onClick={() => void scm.abortMerge()}
+                    >
+                      Abort merge
+                    </Button>
+                  </div>
+                  {conflicts.map((c) => (
+                    <div
+                      key={c.key}
+                      className="flex items-center gap-1.5 rounded border border-border/60 bg-background/80 px-1.5 py-1"
+                    >
+                      <span className="min-w-0 flex-1 truncate font-mono text-[11px]">
+                        {c.path}
+                      </span>
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        className="h-5 px-1.5 text-[10px]"
+                        onClick={() => void scm.checkoutOurs(c.path)}
+                      >
+                        Ours
+                      </Button>
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        className="h-5 px-1.5 text-[10px]"
+                        onClick={() => void scm.checkoutTheirs(c.path)}
+                      >
+                        Theirs
+                      </Button>
+                      <Button
+                        size="xs"
+                        variant="ghost"
+                        className="h-5 px-1.5 text-[10px]"
+                        onClick={() => void scm.refresh()}
+                      >
+                        Refresh
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+              {scm.repo?.hasSubmodules ? (
+                <div className="flex items-center justify-between gap-2 rounded-lg border border-border/40 bg-background/70 px-2 py-1.5">
+                  <span className="text-[11px] font-medium text-muted-foreground">
+                    Repository has submodules
+                  </span>
+                  <Button
+                    size="xs"
+                    variant="outline"
+                    className="h-6 px-2 text-[10px]"
+                    onClick={() => void scm.updateSubmodules()}
+                  >
+                    Update submodules
+                  </Button>
+                </div>
+              ) : null}
+              {stashOpen ? (
+                <div className="space-y-1.5 rounded-lg border border-border/40 bg-background/70 p-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-semibold text-muted-foreground">
+                      Stashes
+                    </span>
+                    <Button
+                      size="xs"
+                      variant="outline"
+                      className="h-6 px-2 text-[10px]"
+                      disabled={!scm.hasUncommitted || !!scm.actionBusy}
+                      onClick={() => void scm.stashSave()}
+                    >
+                      Stash all changes
+                    </Button>
+                  </div>
+                  {scm.stashes.length === 0 ? (
+                    <p className="px-0.5 text-[11px] text-muted-foreground/70">
+                      No stashes yet.
+                    </p>
+                  ) : (
+                    scm.stashes.map((s) => (
+                      <div
+                        key={s.index}
+                        className="flex items-center gap-1.5 rounded border border-border/60 bg-background/80 px-1.5 py-1"
+                      >
+                        <span className="min-w-0 flex-1 truncate font-mono text-[11px]">
+                          {s.message || s.branch || s.label}
+                        </span>
+                        <Button
+                          size="xs"
+                          variant="outline"
+                          className="h-5 px-1.5 text-[10px]"
+                          onClick={() => void scm.stashApply(s.index)}
+                        >
+                          Apply
+                        </Button>
+                        <Button
+                          size="xs"
+                          variant="outline"
+                          className="h-5 px-1.5 text-[10px]"
+                          onClick={() => void scm.stashPop(s.index)}
+                        >
+                          Pop
+                        </Button>
+                        <Button
+                          size="xs"
+                          variant="ghost"
+                          className="h-5 px-1.5 text-[10px]"
+                          onClick={() => void scm.stashDrop(s.index)}
+                        >
+                          Drop
+                        </Button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              ) : null}
               <div
                 className={cn(
                   "relative rounded-lg border bg-background/95 shadow-sm transition-colors",

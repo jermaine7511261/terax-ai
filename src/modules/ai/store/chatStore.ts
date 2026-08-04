@@ -24,6 +24,7 @@ import {
   type SessionMeta,
 } from "../lib/sessions";
 import { pushRecentModel } from "../lib/modelPrefs";
+import { setProjectAutoApprove } from "@/modules/settings/store";
 
 export type Live = {
   getCwd: () => string | null;
@@ -93,6 +94,50 @@ export type ApprovalResponder = (
   approved: boolean,
 ) => void;
 
+/**
+ * How long a "remember my decision" choice lasts.
+ *  - "window": until the app restarts (backed by `firstApprovalResolved`).
+ *  - "session": this chat session only.
+ *  - "project": persisted to preferences (survives restart).
+ */
+export type RememberScope = "window" | "session" | "project";
+
+/** Extra signal a manual approval decision can carry from the approval card. */
+export type ApprovalOptions = {
+  /** Scope to arm auto-approve at (only meaningful on an approve). */
+  rememberScope?: RememberScope;
+  /** On a deny: remember this tool name so it's never auto-approved again. */
+  rememberDeniedTool?: boolean;
+  /** The tool name, used when blacklisting a denied tool. */
+  toolName?: string;
+};
+
+/**
+ * Central handler for every manual tool-approval decision (inline card, diff
+ * tab accept/reject). Owns the bug-prone logic so it lives in exactly one
+ * place:
+ *  - Auto-approve is armed ONLY on an approve (a deny must never arm it).
+ *  - A deny that opts to "remember this tool" adds it to the blacklist
+ *    instead of arming anything.
+ * `respond` is the surface-specific `addToolApprovalResponse` bound to the
+ * active chat.
+ */
+export function handleApprovalDecision(
+  approvalId: string,
+  approved: boolean,
+  opts: ApprovalOptions | undefined,
+  respond: (arg: { id: string; approved: boolean }) => void,
+): void {
+  const st = useChatStore.getState();
+  if (!approved && opts?.rememberDeniedTool && opts.toolName) {
+    st.addDeniedTool(opts.toolName);
+  }
+  if (approved && !opts?.rememberDeniedTool) {
+    st.markFirstApprovalResolved(opts?.rememberScope);
+  }
+  respond({ id: approvalId, approved });
+}
+
 type StoreState = {
   live: Live;
   setLive: (live: Live) => void;
@@ -112,7 +157,19 @@ type StoreState = {
    * approval is approved silently until the app restarts.
    */
   firstApprovalResolved: boolean;
-  markFirstApprovalResolved: () => void;
+  /** Armed for the "session" remember scope (reset per chat session). */
+  sessionApprovalArmed: boolean;
+  /** Currently selected remember scope. */
+  rememberScope: RememberScope;
+  setRememberScope: (scope: RememberScope) => void;
+  /** Tool names the user chose to always require manual approval (blacklist). */
+  deniedTools: string[];
+  addDeniedTool: (toolName: string) => void;
+  /**
+   * Arm auto-approve at the given (or current) scope. Only an approve should
+   * ever call this.
+   */
+  markFirstApprovalResolved: (scope?: RememberScope) => void;
 
   apiKeys: ProviderKeys;
   setApiKeys: (keys: ProviderKeys) => void;
@@ -230,7 +287,25 @@ export const useChatStore = create<StoreState>((set, get) => ({
   },
 
   firstApprovalResolved: false,
-  markFirstApprovalResolved: () => set({ firstApprovalResolved: true }),
+  sessionApprovalArmed: false,
+  rememberScope: "window",
+  setRememberScope: (scope) => set({ rememberScope: scope }),
+  deniedTools: [],
+  addDeniedTool: (toolName) => {
+    const current = get().deniedTools;
+    if (current.includes(toolName)) return;
+    set({ deniedTools: [...current, toolName] });
+  },
+  markFirstApprovalResolved: (scope) => {
+    const s = scope ?? get().rememberScope;
+    if (s === "project") {
+      void setProjectAutoApprove(true);
+    } else if (s === "session") {
+      set({ sessionApprovalArmed: true });
+    } else {
+      set({ firstApprovalResolved: true });
+    }
+  },
 
   apiKeys: { ...EMPTY_PROVIDER_KEYS },
   setApiKeys: (keys) => set({ apiKeys: keys }),
@@ -327,6 +402,7 @@ export const useChatStore = create<StoreState>((set, get) => ({
       sessions: nextSessions,
       activeSessionId: freshId,
       sessionsHydrated: true,
+      sessionApprovalArmed: false,
     });
   },
 
@@ -339,7 +415,12 @@ export const useChatStore = create<StoreState>((set, get) => ({
       updatedAt: Date.now(),
     };
     const next = [meta, ...get().sessions];
-    set({ sessions: next, activeSessionId: id, agentMeta: IDLE_META });
+    set({
+      sessions: next,
+      activeSessionId: id,
+      agentMeta: IDLE_META,
+      sessionApprovalArmed: false,
+    });
     void saveSessionsList(next);
     void saveActiveId(id);
     return id;
@@ -352,7 +433,11 @@ export const useChatStore = create<StoreState>((set, get) => ({
     // Lazily seed the chat with persisted messages the first time we open
     // this session. Subsequent switches reuse the cached Chat instance.
     const flip = () => {
-      set({ activeSessionId: id, agentMeta: IDLE_META });
+      set({
+        activeSessionId: id,
+        agentMeta: IDLE_META,
+        sessionApprovalArmed: false,
+      });
       void saveActiveId(id);
     };
     if (chats.has(id) || seedMessages.has(id)) {

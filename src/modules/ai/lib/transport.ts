@@ -5,10 +5,151 @@ import type { ProviderKeys, CustomEndpointKeys } from "./keyring";
 import { formatAiError } from "./errors";
 import { native } from "./native";
 import type { ToolContext } from "../tools/tools";
+import {
+  formatSessionMemory,
+  getSessionMemory,
+} from "../store/memoryStore";
 
-const YAMET_MD_MAX_BYTES = 32 * 1024;
+export const YAMET_MD_MAX_BYTES = 32 * 1024;
 type MemoryCacheEntry = { content: string | null; mtime: number };
 const projectMemoryCache = new Map<string, MemoryCacheEntry>();
+
+export type ProjectMemoryEntry = {
+  id: string;
+  content: string;
+  createdAt: number;
+};
+
+const MEM_START = "<!-- yamet-project-memory:start -->";
+const MEM_END = "<!-- yamet-project-memory:end -->";
+
+function memoryPath(workspaceRoot: string): string {
+  return `${workspaceRoot.replace(/\/$/, "")}/YAMET.md`;
+}
+
+function invalidateCache(workspaceRoot: string): void {
+  projectMemoryCache.delete(workspaceRoot);
+}
+
+function renderEntry(e: { content: string }): string {
+  return `- ${e.content.replace(/\r?\n/g, " ")}`;
+}
+
+type MemoryBlock = { prefix: string; lines: string[]; suffix: string };
+
+function parseBlock(content: string): MemoryBlock {
+  const startIdx = content.indexOf(MEM_START);
+  const endIdx = content.indexOf(MEM_END);
+  if (startIdx === -1 || endIdx === -1 || endIdx <= startIdx) {
+    return { prefix: content, lines: [], suffix: "" };
+  }
+  const prefix = content.slice(0, startIdx);
+  const suffix = content.slice(endIdx + MEM_END.length);
+  const inner = content.slice(startIdx + MEM_START.length, endIdx);
+  const lines = inner.split("\n").filter((l) => l.trim().length > 0);
+  return { prefix, lines, suffix };
+}
+
+function rebuildBlock(block: MemoryBlock): string {
+  let out = block.prefix;
+  if (block.lines.length > 0) {
+    if (out.length > 0 && !out.endsWith("\n")) out += "\n";
+    out += `${MEM_START}\n${block.lines.join("\n")}\n${MEM_END}`;
+    if (block.suffix.length > 0 && !block.suffix.startsWith("\n")) out += "\n";
+  }
+  out += block.suffix;
+  return out;
+}
+
+function capBytes(text: string): string {
+  return text.length > YAMET_MD_MAX_BYTES
+    ? text.slice(0, YAMET_MD_MAX_BYTES)
+    : text;
+}
+
+async function readMemoryFile(
+  workspaceRoot: string,
+): Promise<{ content: string; path: string }> {
+  const path = memoryPath(workspaceRoot);
+  try {
+    const r = await native.readFile(path);
+    if (r.kind === "text") return { content: r.content, path };
+    return { content: "", path };
+  } catch {
+    return { content: "", path };
+  }
+}
+
+/**
+ * Append a project memory note to YAMET.md (dedup by exact content within the
+ * managed block), cap to YAMET_MD_MAX_BYTES, and invalidate the read cache so
+ * the next run re-reads from disk.
+ */
+export async function appendProjectMemory(
+  workspaceRoot: string,
+  entry: ProjectMemoryEntry,
+): Promise<{ ok: true; path: string } | { ok: false; reason: string }> {
+  const { content, path } = await readMemoryFile(workspaceRoot);
+  const block = parseBlock(content);
+  const line = renderEntry(entry);
+  if (!block.lines.includes(line)) block.lines.push(line);
+  try {
+    await native.writeFile(path, capBytes(rebuildBlock(block)));
+    invalidateCache(workspaceRoot);
+    return { ok: true, path };
+  } catch (e) {
+    return { ok: false, reason: String(e) };
+  }
+}
+
+/**
+ * Update (replace-or-append) a project memory note in YAMET.md, capped and
+ * cache-invalidated like {@link appendProjectMemory}.
+ */
+export async function updateProjectMemory(
+  workspaceRoot: string,
+  entry: ProjectMemoryEntry,
+): Promise<{ ok: true; path: string } | { ok: false; reason: string }> {
+  const { content, path } = await readMemoryFile(workspaceRoot);
+  const block = parseBlock(content);
+  const line = renderEntry(entry);
+  block.lines = block.lines.filter((l) => l !== line);
+  block.lines.push(line);
+  try {
+    await native.writeFile(path, capBytes(rebuildBlock(block)));
+    invalidateCache(workspaceRoot);
+    return { ok: true, path };
+  } catch (e) {
+    return { ok: false, reason: String(e) };
+  }
+}
+
+/**
+ * Merge the static YAMET.md content with this session's in-memory notes into a
+ * single block for the system prompt. Dedups identical trimmed lines and caps
+ * the total at YAMET_MD_MAX_BYTES to prevent the model from growing the prompt
+ * unboundedly.
+ */
+export function mergeProjectMemory(
+  staticMd: string | null,
+  sessionMd: string | null,
+): string | null {
+  const parts = [staticMd, sessionMd].filter(
+    (s): s is string => !!s && s.trim().length > 0,
+  );
+  if (parts.length === 0) return null;
+  const seen = new Set<string>();
+  const lines: string[] = [];
+  for (const part of parts) {
+    for (const line of part.split("\n")) {
+      const key = line.trim().toLowerCase();
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      lines.push(line);
+    }
+  }
+  return capBytes(lines.join("\n"));
+}
 
 async function readYametMd(workspaceRoot: string | null): Promise<string | null> {
   if (!workspaceRoot) return null;
@@ -71,7 +212,14 @@ type SendOptions = {
 export function createContextAwareTransport(deps: Deps) {
   const run = async (options: SendOptions) => {
     const live = deps.getLive();
-    const projectMemory = await readYametMd(live.workspaceRoot);
+    const staticMemory = await readYametMd(live.workspaceRoot);
+    // Two-level project memory: static YAMET.md (cross-session, on disk) +
+    // this session's in-memory notes (writable mid-conversation). Merged and
+    // deduped so both show up in the system prompt without bloat.
+    const sessionMemory = formatSessionMemory(
+      getSessionMemory(deps.toolContext.getSessionId()),
+    );
+    const projectMemory = mergeProjectMemory(staticMemory, sessionMemory);
     const envBlock = formatEnvBlock(live);
     const messagesForRun = envBlock
       ? injectEnvIntoLastUser(options.messages, envBlock)

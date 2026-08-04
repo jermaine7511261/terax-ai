@@ -10,7 +10,7 @@ import {
 import { useI18n } from "@/lib/i18n";
 import { usePreferencesStore } from "@/modules/settings/preferences";
 import { setAutoApproveTools } from "@/modules/settings/store";
-import { useChatStore } from "../store/chatStore";
+import { handleApprovalDecision, useChatStore, type ApprovalOptions } from "../store/chatStore";
 import { getOrCreateChat } from "../store/chatRuntime";
 import { AiChatView } from "./AiChat";
 
@@ -30,11 +30,16 @@ function ChatBody({ sessionId }: { sessionId: string }) {
   const chat = useMemo(() => getOrCreateChat(sessionId), [sessionId]);
   const helpers = useChat<UIMessage>({ chat });
 
-  // Any manual approval decision arms "auto-approve the rest of this session".
+  // Any manual approval decision arms auto-approve (approve only — a deny
+  // never arms it). Handled centrally in handleApprovalDecision.
   const addToolApprovalResponse = useCallback(
-    (arg: { id: string; approved: boolean }) => {
-      useChatStore.getState().markFirstApprovalResolved();
-      helpers.addToolApprovalResponse(arg);
+    (arg: { id: string; approved: boolean }, opts?: ApprovalOptions) => {
+      handleApprovalDecision(
+        arg.id,
+        arg.approved,
+        opts,
+        helpers.addToolApprovalResponse,
+      );
     },
     [helpers.addToolApprovalResponse],
   );

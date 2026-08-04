@@ -1,3 +1,4 @@
+import { tStatic, useI18n } from "@/lib/i18n";
 import { Alert02Icon, Globe02Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -28,8 +29,20 @@ type Props = {
 // server page can hold hundreds of MB inside the WebView.
 const SUSPEND_AFTER_MS = 30_000;
 
+/** Classify a preview URL by what should render it: a web page, an image, or a PDF. */
+export function previewKindFromUrl(url: string): "web" | "image" | "pdf" {
+  if (!url) return "web";
+  // Strip a possible query/hash fragment before checking the extension.
+  const clean = url.split(/[?#]/)[0];
+  const lower = clean.toLowerCase();
+  if (/\.(png|jpe?g|gif|svg|webp|bmp|ico)$/.test(lower)) return "image";
+  if (/\.pdf$/.test(lower)) return "pdf";
+  return "web";
+}
+
 export const PreviewPane = forwardRef<PreviewPaneHandle, Props>(
   function PreviewPane({ url, visible, onUrlChange }, ref) {
+    const { t } = useI18n();
     // `nonce` is part of the iframe `key`. Bumping it remounts the iframe,
     // which is the only reliable cross-origin reload (calling
     // contentWindow.location.reload() throws on cross-origin frames).
@@ -59,7 +72,9 @@ export const PreviewPane = forwardRef<PreviewPaneHandle, Props>(
       [url],
     );
 
-    const showXfoHint = url ? !isLocalUrl(url) : false;
+    const kind = previewKindFromUrl(url);
+    const isEmbeddedFile = kind === "image" || kind === "pdf";
+    const showXfoHint = url && !isLocalUrl(url) && !isEmbeddedFile;
 
     return (
       <div
@@ -97,7 +112,31 @@ export const PreviewPane = forwardRef<PreviewPaneHandle, Props>(
           }
         >
           {url ? (
-            loaded ? (
+            kind === "image" ? (
+              <FilePreviewHeader
+                label={t("preview.image")}
+                onOpenExternal={() => window.open(url, "_blank")}
+              >
+                <img
+                  key={url}
+                  src={url}
+                  alt=""
+                  className="mx-auto max-h-full max-w-full object-contain"
+                />
+              </FilePreviewHeader>
+            ) : kind === "pdf" ? (
+              <FilePreviewHeader
+                label={t("preview.pdf")}
+                onOpenExternal={() => window.open(url, "_blank")}
+              >
+                <embed
+                  key={url}
+                  src={url}
+                  type="application/pdf"
+                  className="h-full w-full"
+                />
+              </FilePreviewHeader>
+            ) : loaded ? (
               <iframe
                 key={`${url}#${nonce}`}
                 src={url}
@@ -171,10 +210,39 @@ function EmptyState() {
             Ports
           </span>{" "}
           dropdown to jump straight to your running dev server. Public sites
-          often block embedding — open them in your browser via the link icon
-          if you see a blank page.
+          often block embedding — open them in your browser via the link icon if
+          you see a blank page.
         </p>
       </div>
+    </div>
+  );
+}
+
+/** Header + scrollable body for image/PDF file previews (not iframe-sandboxed). */
+function FilePreviewHeader({
+  label,
+  onOpenExternal,
+  children,
+}: {
+  label: string;
+  onOpenExternal: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex h-full w-full flex-col overflow-hidden">
+      <div className="flex h-8 shrink-0 items-center justify-between border-b border-border/60 bg-card/60 px-3">
+        <span className="truncate text-[11px] font-medium text-muted-foreground">
+          {label}
+        </span>
+        <button
+          type="button"
+          onClick={onOpenExternal}
+          className="shrink-0 text-[11px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+        >
+          {tStatic("preview.openExternal")}
+        </button>
+      </div>
+      <div className="min-h-0 flex-1 overflow-auto bg-white">{children}</div>
     </div>
   );
 }

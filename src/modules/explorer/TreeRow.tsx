@@ -26,7 +26,7 @@ export type EntryRowProps = {
   isRenaming: boolean;
   isDropTarget?: boolean;
   onOpenFile: (path: string, pin?: boolean) => void;
-  onSelectPath: (path: string) => void;
+  onSelectPath: (path: string, e: React.MouseEvent) => void;
   gitStatusCode?: GitStatusCode | null;
   gitignored?: boolean;
 };
@@ -73,9 +73,12 @@ function EntryRowImpl(props: EntryRowProps) {
     );
   }
 
-  const handleClick = () => {
+  const handleClick = (e: React.MouseEvent) => {
     if (renameInProgress) return;
-    onSelectPath(path);
+    const multiSelect = e.metaKey || e.ctrlKey || e.shiftKey;
+    onSelectPath(path, e);
+    // Ctrl/Cmd/Shift-click is purely selection — don't open or toggle.
+    if (multiSelect) return;
     if (isDir) actions.toggle(path);
     else onOpenFile(path);
   };

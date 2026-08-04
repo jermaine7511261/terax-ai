@@ -247,6 +247,7 @@ export function useSourceControl(
                 branch: status.branch,
                 upstream: status.upstream,
                 isDetached: status.isDetached,
+                hasSubmodules: stateRef.current.repo?.hasSubmodules ?? false,
               };
             }
           } catch {

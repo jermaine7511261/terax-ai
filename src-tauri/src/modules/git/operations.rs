@@ -9,8 +9,9 @@ use crate::modules::git::process::{
 };
 use crate::modules::git::types::{
     DiscardEntry, GitBranchEntry, GitBranchListResult, GitCommitFileChange, GitCommitResult,
-    GitDiffContentResult, GitDiffResult, GitLogEntry, GitOutput, GitPanelSnapshot,
-    GitPushResult, GitRepoInfo, GitStatusSnapshot, TextSource, DEFAULT_TIMEOUT_SECS,
+    GitConflict, GitConflictResult, GitDiffContentResult, GitDiffResult, GitLogEntry, GitOutput,
+    GitPanelSnapshot, GitPushResult, GitRepoInfo, GitStashEntry, GitStatusSnapshot,
+    GitSubmoduleStatus, GitSubmoduleStatusResult, TextSource, DEFAULT_TIMEOUT_SECS,
     NETWORK_TIMEOUT_SECS,
 };
 use crate::modules::git::utils::{
@@ -74,11 +75,18 @@ fn resolve_repo_in_authorized(
     )?;
 
     Ok(Some(GitRepoInfo {
-        repo_root: canonical_root.git_path,
+        repo_root: canonical_root.git_path.clone(),
         branch: head.clone(),
         upstream,
         is_detached: head == "HEAD",
+        has_submodules: has_submodules(&canonical_root),
     }))
+}
+
+/// Detects whether the repository root declares submodules (has a `.gitmodules`).
+fn has_submodules(repo_root: &ResolvedGitDirectory) -> bool {
+    let marker = Path::new(&repo_root.local_path).join(".gitmodules");
+    marker.is_file()
 }
 
 pub fn panel_snapshot(
@@ -111,6 +119,7 @@ pub fn panel_snapshot(
         branch: status.branch.clone(),
         upstream: status.upstream.clone(),
         is_detached: status.is_detached,
+        has_submodules: has_submodules(&canonical_root),
     };
     Ok(GitPanelSnapshot {
         repo: Some(repo),
@@ -1145,6 +1154,444 @@ pub fn checkout_branch(
         DEFAULT_TIMEOUT_SECS,
     )?;
     ensure_success(&output, "git checkout failed")
+}
+
+/// Validates a branch name for create/delete/rename. Rejects empty, leading `-`,
+/// whitespace, control characters and path separators (git would otherwise allow
+/// `refs/heads/..` style traversal via clever names).
+fn validate_branch_name(name: &str) -> Result<()> {
+    if name.is_empty() || name.starts_with('-') || name.starts_with('.') {
+        return Err(GitError::InvalidPath(name.into()));
+    }
+    if name.chars().any(|c| c.is_whitespace() || (c as u32) < 0x20 || c == '\\') {
+        return Err(GitError::InvalidPath(name.into()));
+    }
+    Ok(())
+}
+
+pub fn create_branch(
+    registry: &WorkspaceRegistry,
+    repo_root: &str,
+    name: &str,
+    workspace: &WorkspaceEnv,
+) -> Result<()> {
+    let repo_root = authorized_repo_root(registry, repo_root, workspace)?;
+    ensure_git_available(&repo_root.workspace)?;
+    validate_branch_name(name)?;
+    let output = run_git(
+        &repo_root.workspace,
+        Some(&repo_root.git_path),
+        ["branch", name],
+        DEFAULT_TIMEOUT_SECS,
+    )?;
+    ensure_success(&output, "git branch create failed")
+}
+
+pub fn delete_branch(
+    registry: &WorkspaceRegistry,
+    repo_root: &str,
+    name: &str,
+    workspace: &WorkspaceEnv,
+) -> Result<()> {
+    let repo_root = authorized_repo_root(registry, repo_root, workspace)?;
+    ensure_git_available(&repo_root.workspace)?;
+    validate_branch_name(name)?;
+    let current = git_stdout_line_opt(
+        &repo_root.workspace,
+        &repo_root.git_path,
+        ["rev-parse", "--abbrev-ref", "HEAD"],
+    )
+    .ok()
+    .flatten();
+    if current.as_deref() == Some(name) {
+        return Err(GitError::command("git branch delete", "cannot delete the current branch"));
+    }
+    // `-d` refuses to delete a branch with unmerged work; callers wanting force
+    // can fall back to the terminal. Safe default.
+    let output = run_git(
+        &repo_root.workspace,
+        Some(&repo_root.git_path),
+        ["branch", "-d", name],
+        DEFAULT_TIMEOUT_SECS,
+    )?;
+    ensure_success(&output, "git branch delete failed")
+}
+
+pub fn rename_branch(
+    registry: &WorkspaceRegistry,
+    repo_root: &str,
+    old: &str,
+    new: &str,
+    workspace: &WorkspaceEnv,
+) -> Result<()> {
+    let repo_root = authorized_repo_root(registry, repo_root, workspace)?;
+    ensure_git_available(&repo_root.workspace)?;
+    validate_branch_name(old)?;
+    validate_branch_name(new)?;
+    let output = run_git(
+        &repo_root.workspace,
+        Some(&repo_root.git_path),
+        ["branch", "-m", old, new],
+        DEFAULT_TIMEOUT_SECS,
+    )?;
+    ensure_success(&output, "git branch rename failed")
+}
+
+pub fn push_upstream(
+    registry: &WorkspaceRegistry,
+    repo_root: &str,
+    remote: Option<&str>,
+    workspace: &WorkspaceEnv,
+) -> Result<GitPushResult> {
+    let repo_root = authorized_repo_root(registry, repo_root, workspace)?;
+    ensure_git_available(&repo_root.workspace)?;
+
+    // Skip the --set-upstream flag if an upstream already exists; plain push is enough.
+    let existing = git_stdout_line_opt(
+        &repo_root.workspace,
+        &repo_root.git_path,
+        ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"],
+    )?;
+    let branch = git_stdout_line_opt(
+        &repo_root.workspace,
+        &repo_root.git_path,
+        ["rev-parse", "--abbrev-ref", "HEAD"],
+    )?
+    .unwrap_or_default();
+    let remote_name = match existing {
+        Some(ref up) => split_upstream(up).0.unwrap_or_else(|| remote.unwrap_or("origin").to_string()),
+        None => remote.unwrap_or("origin").to_string(),
+    };
+
+    let output = if existing.is_some() {
+        run_git(
+            &repo_root.workspace,
+            Some(&repo_root.git_path),
+            ["push"],
+            NETWORK_TIMEOUT_SECS,
+        )?
+    } else {
+        run_git(
+            &repo_root.workspace,
+            Some(&repo_root.git_path),
+            ["push", "--set-upstream", &remote_name, &branch],
+            NETWORK_TIMEOUT_SECS,
+        )?
+    };
+    ensure_success(&output, "git push failed")?;
+    Ok(GitPushResult {
+        remote: Some(remote_name),
+        branch: Some(branch),
+        pushed: true,
+    })
+}
+
+/// Pulls with an explicit merge strategy. `--ff-only` keeps the existing default;
+/// `--rebase` / `--no-rebase` select the merge strategy. Only the ffi default is
+/// offered via the panel to avoid surprising merges; rebase is opt-in.
+pub fn pull(
+    registry: &WorkspaceRegistry,
+    repo_root: &str,
+    strategy: Option<&str>,
+    workspace: &WorkspaceEnv,
+) -> Result<()> {
+    let repo_root = authorized_repo_root(registry, repo_root, workspace)?;
+    ensure_git_available(&repo_root.workspace)?;
+    let args: Vec<&str> = match strategy {
+        Some("rebase") => vec!["pull", "--rebase"],
+        Some("merge") => vec!["pull", "--no-rebase"],
+        _ => vec!["pull", "--ff-only"],
+    };
+    let output = run_git(
+        &repo_root.workspace,
+        Some(&repo_root.git_path),
+        &args,
+        NETWORK_TIMEOUT_SECS,
+    )?;
+    ensure_success(&output, "git pull failed")
+}
+
+pub fn stash_save(
+    registry: &WorkspaceRegistry,
+    repo_root: &str,
+    message: Option<&str>,
+    workspace: &WorkspaceEnv,
+) -> Result<()> {
+    let repo_root = authorized_repo_root(registry, repo_root, workspace)?;
+    ensure_git_available(&repo_root.workspace)?;
+    let args: Vec<String> = match message {
+        Some(m) if !m.is_empty() => vec!["stash".into(), "push".into(), "-m".into(), m.into()],
+        _ => vec!["stash".into(), "push".into()],
+    };
+    let args: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+    let output = run_git(
+        &repo_root.workspace,
+        Some(&repo_root.git_path),
+        &args,
+        DEFAULT_TIMEOUT_SECS,
+    )?;
+    ensure_success(&output, "git stash failed")
+}
+
+fn parse_stash_index(ref_name: &str) -> String {
+    // "stash@{0}" -> "0"
+    match ref_name.split_once("stash@{") {
+        Some((_, rest)) => rest.trim_end_matches('}').to_string(),
+        None => ref_name.to_string(),
+    }
+}
+
+pub fn stash_list(
+    registry: &WorkspaceRegistry,
+    repo_root: &str,
+    workspace: &WorkspaceEnv,
+) -> Result<Vec<GitStashEntry>> {
+    let repo_root = authorized_repo_root(registry, repo_root, workspace)?;
+    ensure_git_available(&repo_root.workspace)?;
+    let lines = git_stdout_lines(
+        &repo_root.workspace,
+        &repo_root.git_path,
+        ["stash", "list", "--format=%(refname:short)%00%(refname:lstrip=0)%00%(subject)"],
+    )
+    .unwrap_or_default();
+    let mut out = Vec::with_capacity(lines.len());
+    for line in lines {
+        let mut parts = line.split('\0');
+        let ref_name = parts.next().unwrap_or("").to_string();
+        let _full = parts.next().unwrap_or("");
+        let subject = parts.next().unwrap_or("").to_string();
+        let index = parse_stash_index(&ref_name);
+        // subject is "On <branch>: <message>" for message stashes.
+        let (branch, message) = match subject.split_once(": ") {
+            Some((b, m)) => {
+                let b = b.trim_start_matches("On ").to_string();
+                (b, m.to_string())
+            }
+            None => (String::new(), subject.clone()),
+        };
+        out.push(GitStashEntry {
+            index,
+            label: format!("stash@{{{}}}", parse_stash_index(&ref_name)),
+            branch,
+            message,
+        });
+    }
+    Ok(out)
+}
+
+pub fn stash_pop(
+    registry: &WorkspaceRegistry,
+    repo_root: &str,
+    index: Option<&str>,
+    workspace: &WorkspaceEnv,
+) -> Result<()> {
+    stash_apply(registry, repo_root, index, true, workspace)
+}
+
+pub fn stash_apply(
+    registry: &WorkspaceRegistry,
+    repo_root: &str,
+    index: Option<&str>,
+    drop: bool,
+    workspace: &WorkspaceEnv,
+) -> Result<()> {
+    let repo_root = authorized_repo_root(registry, repo_root, workspace)?;
+    ensure_git_available(&repo_root.workspace)?;
+    let sub: &str = if drop { "pop" } else { "apply" };
+    let args: Vec<String> = match index {
+        Some(i) if !i.is_empty() => vec!["stash".into(), sub.into(), format!("stash@{{{}}}", i)],
+        _ => vec!["stash".into(), sub.into()],
+    };
+    let args: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+    let output = run_git(
+        &repo_root.workspace,
+        Some(&repo_root.git_path),
+        &args,
+        DEFAULT_TIMEOUT_SECS,
+    )?;
+    ensure_success(&output, "git stash apply/pop failed")
+}
+
+pub fn stash_drop(
+    registry: &WorkspaceRegistry,
+    repo_root: &str,
+    index: Option<&str>,
+    workspace: &WorkspaceEnv,
+) -> Result<()> {
+    let repo_root = authorized_repo_root(registry, repo_root, workspace)?;
+    ensure_git_available(&repo_root.workspace)?;
+    let args: Vec<String> = match index {
+        Some(i) if !i.is_empty() => vec!["stash".into(), "drop".into(), format!("stash@{{{}}}", i)],
+        _ => vec!["stash".into(), "drop".into()],
+    };
+    let args: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+    let output = run_git(
+        &repo_root.workspace,
+        Some(&repo_root.git_path),
+        &args,
+        DEFAULT_TIMEOUT_SECS,
+    )?;
+    ensure_success(&output, "git stash drop failed")
+}
+
+pub fn conflicts(
+    registry: &WorkspaceRegistry,
+    repo_root: &str,
+    workspace: &WorkspaceEnv,
+) -> Result<GitConflictResult> {
+    let repo_root = authorized_repo_root(registry, repo_root, workspace)?;
+    ensure_git_available(&repo_root.workspace)?;
+    let output = run_git(
+        &repo_root.workspace,
+        Some(&repo_root.git_path),
+        [
+            "diff",
+            "--name-only",
+            "--diff-filter=U",
+            "-z",
+        ],
+        DEFAULT_TIMEOUT_SECS,
+    )?;
+    if output.exit_code != Some(0) {
+        return Ok(GitConflictResult {
+            conflicts: Vec::new(),
+        });
+    }
+    let conflicts: Vec<GitConflict> = output
+        .stdout
+        .split(|&b| b == 0)
+        .filter(|s| !s.is_empty())
+        .map(|s| String::from_utf8_lossy(s).into_owned())
+        .map(|path| GitConflict {
+            path,
+            status: "unmerged".into(),
+        })
+        .collect();
+    Ok(GitConflictResult { conflicts })
+}
+
+pub fn merge_abort(
+    registry: &WorkspaceRegistry,
+    repo_root: &str,
+    workspace: &WorkspaceEnv,
+) -> Result<()> {
+    let repo_root = authorized_repo_root(registry, repo_root, workspace)?;
+    ensure_git_available(&repo_root.workspace)?;
+    let output = run_git(
+        &repo_root.workspace,
+        Some(&repo_root.git_path),
+        ["merge", "--abort"],
+        DEFAULT_TIMEOUT_SECS,
+    )?;
+    ensure_success(&output, "git merge --abort failed")
+}
+
+pub fn checkout_ours(
+    registry: &WorkspaceRegistry,
+    repo_root: &str,
+    path: &str,
+    workspace: &WorkspaceEnv,
+) -> Result<()> {
+    checkout_resolution(registry, repo_root, path, "--ours", workspace)
+}
+
+pub fn checkout_theirs(
+    registry: &WorkspaceRegistry,
+    repo_root: &str,
+    path: &str,
+    workspace: &WorkspaceEnv,
+) -> Result<()> {
+    checkout_resolution(registry, repo_root, path, "--theirs", workspace)
+}
+
+fn checkout_resolution(
+    registry: &WorkspaceRegistry,
+    repo_root: &str,
+    path: &str,
+    side: &str,
+    workspace: &WorkspaceEnv,
+) -> Result<()> {
+    let repo_root = authorized_repo_root(registry, repo_root, workspace)?;
+    ensure_git_available(&repo_root.workspace)?;
+    if path.is_empty() || path.contains('\\') || path.contains("..") {
+        return Err(GitError::InvalidPath(path.into()));
+    }
+    let output = run_git(
+        &repo_root.workspace,
+        Some(&repo_root.git_path),
+        ["checkout", side, "--", path],
+        DEFAULT_TIMEOUT_SECS,
+    )?;
+    ensure_success(&output, "git checkout resolution failed")?;
+    // Stage the resolution so the merge can be completed by the user commit.
+    let stage = run_git(
+        &repo_root.workspace,
+        Some(&repo_root.git_path),
+        ["add", "--", path],
+        DEFAULT_TIMEOUT_SECS,
+    )?;
+    ensure_success(&stage, "git add resolution failed")
+}
+
+pub fn submodule_status(
+    registry: &WorkspaceRegistry,
+    repo_root: &str,
+    workspace: &WorkspaceEnv,
+) -> Result<GitSubmoduleStatusResult> {
+    let repo_root = authorized_repo_root(registry, repo_root, workspace)?;
+    ensure_git_available(&repo_root.workspace)?;
+    let lines = git_stdout_lines(
+        &repo_root.workspace,
+        &repo_root.git_path,
+        ["submodule", "status"],
+    )
+    .unwrap_or_default();
+    let mut submodules = Vec::with_capacity(lines.len());
+    for line in lines {
+        // Format: " <short-sha> path (describe)" — leading char is space, '-' or '+'.
+        let line = line.trim_end();
+        if line.len() < 9 {
+            continue;
+        }
+        let prefix = line.chars().next().unwrap_or(' ');
+        let rest = &line[1..];
+        let sha = &rest[..7.min(rest.len())];
+        let after_sha = rest[7.min(rest.len()).max(0)..].trim_start();
+        let path = after_sha.split(" (").next().unwrap_or("").trim().to_string();
+        let describe = after_sha
+            .split_once(" (")
+            .map(|(_, d)| d.trim_end_matches(')').to_string())
+            .unwrap_or_default();
+        let status = match prefix {
+            '-' => "new-commit",
+            '+' => "modified",
+            'U' => "unmerged",
+            _ => "clean",
+        };
+        submodules.push(GitSubmoduleStatus {
+            path,
+            status: status.into(),
+            short_sha: sha.to_string(),
+            describe,
+        });
+    }
+    Ok(GitSubmoduleStatusResult { submodules })
+}
+
+pub fn submodule_update(
+    registry: &WorkspaceRegistry,
+    repo_root: &str,
+    workspace: &WorkspaceEnv,
+) -> Result<()> {
+    let repo_root = authorized_repo_root(registry, repo_root, workspace)?;
+    ensure_git_available(&repo_root.workspace)?;
+    let output = run_git(
+        &repo_root.workspace,
+        Some(&repo_root.git_path),
+        ["submodule", "update", "--init", "--recursive"],
+        NETWORK_TIMEOUT_SECS,
+    )?;
+    ensure_success(&output, "git submodule update failed")
 }
 
 #[cfg(test)]

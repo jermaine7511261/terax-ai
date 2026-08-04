@@ -9,7 +9,7 @@ type Paths<T, P extends string = ""> = {
     ? P extends ""
       ? K
       : `${P}.${K & string}`
-    : Paths<T[K], P extends "" ? (K & string) : `${P}.${K & string}`>;
+    : Paths<T[K], P extends "" ? K & string : `${P}.${K & string}`>;
 }[keyof T];
 
 export const zhMessages = {
@@ -91,12 +91,20 @@ export const zhMessages = {
     diagnostics: "诊断",
     lspEnabled: "语言服务已启用",
     private: "隐私：对 AI 隐藏",
-    privateTooltip: "AI 无法看到此终端的输出。适用于机密信息、SSH 或任何你不想发送给模型的内容。",
+    privateTooltip:
+      "AI 无法看到此终端的输出。适用于机密信息、SSH 或任何你不想发送给模型的内容。",
     workspaceEnv: "工作区环境",
     windowsLocal: "Windows 本地",
     loadingWsl: "正在加载 WSL 发行版...",
     wslUnavailable: "WSL 不可用",
     noWsl: "未找到 WSL 发行版",
+    gitBranch: "Git 分支",
+    gitDetached: "分离 HEAD",
+    gitAheadBehind: "领先 {ahead} / 落后 {behind}",
+    openSourceControl: "打开源代码管理",
+    completionFailed: "补全失败",
+    completionRetry: "重试",
+    completionDegraded: "补全已自动停用",
   },
   sidebar: {
     explorer: "资源管理器",
@@ -143,7 +151,8 @@ export const zhMessages = {
   },
   ssh: {
     title: "SSH 连接",
-    description: "连接远程主机。密码/密钥认证与主机指纹校验由系统 ssh 客户端原生处理。",
+    description:
+      "连接远程主机。密码/密钥认证与主机指纹校验由系统 ssh 客户端原生处理。",
     host: "主机地址",
     user: "用户名",
     port: "端口",
@@ -191,6 +200,11 @@ export const zhMessages = {
     mode: "模式：{lang}",
     fewerLanguages: "↑ 更少语言",
     allLanguages: "↓ 所有语言",
+    cut: "剪切",
+    format: "格式化",
+    goToDefinition: "跳转到定义",
+    goToReferences: "查找引用",
+    findReplace: "查找 / 替换",
   },
   terminal: {
     search: "查找",
@@ -233,6 +247,57 @@ export const zhMessages = {
     detached: "分离的 HEAD",
     unmerged: "未合并的文件",
     addAll: "暂存所有",
+    stash: "储藏",
+    stashChanges: "储藏更改",
+    stashMessage: "储藏信息（可选）",
+    stashMessageHint: "留空则使用默认信息",
+    stashSave: "储藏",
+    stashApply: "应用",
+    stashPop: "弹出",
+    stashDrop: "删除",
+    stashList: "储藏列表",
+    noStashes: "没有储藏",
+    stashSaved: "更改已储藏",
+    stashApplied: "已应用储藏",
+    stashPopped: "已弹出储藏",
+    stashDropped: "已删除储藏",
+    stashSaveDisabled: "没有未提交的更改可供储藏",
+    conflictCount: "{count} 个冲突文件",
+    resolveConflict: "解决合并冲突",
+    keepOurs: "保留我的",
+    keepTheirs: "保留远端",
+    openInEditor: "打开编辑器",
+    abortMerge: "中止合并",
+    mergeAborted: "已中止合并",
+    resolvedFile: "已为 {path} 保留 {side} 版本",
+    ours: "我的",
+    theirs: "远端",
+    deleteBranch: "删除分支",
+    renameBranch: "重命名分支",
+    branchName: "分支名称",
+    newBranchName: "新分支名称",
+    deleteBranchConfirm: "确定删除分支“{branch}”吗？此操作不可撤销。",
+    cannotDeleteCurrent: "不能删除当前所在分支",
+    branchDeleted: "已删除分支 {branch}",
+    branchCreated: "已创建分支 {branch}",
+    branchRenamed: "已重命名分支为 {branch}",
+    pullStrategy: "拉取策略",
+    pullFastForward: "快进（Fast-forward）",
+    pullRebase: "变基（--rebase）",
+    pullMerge: "合并（merge）",
+    pullWithStrategy: "以所选策略拉取",
+    pullCompleted: "拉取完成",
+    publishBranch: "发布分支",
+    publishBranchTitle: "分支尚未发布",
+    publishBranchHint: "当前分支没有上游。发布到远程后即可推送。",
+    publishBranchConfirm: "发布分支",
+    branchPublished: "已发布分支 {branch}",
+    submodulesPresent: "此仓库包含子模块",
+    updateSubmodules: "更新子模块",
+    submodulesUpdated: "子模块已更新",
+    copyRelativePath: "复制相对路径",
+    copyAbsolutePath: "复制绝对路径",
+    copyNPaths: "复制 {count} 个路径",
   },
   history: {
     history: "历史记录",
@@ -255,6 +320,9 @@ export const zhMessages = {
     devServerDetected: "检测到开发服务器，点击打开预览",
     openPreview: "打开预览",
     notFound: "无法加载此地址",
+    image: "图片",
+    pdf: "PDF 文档",
+    fileNotSupported: "无法预览此文件类型",
   },
   markdown: {
     preview: "预览",
@@ -266,7 +334,8 @@ export const zhMessages = {
     askYamet: "询问 Yamet",
     modelNoVision: "当前模型不支持图像",
     modelNoVisionHint: "请切换到支持视觉的模型（带 vision 标签）后再附加图片。",
-    placeholder: "询问 Yamet 任何问题  —  使用 # 插入片段和命令，使用 @ 附加文件",
+    placeholder:
+      "询问 Yamet 任何问题  —  使用 # 插入片段和命令，使用 @ 附加文件",
     stop: "停止",
     newChat: "新会话",
     clearConversation: "清空会话",
@@ -331,12 +400,26 @@ export const zhMessages = {
     switchSession: "切换会话",
     deleteSession: "删除会话",
     newSession: "新会话",
+    renameSession: "重命名会话",
+    sessionTitlePlaceholder: "会话标题",
     needsApproval: "需要批准",
     deny: "拒绝",
+    remember: "记住",
+    rememberLabel: "记住决定",
+    rememberSession: "批准并记住（本会话）",
+    rememberProject: "批准并记住（本项目）",
+    denyRememberTool: "拒绝并记住此工具（加入黑名单）",
     emptyHint: "与我对话，我可以帮你写代码、解释代码或运行终端任务。",
     startConversation: "开始对话",
     autoApproveLabel: "自动批准",
-    autoApproveHint: "开启后，第一次工具批准仍会弹出确认；此后本次窗口会话内自动通过，不再询问。窗口重启后重新生效。",
+    autoApproveHint:
+      "开启后，第一次工具批准仍会弹出确认；此后本次窗口会话内自动通过，不再询问。窗口重启后重新生效。",
+    slash: {
+      review: "审查当前改动",
+      commit: "生成提交信息",
+      test: "查找并运行相关测试",
+      fix: "修复最近的错误",
+    },
   },
   updater: {
     checkForUpdates: "检查更新",
@@ -353,7 +436,8 @@ export const zhMessages = {
     downloadingUpdate: "正在下载更新…",
     versionAvailable: "Yamet v{version} 已可用",
     restartToFinish: "重启 Yamet 以完成安装。",
-    youAreOn: "你当前是 v{version}。选择你的发行版并运行命令，或从 GitHub 获取安装包。",
+    youAreOn:
+      "你当前是 v{version}。选择你的发行版并运行命令，或从 GitHub 获取安装包。",
     readyToInstall: "新版本已准备好安装。",
     copied: "已复制",
     copy: "复制",
@@ -441,17 +525,23 @@ export const zhMessages = {
     tabWord: "标签页",
     explorerSection: "资源管理器",
     showHidden: "显示隐藏文件",
-    showHiddenDescription: "在文件资源管理器和搜索中包含以点开头的文件和文件夹（.env、.gitignore、.config）。",
+    showHiddenDescription:
+      "在文件资源管理器和搜索中包含以点开头的文件和文件夹（.env、.gitignore、.config）。",
     gitDecorations: "Git 装饰",
-    gitDecorationsDescription: "在文件资源管理器中为已更改文件着色，并调暗被 gitignore 的条目。",
+    gitDecorationsDescription:
+      "在文件资源管理器中为已更改文件着色，并调暗被 gitignore 的条目。",
     terminalSection: "终端",
     webglRenderer: "使用 WebGL 渲染器",
-    webglTooltip: "xterm 的 WebGL 渲染器会把字形缓存在 GPU 纹理图集中。在某些 macOS 环境（尤其是使用 Nerd Fonts 时）下图集会损坏，导致终端文本无法阅读。请关闭它以回退——性能略有下降，但文本会通过 DOM 渲染器正确显示。",
-    webglRendererDescription: "硬件加速渲染。如果文本出现损坏或空白块，请关闭。",
+    webglTooltip:
+      "xterm 的 WebGL 渲染器会把字形缓存在 GPU 纹理图集中。在某些 macOS 环境（尤其是使用 Nerd Fonts 时）下图集会损坏，导致终端文本无法阅读。请关闭它以回退——性能略有下降，但文本会通过 DOM 渲染器正确显示。",
+    webglRendererDescription:
+      "硬件加速渲染。如果文本出现损坏或空白块，请关闭。",
     cursorBlink: "光标闪烁",
-    cursorBlinkDescription: "闪烁终端光标。默认关闭以降低空闲 CPU 占用，与 VS Code 和 macOS 终端一致。",
+    cursorBlinkDescription:
+      "闪烁终端光标。默认关闭以降低空闲 CPU 占用，与 VS Code 和 macOS 终端一致。",
     fontFamily: "字体族",
-    fontFamilyDescription: "用于图标的 Nerd Font 名称（例如 \"CaskaydiaCove Nerd Font Mono\"）。留空则自动检测。",
+    fontFamilyDescription:
+      '用于图标的 Nerd Font 名称（例如 "CaskaydiaCove Nerd Font Mono"）。留空则自动检测。',
     fontWeight: "字重",
     fontWeightDescription: "终端字符的粗细",
     weightNormal: "常规",
@@ -460,24 +550,30 @@ export const zhMessages = {
     weightBold: "粗体",
     shell: "集成终端 Shell",
     shellDescriptionNotIntegrated: "此 Shell 无法使用命令块和目录跟踪。",
-    shellDescriptionWsl: "集成终端的 Shell。WSL 工作区使用发行版登录 Shell。现有标签页保留其 Shell。",
-    shellDescriptionDefault: "新终端标签页使用的 Shell。现有标签页保留其 Shell。",
+    shellDescriptionWsl:
+      "集成终端的 Shell。WSL 工作区使用发行版登录 Shell。现有标签页保留其 Shell。",
+    shellDescriptionDefault:
+      "新终端标签页使用的 Shell。现有标签页保留其 Shell。",
     autoDetect: "自动",
     workspaceEnv: "工作区环境",
-    workspaceEnvDescription: "新工作区（终端和 AI 智能体）的运行环境：Windows 或 WSL 发行版。现有工作区保持不变；可从状态栏切换。",
+    workspaceEnvDescription:
+      "新工作区（终端和 AI 智能体）的运行环境：Windows 或 WSL 发行版。现有工作区保持不变；可从状态栏切换。",
     windows: "Windows",
     unavailable: "（不可用）",
     letterSpacing: "字间距",
-    letterSpacingDescription: "字符之间的额外水平间距（px）。使用负值来收紧 Nerd Fonts。",
+    letterSpacingDescription:
+      "字符之间的额外水平间距（px）。使用负值来收紧 Nerd Fonts。",
     fontSize: "字号",
     fontSizeDescription: "终端文本大小。",
     pxUnit: "px",
     linesUnit: "行",
     scrollback: "回滚",
-    scrollbackDescription: "每个终端保留的历史行数。值越高占用内存越多（约 3 KB/行）。",
+    scrollbackDescription:
+      "每个终端保留的历史行数。值越高占用内存越多（约 3 KB/行）。",
     agentsSection: "智能体",
     codingAgentNotifications: "编码智能体通知",
-    codingAgentNotificationsDescription: "当终端中运行的 Claude Code 或 Codex 需要你的输入或结束时提醒。Yamet 未聚焦时显示桌面通知，否则应用内通知。",
+    codingAgentNotificationsDescription:
+      "当终端中运行的 Claude Code 或 Codex 需要你的输入或结束时提醒。Yamet 未聚焦时显示桌面通知，否则应用内通知。",
     startupSection: "启动",
     launchAtLogin: "登录时启动",
     launchAtLoginDescription: "登录系统时自动打开 Yamet。",
@@ -530,13 +626,17 @@ export const zhMessages = {
     autoSaveDelay: "自动保存延迟",
     autoSaveDelayDescription: "未保存的更改在自动保存前的延迟时间。",
     formatOnSave: "保存时格式化",
-    formatOnSaveDescription: "显式保存（Cmd+S / :w）时使用下方格式化工具格式化文件。",
+    formatOnSaveDescription:
+      "显式保存（Cmd+S / :w）时使用下方格式化工具格式化文件。",
     formatter: "格式化工具",
-    formatterDescription: "语言服务器在写入前格式化缓冲区；外部工具在保存后从你的 PATH 中运行。",
+    formatterDescription:
+      "语言服务器在写入前格式化缓冲区；外部工具在保存后从你的 PATH 中运行。",
     customCommand: "自定义命令",
-    customCommandDescription: "在保存的文件上运行；{file} 替换为带引号的路径（省略时附加到末尾）。",
+    customCommandDescription:
+      "在保存的文件上运行；{file} 替换为带引号的路径（省略时附加到末尾）。",
     languageOverrides: "语言覆盖",
-    languageOverridesDescription: "为特定语言使用不同的格式化工具（例如 Python 使用 Ruff）。",
+    languageOverridesDescription:
+      "为特定语言使用不同的格式化工具（例如 Python 使用 Ruff）。",
     addOverride: "添加覆盖",
     removeOverride: "移除覆盖",
   },
@@ -580,7 +680,8 @@ export const zhMessages = {
     snippetDescriptionPlaceholder: "一行——显示在 # 选择器中",
     snippetContentPlaceholder: "使用 #handle 时以 <snippet> 块插入提示中。",
     customInstructions: "自定义指令",
-    customInstructionsPlaceholder: "例如：始终用简洁的要点回复。优先使用 pnpm。我的机器是 M 系列 Mac。",
+    customInstructionsPlaceholder:
+      "例如：始终用简洁的要点回复。优先使用 pnpm。我的机器是 M 系列 Mac。",
     newAgentDefault: "新智能体",
   },
   settingsTerminal: {
@@ -641,7 +742,8 @@ export const zhMessages = {
   },
   settingsModels: {
     models: "模型",
-    description: "连接你使用的提供商。密钥存放在系统钥匙串中，仅供 Yamet 使用。",
+    description:
+      "连接你使用的提供商。密钥存放在系统钥匙串中，仅供 Yamet 使用。",
     providers: "提供商",
     addProvider: "添加提供商",
     cloud: "云端",
@@ -751,16 +853,19 @@ export const zhMessages = {
     qrExpired: "二维码已过期，正在刷新…",
     qrError: "扫码登录失败",
     onebotHelper: "go-cqhttp 配置助手",
-    onebotHelperHint: "在本地运行 go-cqhttp，启用正向 WebSocket 后把地址填到上方。启动命令示例：",
+    onebotHelperHint:
+      "在本地运行 go-cqhttp，启用正向 WebSocket 后把地址填到上方。启动命令示例：",
     onebotCmd: "go-cqhttp  →  启用 ws 正向，地址 ws://127.0.0.1:6700",
     callbackTitle: "回调地址",
-    callbackHint: "把此地址（经隧道暴露到公网）填入平台后台的回调 URL，否则收不到消息",
+    callbackHint:
+      "把此地址（经隧道暴露到公网）填入平台后台的回调 URL，否则收不到消息",
     callbackCopy: "复制",
     callbackCopied: "已复制",
     callbackGuide: "隧道指南",
     callbackGuideFile: "frp / ngrok 隧道示例见仓库 {file}",
     callbackNotConnected: "连接后显示本地回调地址",
-    callbackPortNote: "本地回调固定端口：企微 8787 / 公众号 8788（被占用时自动改用随机端口）",
+    callbackPortNote:
+      "本地回调固定端口：企微 8787 / 公众号 8788（被占用时自动改用随机端口）",
     reloginTitle: "会话已过期，请扫码重新登录",
     reloginHint: "微信 iLink 会话已过期，扫码确认后自动恢复",
     reloginWaiting: "等待扫码…",
@@ -799,9 +904,12 @@ export const zhMessages = {
     unsavedTitle: "未保存的更改",
     unsavedBody: "“{name}”有未保存的更改，仍要关闭吗？",
     unsavedBodyGeneric: "此文件有未保存的更改，仍要关闭吗？",
-    deletedUnsavedBody: "“{name}”有未保存的更改，但该文件已被删除。仍要关闭吗？",
-    deletedUnsavedBodyGeneric: "此文件有未保存的更改，但该文件已被删除。仍要关闭吗？",
-    deletedFilesBody: "{count} 个文件有未保存的更改，它们已被删除。仍要全部关闭吗？",
+    deletedUnsavedBody:
+      "“{name}”有未保存的更改，但该文件已被删除。仍要关闭吗？",
+    deletedUnsavedBodyGeneric:
+      "此文件有未保存的更改，但该文件已被删除。仍要关闭吗？",
+    deletedFilesBody:
+      "{count} 个文件有未保存的更改，它们已被删除。仍要全部关闭吗？",
     saveAndClose: "保存并关闭",
     closeWithoutSaving: "不保存关闭",
     closeAnyway: "仍然关闭",
@@ -873,7 +981,8 @@ export const enMessages = {
     tagline: "Lightweight Terminal-first AI-native dev workspace",
     noName: "Untitled",
     confirmCloseTitle: "Confirm Close",
-    confirmCloseBody: "There are still running processes or unsaved changes. Close anyway?",
+    confirmCloseBody:
+      "There are still running processes or unsaved changes. Close anyway?",
   },
   menu: {
     file: "File",
@@ -898,12 +1007,20 @@ export const enMessages = {
     diagnostics: "Diagnostics",
     lspEnabled: "Language server enabled",
     private: "Private: hidden from AI",
-    privateTooltip: "AI can't see this terminal's output. Use it for secrets, SSH, or anything you don't want sent to the model.",
+    privateTooltip:
+      "AI can't see this terminal's output. Use it for secrets, SSH, or anything you don't want sent to the model.",
     workspaceEnv: "Workspace environment",
     windowsLocal: "Windows Local",
     loadingWsl: "Loading WSL distros...",
     wslUnavailable: "WSL unavailable",
     noWsl: "No WSL distros found",
+    gitBranch: "Git Branch",
+    gitDetached: "Detached HEAD",
+    gitAheadBehind: "{ahead} ahead / {behind} behind",
+    openSourceControl: "Open Source Control",
+    completionFailed: "Autocomplete failed",
+    completionRetry: "Retry",
+    completionDegraded: "Autocomplete auto-disabled",
   },
   sidebar: {
     explorer: "Explorer",
@@ -950,7 +1067,8 @@ export const enMessages = {
   },
   ssh: {
     title: "SSH Connect",
-    description: "Connect to a remote host. Password/key auth and host-key verification are handled natively by the system ssh client.",
+    description:
+      "Connect to a remote host. Password/key auth and host-key verification are handled natively by the system ssh client.",
     host: "Host",
     user: "User",
     port: "Port",
@@ -964,7 +1082,7 @@ export const enMessages = {
     newFolder: "New Folder",
     rename: "Rename",
     delete: "Delete",
-    deleteConfirm: "Delete \"{name}\"? This cannot be undone.",
+    deleteConfirm: 'Delete "{name}"? This cannot be undone.',
     openInTerminal: "Open in Terminal",
     revealInFinder: "Reveal in File Manager",
     copyPath: "Copy Path",
@@ -977,7 +1095,7 @@ export const enMessages = {
   },
   editor: {
     unsavedChanges: "Unsaved Changes",
-    saveConflict: "\"{file}\" was modified on disk. Overwrite anyway?",
+    saveConflict: '"{file}" was modified on disk. Overwrite anyway?',
     overwrite: "Overwrite",
     goToLine: "Go to Line",
     replace: "Replace",
@@ -998,6 +1116,11 @@ export const enMessages = {
     mode: "Mode: {lang}",
     fewerLanguages: "↑ Fewer languages",
     allLanguages: "↓ All languages",
+    cut: "Cut",
+    format: "Format",
+    goToDefinition: "Go to Definition",
+    goToReferences: "Find References",
+    findReplace: "Find / Replace",
   },
   terminal: {
     search: "Find",
@@ -1040,6 +1163,57 @@ export const enMessages = {
     detached: "Detached HEAD",
     unmerged: "Unmerged files",
     addAll: "Stage All",
+    stash: "Stash",
+    stashChanges: "Stash Changes",
+    stashMessage: "Stash message (optional)",
+    stashMessageHint: "Leave empty to use the default message",
+    stashSave: "Stash",
+    stashApply: "Apply",
+    stashPop: "Pop",
+    stashDrop: "Drop",
+    stashList: "Stashes",
+    noStashes: "No stashes",
+    stashSaved: "Changes stashed",
+    stashApplied: "Stash applied",
+    stashPopped: "Stash popped",
+    stashDropped: "Stash dropped",
+    stashSaveDisabled: "No uncommitted changes to stash",
+    conflictCount: "{count} conflicted files",
+    resolveConflict: "Resolve merge conflicts",
+    keepOurs: "Keep Ours",
+    keepTheirs: "Keep Theirs",
+    openInEditor: "Open in Editor",
+    abortMerge: "Abort Merge",
+    mergeAborted: "Merge aborted",
+    resolvedFile: "Resolved {path} with {side}",
+    ours: "ours",
+    theirs: "theirs",
+    deleteBranch: "Delete Branch",
+    renameBranch: "Rename Branch",
+    branchName: "Branch name",
+    newBranchName: "New branch name",
+    deleteBranchConfirm: 'Delete branch "{branch}"? This cannot be undone.',
+    cannotDeleteCurrent: "Cannot delete the current branch",
+    branchDeleted: "Deleted branch {branch}",
+    branchCreated: "Created branch {branch}",
+    branchRenamed: "Renamed branch to {branch}",
+    pullStrategy: "Pull strategy",
+    pullFastForward: "Fast-forward",
+    pullRebase: "Rebase (--rebase)",
+    pullMerge: "Merge",
+    pullWithStrategy: "Pull with selected strategy",
+    pullCompleted: "Pull completed",
+    publishBranch: "Publish Branch",
+    publishBranchTitle: "Branch not published",
+    publishBranchHint: "This branch has no upstream. Publish it to push.",
+    publishBranchConfirm: "Publish Branch",
+    branchPublished: "Published branch {branch}",
+    submodulesPresent: "This repository contains submodules",
+    updateSubmodules: "Update Submodules",
+    submodulesUpdated: "Submodules updated",
+    copyRelativePath: "Copy Relative Path",
+    copyAbsolutePath: "Copy Absolute Path",
+    copyNPaths: "Copy {count} Paths",
   },
   history: {
     history: "History",
@@ -1062,6 +1236,9 @@ export const enMessages = {
     devServerDetected: "Development server detected. Click to open preview.",
     openPreview: "Open Preview",
     notFound: "Unable to load this address",
+    image: "Image",
+    pdf: "PDF Document",
+    fileNotSupported: "Cannot preview this file type",
   },
   markdown: {
     preview: "Preview",
@@ -1072,8 +1249,10 @@ export const enMessages = {
     panel: "AI",
     askYamet: "Ask Yamet",
     modelNoVision: "Current model does not support images",
-    modelNoVisionHint: "Switch to a vision-capable model before attaching images.",
-    placeholder: "Ask Yamet anything   -   # for snippets and commands, @ for files",
+    modelNoVisionHint:
+      "Switch to a vision-capable model before attaching images.",
+    placeholder:
+      "Ask Yamet anything   -   # for snippets and commands, @ for files",
     stop: "Stop",
     newChat: "New Chat",
     clearConversation: "Clear Conversation",
@@ -1138,12 +1317,27 @@ export const enMessages = {
     switchSession: "Switch session",
     deleteSession: "Delete session",
     newSession: "New Session",
+    renameSession: "Rename session",
+    sessionTitlePlaceholder: "Session title",
     needsApproval: "needs approval",
     deny: "Deny",
-    emptyHint: "Chat with me to write code, explain code, or run terminal tasks.",
+    remember: "Remember",
+    rememberLabel: "Remember decision",
+    rememberSession: "Approve & remember (this session)",
+    rememberProject: "Approve & remember (this project)",
+    denyRememberTool: "Deny & remember this tool (blacklist)",
+    emptyHint:
+      "Chat with me to write code, explain code, or run terminal tasks.",
     startConversation: "Start a conversation",
     autoApproveLabel: "Auto-approve",
-    autoApproveHint: "When on, the first tool approval still asks for confirmation; after that, remaining approvals this window session are approved automatically. Re-arms on app restart.",
+    autoApproveHint:
+      "When on, the first tool approval still asks for confirmation; after that, remaining approvals this window session are approved automatically. Re-arms on app restart.",
+    slash: {
+      review: "Review current diff",
+      commit: "Generate commit message",
+      test: "Find and run relevant tests",
+      fix: "Fix the most recent error",
+    },
   },
   agents: {
     agents: "Agents",
@@ -1180,12 +1374,15 @@ export const enMessages = {
     handleTaken: "Already in use.",
     namePlaceholder: "e.g. Test Engineer",
     descriptionPlaceholder: "One line — shown in the agent picker",
-    instructionsPlaceholder: "Persona & rules. Appended to Yamet's core system prompt.",
+    instructionsPlaceholder:
+      "Persona & rules. Appended to Yamet's core system prompt.",
     snippetNamePlaceholder: "e.g. Pre-merge review checklist",
     snippetDescriptionPlaceholder: "One line — shown in the # picker",
-    snippetContentPlaceholder: "Inserted into the prompt as a <snippet> block when you use #handle.",
+    snippetContentPlaceholder:
+      "Inserted into the prompt as a <snippet> block when you use #handle.",
     customInstructions: "Custom instructions",
-    customInstructionsPlaceholder: "e.g. Always reply in concise bullet points. Prefer pnpm over npm. My machine is an M-series Mac.",
+    customInstructionsPlaceholder:
+      "e.g. Always reply in concise bullet points. Prefer pnpm over npm. My machine is an M-series Mac.",
     newAgentDefault: "New agent",
   },
   updater: {
@@ -1203,7 +1400,8 @@ export const enMessages = {
     downloadingUpdate: "Downloading update…",
     versionAvailable: "Yamet v{version} is available",
     restartToFinish: "Restart Yamet to finish installing.",
-    youAreOn: "You're on v{version}. Pick your distro and run the command, or grab the package from GitHub.",
+    youAreOn:
+      "You're on v{version}. Pick your distro and run the command, or grab the package from GitHub.",
     readyToInstall: "A new version is ready to install.",
     copied: "Copied",
     copy: "Copy",
@@ -1281,7 +1479,8 @@ export const enMessages = {
     autostart: "Launch at startup",
     autostartDescription: "Automatically start Yamet when you log in",
     restoreWindowState: "Restore window state",
-    restoreWindowStateDescription: "Restore last window position and size on launch",
+    restoreWindowStateDescription:
+      "Restore last window position and size on launch",
     zoom: "Zoom",
     zoomDescription: "Overall interface zoom level",
     uiZoomLevel: "UI zoom level",
@@ -1291,17 +1490,23 @@ export const enMessages = {
     tabWord: "tab",
     explorerSection: "Explorer",
     showHidden: "Show hidden files",
-    showHiddenDescription: "Include dot-prefixed files and folders (.env, .gitignore, .config) in the file explorer and search.",
+    showHiddenDescription:
+      "Include dot-prefixed files and folders (.env, .gitignore, .config) in the file explorer and search.",
     gitDecorations: "Git decorations",
-    gitDecorationsDescription: "Tint changed files and dim gitignored entries in the file explorer.",
+    gitDecorationsDescription:
+      "Tint changed files and dim gitignored entries in the file explorer.",
     terminalSection: "Terminal",
     webglRenderer: "Use WebGL renderer",
-    webglTooltip: "xterm's WebGL renderer caches glyphs in a GPU texture atlas. On some macOS setups (especially with Nerd Fonts), the atlas corrupts and terminal text becomes unreadable. Turn this off as a fallback — performance dips slightly, but text renders correctly via the DOM renderer.",
-    webglRendererDescription: "Hardware-accelerated rendering. Turn off if text shows corruption or blank tiles.",
+    webglTooltip:
+      "xterm's WebGL renderer caches glyphs in a GPU texture atlas. On some macOS setups (especially with Nerd Fonts), the atlas corrupts and terminal text becomes unreadable. Turn this off as a fallback — performance dips slightly, but text renders correctly via the DOM renderer.",
+    webglRendererDescription:
+      "Hardware-accelerated rendering. Turn off if text shows corruption or blank tiles.",
     cursorBlink: "Cursor blinking",
-    cursorBlinkDescription: "Blink the terminal cursor. Off by default for lower idle CPU, matching VS Code and the macOS terminal.",
+    cursorBlinkDescription:
+      "Blink the terminal cursor. Off by default for lower idle CPU, matching VS Code and the macOS terminal.",
     fontFamily: "Font family",
-    fontFamilyDescription: "Nerd Font name for icons (e.g. \"CaskaydiaCove Nerd Font Mono\"). Leave blank to auto-detect.",
+    fontFamilyDescription:
+      'Nerd Font name for icons (e.g. "CaskaydiaCove Nerd Font Mono"). Leave blank to auto-detect.',
     fontWeight: "Font weight",
     fontWeightDescription: "Thickness of terminal characters",
     weightNormal: "Normal",
@@ -1309,30 +1514,38 @@ export const enMessages = {
     weightSemiBold: "Semi-Bold",
     weightBold: "Bold",
     shell: "Integrated terminal shell",
-    shellDescriptionNotIntegrated: "Command blocks and directory tracking are unavailable for this shell.",
-    shellDescriptionWsl: "Shell for the integrated terminal. WSL spaces use the distro login shell. Existing tabs keep their shell.",
-    shellDescriptionDefault: "Shell for new terminal tabs. Existing tabs keep their shell.",
+    shellDescriptionNotIntegrated:
+      "Command blocks and directory tracking are unavailable for this shell.",
+    shellDescriptionWsl:
+      "Shell for the integrated terminal. WSL spaces use the distro login shell. Existing tabs keep their shell.",
+    shellDescriptionDefault:
+      "Shell for new terminal tabs. Existing tabs keep their shell.",
     autoDetect: "Auto",
     workspaceEnv: "Workspace environment",
-    workspaceEnvDescription: "Where new spaces run, terminal and AI agent alike: Windows or a WSL distro. Existing spaces keep theirs; switch any from the status bar.",
+    workspaceEnvDescription:
+      "Where new spaces run, terminal and AI agent alike: Windows or a WSL distro. Existing spaces keep theirs; switch any from the status bar.",
     windows: "Windows",
     unavailable: "(unavailable)",
     letterSpacing: "Letter spacing",
-    letterSpacingDescription: "Extra horizontal space between characters (px). Use negative values to tighten Nerd Fonts.",
+    letterSpacingDescription:
+      "Extra horizontal space between characters (px). Use negative values to tighten Nerd Fonts.",
     fontSize: "Font size",
     fontSizeDescription: "Terminal text size.",
     pxUnit: "px",
     linesUnit: "lines",
     scrollback: "Scrollback",
-    scrollbackDescription: "Lines of history kept per terminal. Higher uses more RAM (~3 KB / line).",
+    scrollbackDescription:
+      "Lines of history kept per terminal. Higher uses more RAM (~3 KB / line).",
     agentsSection: "Agents",
     codingAgentNotifications: "Coding agent notifications",
-    codingAgentNotificationsDescription: "Alert when Claude Code or Codex running in a terminal needs your input or finishes. Desktop notification when Yamet is unfocused, in-app otherwise.",
+    codingAgentNotificationsDescription:
+      "Alert when Claude Code or Codex running in a terminal needs your input or finishes. Desktop notification when Yamet is unfocused, in-app otherwise.",
     startupSection: "Startup",
     launchAtLogin: "Launch at login",
     launchAtLoginDescription: "Open Yamet automatically when you sign in.",
     restoreWindowPosition: "Restore window position & size",
-    restoreWindowPositionDescription: "Reopen the main window where you left it. Applies on next launch.",
+    restoreWindowPositionDescription:
+      "Reopen the main window where you left it. Applies on next launch.",
   },
   settingsAppearance: {
     appearance: "Appearance",
@@ -1352,14 +1565,16 @@ export const enMessages = {
     importTheme: "Import .yamet-theme",
     editTheme: "Edit {name}",
     removeTheme: "Remove {name}",
-    editorThemeHint: "Syntax colors for the code editor. Auto follows the app theme.",
+    editorThemeHint:
+      "Syntax colors for the code editor. Auto follows the app theme.",
     autoMatch: "Auto (match app theme)",
     remove: "Remove",
     replaceImage: "Replace image",
     chooseImage: "Choose image",
     opacity: "Opacity",
     blur: "Blur",
-    dropHint: "Drop an image here or pick one. Stored locally; doesn't affect the default look until set.",
+    dropHint:
+      "Drop an image here or pick one. Stored locally; doesn't affect the default look until set.",
     notImage: "{name}: not an image",
     readFailed: "{name}: failed to read",
     importFailed: "failed to import image",
@@ -1376,17 +1591,23 @@ export const enMessages = {
     wordWrapDescription: "Wrap long lines instead of scrolling horizontally.",
     saving: "Saving",
     autoSave: "Auto Save",
-    autoSaveDescription: "Automatically save files after a delay when changes are detected.",
+    autoSaveDescription:
+      "Automatically save files after a delay when changes are detected.",
     autoSaveDelay: "Auto save delay",
-    autoSaveDelayDescription: "Delay before unsaved changes are saved automatically.",
+    autoSaveDelayDescription:
+      "Delay before unsaved changes are saved automatically.",
     formatOnSave: "Format on save",
-    formatOnSaveDescription: "Format the file on explicit save (Cmd+S / :w) with the formatter below.",
+    formatOnSaveDescription:
+      "Format the file on explicit save (Cmd+S / :w) with the formatter below.",
     formatter: "Formatter",
-    formatterDescription: "Language server formats the buffer before writing; external tools run on the saved file from your PATH.",
+    formatterDescription:
+      "Language server formats the buffer before writing; external tools run on the saved file from your PATH.",
     customCommand: "Custom command",
-    customCommandDescription: "Runs on the saved file; {file} is replaced with the quoted path (appended when omitted).",
+    customCommandDescription:
+      "Runs on the saved file; {file} is replaced with the quoted path (appended when omitted).",
     languageOverrides: "Language overrides",
-    languageOverridesDescription: "Use a different formatter for specific languages (e.g. Ruff for Python).",
+    languageOverridesDescription:
+      "Use a different formatter for specific languages (e.g. Ruff for Python).",
     addOverride: "Add override",
     removeOverride: "Remove override",
   },
@@ -1448,7 +1669,8 @@ export const enMessages = {
   },
   settingsModels: {
     models: "Models",
-    description: "Connect the providers you use. Keys live in your OS keychain and are used only by Yamet.",
+    description:
+      "Connect the providers you use. Keys live in your OS keychain and are used only by Yamet.",
     providers: "Providers",
     addProvider: "Add provider",
     cloud: "Cloud",
@@ -1479,27 +1701,32 @@ export const enMessages = {
     myEndpoint: "My endpoint",
     removeEndpoint: "Remove endpoint",
     noProviders: "No providers connected yet.",
-    noProvidersHint: "Click \"Add provider\" to connect a cloud or local model source.",
+    noProvidersHint:
+      'Click "Add provider" to connect a cloud or local model source.',
     isLoading: "Loading…",
     testing: "Testing…",
     reachable: "Reachable — server responded.",
     unreachable: "Could not reach the server.",
     voiceInput: "Voice input",
     provider: "Provider",
-    openaiSttDesc: "Uses your official OpenAI API key and the Whisper model for transcription.",
-    groqSttDesc: "Uses your official Groq API key and Groq's Whisper endpoint for transcription.",
-    whispercppDesc: "Connects to a local Whisper.cpp server for fully offline transcription.",
+    openaiSttDesc:
+      "Uses your official OpenAI API key and the Whisper model for transcription.",
+    groqSttDesc:
+      "Uses your official Groq API key and Groq's Whisper endpoint for transcription.",
+    whispercppDesc:
+      "Connects to a local Whisper.cpp server for fully offline transcription.",
     model: "Model",
     getKey: "Get key",
     pasteKey: "Paste API key",
     enterKey: "Enter your API key.",
-    keyPrefixHint: "{label} keys start with \"{prefix}\".",
+    keyPrefixHint: '{label} keys start with "{prefix}".',
     failedToSave: "Failed to save: {error}",
     replace: "Replace",
     hideKey: "Hide key",
     showKey: "Show key",
     fetchModels: "Fetch models from provider",
-    noFetchedModels: "No models returned. Check the address and key, then retry.",
+    noFetchedModels:
+      "No models returned. Check the address and key, then retry.",
   },
   settingsAbout: {
     about: "About",
@@ -1511,7 +1738,8 @@ export const enMessages = {
   },
   gateway: {
     title: "IM Gateway",
-    subtitle: "Connect domestic IM platforms and drive your local AI agent from chat",
+    subtitle:
+      "Connect domestic IM platforms and drive your local AI agent from chat",
     noPlatforms: "No platforms available",
     configured: "Configured",
     notConfigured: "Not configured",
@@ -1528,7 +1756,8 @@ export const enMessages = {
     send: "Send",
     groupChat: "Group chat",
     sessionsTitle: "Session approval",
-    sessionsHint: "Sessions from IM are denied by default — approve them to let them drive the agent",
+    sessionsHint:
+      "Sessions from IM are denied by default — approve them to let them drive the agent",
     awaitingApproval: "Awaiting approval",
     approved: "Approved",
     autoApprove: "Auto-approve",
@@ -1552,22 +1781,26 @@ export const enMessages = {
       accountId: "Account ID",
     },
     qrLogin: "QR login",
-    qrLoginHint: "Scan with WeChat to authorize. QR code is valid for 8 minutes",
+    qrLoginHint:
+      "Scan with WeChat to authorize. QR code is valid for 8 minutes",
     qrWaiting: "Waiting for scan…",
     qrScanned: "Scanned — confirm on your phone",
     qrExpired: "QR expired, refreshing…",
     qrError: "QR login failed",
     onebotHelper: "go-cqhttp config helper",
-    onebotHelperHint: "Run go-cqhttp locally, enable forward WebSocket, and put its address above. Example:",
+    onebotHelperHint:
+      "Run go-cqhttp locally, enable forward WebSocket, and put its address above. Example:",
     onebotCmd: "go-cqhttp  →  enable ws forward, ws://127.0.0.1:6700",
     callbackTitle: "Callback URL",
-    callbackHint: "Tunnel this URL to the public internet and paste it into the platform's callback setting, or you won't receive messages",
+    callbackHint:
+      "Tunnel this URL to the public internet and paste it into the platform's callback setting, or you won't receive messages",
     callbackCopy: "Copy",
     callbackCopied: "Copied",
     callbackGuide: "Tunnel guide",
     callbackGuideFile: "frp / ngrok tunnel examples live in the repo at {file}",
     callbackNotConnected: "Connect to see the local callback URL",
-    callbackPortNote: "Fixed local callback ports: WeCom 8787 / Official Account 8788 (falls back to a random port if busy)",
+    callbackPortNote:
+      "Fixed local callback ports: WeCom 8787 / Official Account 8788 (falls back to a random port if busy)",
     reloginTitle: "Session expired — scan to re-login",
     reloginHint: "WeChat iLink session expired. Scan to restore automatically",
     reloginWaiting: "Waiting for scan…",
@@ -1576,11 +1809,13 @@ export const enMessages = {
   },
   settingsAgents: {
     agents: "Agents",
-    description: "Personas and snippets the AI uses. Switch agents from the input bar.",
+    description:
+      "Personas and snippets the AI uses. Switch agents from the input bar.",
     notifications: "Notifications",
     notificationDescription: "Show notifications when an agent task finishes",
     terminalHooks: "Terminal hooks",
-    terminalHooksDescription: "Integrate coding agent status hooks in the terminal",
+    terminalHooksDescription:
+      "Integrate coding agent status hooks in the terminal",
     launchCommands: "Launch commands",
   },
   settingsShortcuts: {
@@ -1590,7 +1825,8 @@ export const enMessages = {
     resetAll: "Reset All",
     searchPlaceholder: "Search shortcuts...",
     resetAllTitle: "Reset all shortcuts?",
-    resetAllBody: "This will revert all your custom keyboard shortcuts to their factory defaults. This action cannot be undone.",
+    resetAllBody:
+      "This will revert all your custom keyboard shortcuts to their factory defaults. This action cannot be undone.",
     unassigned: "Unassigned",
     resetToDefault: "Reset to default",
     clearShortcut: "Clear shortcut",
@@ -1600,40 +1836,45 @@ export const enMessages = {
   dialogs: {
     confirm: "Confirm",
     deleteTitle: "Delete Confirmation",
-    deleteBody: "Delete \"{name}\"? This cannot be undone.",
+    deleteBody: 'Delete "{name}"? This cannot be undone.',
     discardTitle: "Discard Changes",
-    discardBody: "Discard changes to \"{name}\"?",
+    discardBody: 'Discard changes to "{name}"?',
     unsavedTitle: "Unsaved Changes",
-    unsavedBody: "\"{name}\" has unsaved changes. Close anyway?",
+    unsavedBody: '"{name}" has unsaved changes. Close anyway?',
     unsavedBodyGeneric: "This file has unsaved changes. Close anyway?",
-    deletedUnsavedBody: "\"{name}\" has unsaved changes. The file has been deleted. Close anyway?",
-    deletedUnsavedBodyGeneric: "This file has unsaved changes. The file has been deleted. Close anyway?",
-    deletedFilesBody: "{count} files have unsaved changes. They have been deleted. Close all anyway?",
+    deletedUnsavedBody:
+      '"{name}" has unsaved changes. The file has been deleted. Close anyway?',
+    deletedUnsavedBodyGeneric:
+      "This file has unsaved changes. The file has been deleted. Close anyway?",
+    deletedFilesBody:
+      "{count} files have unsaved changes. They have been deleted. Close all anyway?",
     saveAndClose: "Save & Close",
     closeWithoutSaving: "Close Without Saving",
     closeAnyway: "Close Anyway",
     closeTerminalTitle: "Close Terminal?",
-    closeTerminalBody: "A process is running. Closing this tab will terminate it.",
+    closeTerminalBody:
+      "A process is running. Closing this tab will terminate it.",
     quitTitle: "Quit Yamet?",
     quitAnyway: "Quit Anyway",
     dirtyOneFile: "1 file has unsaved changes",
     dirtyFiles: "{count} files have unsaved changes",
     closeAppDirty: "Unsaved changes will be discarded on quit.",
-    closeAppProcess: "A process is still running in a terminal. Quitting will terminate it.",
-    closeAppBoth: "A process is still running and {dirty}. Quitting will terminate it and discard the changes.",
+    closeAppProcess:
+      "A process is still running in a terminal. Quitting will terminate it.",
+    closeAppBoth:
+      "A process is still running and {dirty}. Quitting will terminate it and discard the changes.",
   },
 } satisfies Messages;
 
-type AssertSameKeys<A, B> = Exclude<Paths<A>, Paths<B>> extends never
-  ? Exclude<Paths<B>, Paths<A>> extends never
-    ? true
-    : never
-  : never;
+type AssertSameKeys<A, B> =
+  Exclude<Paths<A>, Paths<B>> extends never
+    ? Exclude<Paths<B>, Paths<A>> extends never
+      ? true
+      : never
+    : never;
 
 // Compile-time check that en implements every zh key (and vice versa).
-export const _keyParity: AssertSameKeys<
-  typeof zhMessages,
-  typeof enMessages
-> = true;
+export const _keyParity: AssertSameKeys<typeof zhMessages, typeof enMessages> =
+  true;
 
 export type MessagesType = Messages;

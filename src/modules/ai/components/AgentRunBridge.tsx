@@ -7,6 +7,7 @@ import { checkReadable } from "../lib/security";
 import { resolvePath } from "../tools/tools";
 import {
   flushPersist,
+  handleApprovalDecision,
   useChatStore,
   type AgentRunStatus,
 } from "../store/chatStore";
@@ -55,6 +56,17 @@ type ToolPartLike = ToolUIPart & {
 
 type AnyPart = UIMessagePart<Record<string, never>, Record<string, never>>;
 
+/** Derive the tool name from a ToolUIPart (static `tool-<name>` or dynamic). */
+function toolNameOf(p: AnyPart): string {
+  const type = (p as { type?: string }).type ?? "";
+  if (type === "dynamic-tool") {
+    const tn = (p as { toolName?: string }).toolName;
+    return typeof tn === "string" ? tn : "";
+  }
+  if (type.startsWith("tool-")) return type.slice(5);
+  return "";
+}
+
 function Bridge({
   sessionId,
   openAiDiffTab,
@@ -67,29 +79,40 @@ function Bridge({
   const patch = useChatStore((s) => s.patchAgentMeta);
   const persistMessages = useChatStore((s) => s.persistMessages);
   const setApprovalResponder = useChatStore((s) => s.setApprovalResponder);
-  const markFirstApprovalResolved = useChatStore(
-    (s) => s.markFirstApprovalResolved,
-  );
   const autoApproveTools = usePreferencesStore((s) => s.autoApproveTools);
+  const projectAutoApprove = usePreferencesStore(
+    (s) => s.autoApproveProjectArmed,
+  );
   const firstApprovalResolved = useChatStore(
     (s) => s.firstApprovalResolved,
   );
-  const autoApproveArmed = autoApproveTools && firstApprovalResolved;
+  const sessionApprovalArmed = useChatStore(
+    (s) => s.sessionApprovalArmed,
+  );
+  const rememberScope = useChatStore((s) => s.rememberScope);
+  const deniedTools = useChatStore((s) => s.deniedTools);
+
+  // Auto-approve is armed per the user's chosen remember scope, not a single
+  // flat flag: window -> firstApprovalResolved, session -> sessionApprovalArmed,
+  // project -> persisted preference.
+  const armedForScope =
+    rememberScope === "project"
+      ? projectAutoApprove
+      : rememberScope === "session"
+        ? sessionApprovalArmed
+        : firstApprovalResolved;
+  const autoApproveArmed = autoApproveTools && armedForScope;
 
   // Expose the approval responder so the diff tab can resolve approvals.
   // We keep it in a ref-stable closure so identity is stable per render.
+  // Arming/blacklist logic lives in handleApprovalDecision (single source of
+  // truth) so a deny never accidentally arms auto-approve.
   useEffect(() => {
     setApprovalResponder((id, approved) => {
-      // The first manual decision arms "auto-approve the rest of this session".
-      markFirstApprovalResolved();
-      addToolApprovalResponse({ id, approved });
+      handleApprovalDecision(id, approved, undefined, addToolApprovalResponse);
     });
     return () => setApprovalResponder(null);
-  }, [
-    setApprovalResponder,
-    addToolApprovalResponse,
-    markFirstApprovalResolved,
-  ]);
+  }, [setApprovalResponder, addToolApprovalResponse]);
 
   useEffect(() => {
     persistMessages(sessionId, messages);
@@ -134,14 +157,17 @@ function Bridge({
     });
   }, [status, approvalsPending, patch]);
 
-  // Auto-approve: once the user has manually resolved one approval this session
-  // (and the preference is on), every pending approval is approved silently.
+  // Auto-approve: once the user has manually resolved an approval this session
+  // at the active remember scope (and the preference is on), every pending
+  // approval is approved silently — EXCEPT tools the user blacklisted via
+  // "deny & remember this tool", which still require manual approval.
   useEffect(() => {
     if (!autoApproveArmed || approvalsPending === 0) return;
     for (const m of messages) {
       if (m.role !== "assistant") continue;
       for (const p of m.parts as AnyPart[]) {
         if ((p as { state?: string }).state !== "approval-requested") continue;
+        if (deniedTools.includes(toolNameOf(p))) continue;
         const id = (p as { approval?: { id?: string } }).approval?.id;
         if (id) addToolApprovalResponse({ id, approved: true });
       }
@@ -151,6 +177,7 @@ function Bridge({
     approvalsPending,
     messages,
     addToolApprovalResponse,
+    deniedTools,
   ]);
 
   // ---- AI diff tab management ----------------------------------------------

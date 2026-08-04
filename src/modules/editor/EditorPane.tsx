@@ -1,3 +1,11 @@
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
+import { tStatic, useI18n } from "@/lib/i18n";
 import { endpointIdFromCompatModel } from "@/modules/ai/config";
 import { getCustomEndpointKey, getKey } from "@/modules/ai/lib/keyring";
 import { lspFormatDocument, useLspExtension } from "@/modules/lsp";
@@ -105,6 +113,7 @@ function formatBytes(n: number): string {
 export const EditorPane = memo(
   forwardRef<EditorPaneHandle, Props>(function EditorPane(props, ref) {
     const { path, overrideLanguage, onDirtyChange, onSaved, onClose } = props;
+    const { t } = useI18n();
 
     const { doc, onChange, save, reload, adoptDiskText, openAnyway } =
       useDocument({
@@ -232,6 +241,62 @@ export const EditorPane = memo(
     const performSaveRef = useRef(performSave);
     performSaveRef.current = performSave;
 
+    // Format the current buffer (language-server or external formatter),
+    // mirroring the format-on-save path used by performSave.
+    const performFormat = useCallback(async () => {
+      const view = cmRef.current?.view;
+      const prefs = usePreferencesStore.getState();
+      const formatter = resolveFormatter(languageRef.current, prefs);
+      if (formatter === "lsp") {
+        if (!lspActiveRef.current) {
+          if (!warnedNoLspRef.current) {
+            warnedNoLspRef.current = true;
+            toast.warning("Format skipped", {
+              description:
+                "No active language server for this file. Enable one in the statusbar, or pick an external formatter in Settings.",
+            });
+          }
+          return;
+        }
+        if (!view) return;
+        try {
+          const res = await lspFormatDocument(view);
+          if (res === "unsupported" && !warnedNoFormatRef.current) {
+            warnedNoFormatRef.current = true;
+            toast.warning("Format skipped", {
+              description:
+                "The active language server has no formatter. Pick an external one in Settings (Ruff for Python, Prettier, rustfmt, ...).",
+            });
+          }
+        } catch (e) {
+          toast.error("Language server format failed", {
+            description: String(e),
+          });
+        }
+        return;
+      }
+      if (!view) return;
+      const docAtFormat = view.state.doc;
+      const error = await runExternalFormatter(
+        formatter,
+        pathRef.current,
+        prefs.editorCustomFormatCommand,
+      );
+      if (error) {
+        toast.error(`${formatter} format failed`, { description: error });
+      } else {
+        const readBack = await readFileText(pathRef.current);
+        if (readBack !== null && view.state.doc === docAtFormat) {
+          applyFormattedContent(
+            view,
+            adoptDiskTextRef.current(readBack.text, readBack.mtime),
+          );
+        }
+      }
+    }, []);
+    const performFormatRef = useRef(performFormat);
+    performFormatRef.current = performFormat;
+
     const pathRef = useRef(path);
     pathRef.current = path;
 
@@ -315,6 +380,18 @@ export const EditorPane = memo(
           },
           getPath: () => pathRef.current,
           getLanguage: () => languageRef.current,
+          onCompletionFailed: () => {
+            toast(tStatic("statusbar.completionFailed"), {
+              description: tStatic("statusbar.completionDegraded"),
+              action: {
+                label: tStatic("statusbar.completionRetry"),
+                onClick: () => {
+                  const view = cmRef.current?.view;
+                  if (view) triggerInlineCompletion(view);
+                },
+              },
+            });
+          },
         }),
         keymap.of([
           {
@@ -487,6 +564,70 @@ export const EditorPane = memo(
       [path, applyPendingGoto],
     );
 
+    // --- Context-menu actions (right-click on the editor) ---
+    const handleCut = () => {
+      const view = cmRef.current?.view;
+      if (!view) return;
+      const { from, to } = view.state.selection.main;
+      const sel = view.state.sliceDoc(from, to);
+      void navigator.clipboard.writeText(sel).then(() => {
+        view.dispatch({
+          changes: { from, to, insert: "" },
+          selection: { anchor: from },
+        });
+        view.focus();
+      });
+    };
+    const handleCopy = () => {
+      const view = cmRef.current?.view;
+      if (!view) return;
+      const { from, to } = view.state.selection.main;
+      const sel = view.state.sliceDoc(from, to);
+      if (sel) void navigator.clipboard.writeText(sel);
+      view.focus();
+    };
+    const handlePaste = () => {
+      const view = cmRef.current?.view;
+      if (!view) return;
+      void navigator.clipboard.readText().then((text) => {
+        if (!text) return;
+        const { from, to } = view.state.selection.main;
+        view.dispatch({
+          changes: { from, to, insert: text },
+          selection: { anchor: from + text.length },
+        });
+        view.focus();
+      });
+    };
+    const handleFormat = () => {
+      void performFormatRef.current();
+    };
+    const handleFindReplace = () => {
+      const view = cmRef.current?.view;
+      if (view) openSearchPanel(view);
+    };
+    // The LSP keymap owns goto-definition (F12) and find-references
+    // (Shift-F12); re-dispatch those keys so the menu reuses the same logic.
+    const dispatchLspKey = (key: string, opts?: { shiftKey?: boolean }) => {
+      const view = cmRef.current?.view;
+      if (!view) return;
+      view.dom.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key,
+          bubbles: true,
+          cancelable: true,
+          shiftKey: opts?.shiftKey,
+        }),
+      );
+      view.focus();
+    };
+    const handleGoToDefinition = () => dispatchLspKey("F12");
+    const handleGoToReferences = () =>
+      dispatchLspKey("F12", { shiftKey: true });
+    const handleSave = () => {
+      void performSaveRef.current();
+    };
+
     if (doc.status === "loading") {
       return (
         <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
@@ -563,7 +704,8 @@ export const EditorPane = memo(
         );
       }
 
-      const canForce = doc.status === "toolarge" && doc.size <= FORCE_READ_LIMIT;
+      const canForce =
+        doc.status === "toolarge" && doc.size <= FORCE_READ_LIMIT;
       return (
         <div className="flex h-full flex-col items-center justify-center gap-1 px-6 text-center">
           <div className="text-sm text-foreground">
@@ -588,26 +730,60 @@ export const EditorPane = memo(
 
     return (
       <div className="flex h-full min-h-0 flex-col zoom-exempt">
-        <CodeMirror
-          ref={cmRef}
-          value={doc.content}
-          onChange={onChange}
-          theme={themeExt}
-          extensions={extensions}
-          height="100%"
-          className="flex-1 min-h-0 overflow-hidden"
-          basicSetup={{
-            lineNumbers: true,
-            highlightActiveLineGutter: true,
-            foldGutter: true,
-            bracketMatching: true,
-            closeBrackets: true,
-            autocompletion: true,
-            highlightActiveLine: true,
-            highlightSelectionMatches: true,
-            searchKeymap: true,
-          }}
-        />
+        <ContextMenu>
+          <ContextMenuTrigger asChild>
+            <div className="flex h-full min-h-0 min-w-0 flex-1">
+              <CodeMirror
+                ref={cmRef}
+                value={doc.content}
+                onChange={onChange}
+                theme={themeExt}
+                extensions={extensions}
+                height="100%"
+                className="flex-1 min-h-0 overflow-hidden"
+                basicSetup={{
+                  lineNumbers: true,
+                  highlightActiveLineGutter: true,
+                  foldGutter: true,
+                  bracketMatching: true,
+                  closeBrackets: true,
+                  autocompletion: true,
+                  highlightActiveLine: true,
+                  highlightSelectionMatches: true,
+                  searchKeymap: true,
+                }}
+              />
+            </div>
+          </ContextMenuTrigger>
+          <ContextMenuContent className="min-w-40">
+            <ContextMenuItem onSelect={handleCut}>
+              {t("editor.cut")}
+            </ContextMenuItem>
+            <ContextMenuItem onSelect={handleCopy}>
+              {t("common.copy")}
+            </ContextMenuItem>
+            <ContextMenuItem onSelect={handlePaste}>
+              {t("terminal.paste")}
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+            <ContextMenuItem onSelect={handleFormat}>
+              {t("editor.format")}
+            </ContextMenuItem>
+            <ContextMenuItem onSelect={handleFindReplace}>
+              {t("editor.findReplace")}
+            </ContextMenuItem>
+            <ContextMenuItem onSelect={handleGoToDefinition}>
+              {t("editor.goToDefinition")}
+            </ContextMenuItem>
+            <ContextMenuItem onSelect={handleGoToReferences}>
+              {t("editor.goToReferences")}
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+            <ContextMenuItem onSelect={handleSave}>
+              {t("common.save")}
+            </ContextMenuItem>
+          </ContextMenuContent>
+        </ContextMenu>
       </div>
     );
   }),

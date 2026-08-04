@@ -16,28 +16,39 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Spinner } from "@/components/ui/spinner";
 import { useI18n } from "@/lib/i18n";
+import type { PresenceState } from "@/lib/usePresence";
 import { cn } from "@/lib/utils";
-import { useChat, type UIMessage } from "@ai-sdk/react";
+import { InlineInput } from "@/modules/explorer/InlineInput";
+import { usePreferencesStore } from "@/modules/settings/preferences";
+import { type UIMessage, useChat } from "@ai-sdk/react";
 import {
   Add01Icon,
   AlertCircleIcon,
   ArrowDown01Icon,
   Cancel01Icon,
   Delete02Icon,
+  Edit01Icon,
   FilterIcon,
   TerminalIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import type { PresenceState } from "@/lib/usePresence";
-import { useCallback, useEffect, useMemo } from "react";
-import { estimateCost, getModel, getModelContextLimit, type ModelId } from "../config";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  estimateCost,
+  getModel,
+  getModelContextLimit,
+  type ModelId,
+} from "../config";
 import type { ResizeDir } from "../lib/miniWindowGeometry";
 import type { SessionMeta } from "../lib/sessions";
 import { useMiniWindowGeometry } from "../lib/useMiniWindowGeometry";
 import { useAgentsStore } from "../store/agentsStore";
-import { useChatStore } from "../store/chatStore";
 import { getOrCreateChat } from "../store/chatRuntime";
-import { usePreferencesStore } from "@/modules/settings/preferences";
+import {
+  type ApprovalOptions,
+  handleApprovalDecision,
+  useChatStore,
+} from "../store/chatStore";
 import { usePlanStore } from "../store/planStore";
 import { AgentSwitcher } from "./AgentSwitcher";
 import { AiChatView } from "./AiChat";
@@ -154,7 +165,10 @@ function ResizeHandle({
     <div
       data-no-drag
       onPointerDown={onPointerDown}
-      className={cn("absolute z-50 touch-none select-none", RESIZE_HANDLE_CLASS[dir])}
+      className={cn(
+        "absolute z-50 touch-none select-none",
+        RESIZE_HANDLE_CLASS[dir],
+      )}
     />
   );
 }
@@ -178,11 +192,16 @@ function Body({
   const isBusy =
     helpers.status === "submitted" || helpers.status === "streaming";
 
-  // Any manual approval decision arms "auto-approve the rest of this session".
+  // Any manual approval decision arms auto-approve (approve only — a deny
+  // never arms it). Handled centrally in handleApprovalDecision.
   const addToolApprovalResponse = useCallback(
-    (arg: { id: string; approved: boolean }) => {
-      useChatStore.getState().markFirstApprovalResolved();
-      helpers.addToolApprovalResponse(arg);
+    (arg: { id: string; approved: boolean }, opts?: ApprovalOptions) => {
+      handleApprovalDecision(
+        arg.id,
+        arg.approved,
+        opts,
+        helpers.addToolApprovalResponse,
+      );
     },
     [helpers.addToolApprovalResponse],
   );
@@ -414,7 +433,9 @@ function ContextIndicator({ messages }: { messages: UIMessage[] }) {
               {tokens.cachedInputTokens > 0 && (
                 <div className="flex items-center justify-between text-muted-foreground">
                   <span>Cache hit</span>
-                  <span className="font-mono text-foreground">{cacheRate}%</span>
+                  <span className="font-mono text-foreground">
+                    {cacheRate}%
+                  </span>
                 </div>
               )}
               {cost != null && (
@@ -515,12 +536,17 @@ function SessionRow({
   onDelete: () => void;
 }) {
   const { t } = useI18n();
+  const renameSession = useChatStore((s) => s.renameSession);
+  const [editing, setEditing] = useState(false);
   return (
     <DropdownMenuItem
       onSelect={(e) => {
-        // Don't dismiss if user clicked the trash icon — handle below.
+        // Don't dismiss if user clicked the trash or rename icon — handled below.
         const target = e.target as HTMLElement | null;
-        if (target?.closest("[data-session-delete]")) {
+        if (
+          target?.closest("[data-session-delete]") ||
+          target?.closest("[data-session-rename]")
+        ) {
           e.preventDefault();
           return;
         }
@@ -531,9 +557,36 @@ function SessionRow({
         active && "bg-accent/40",
       )}
     >
-      <span className="min-w-0 flex-1 truncate">
-        {session.title || "New chat"}
-      </span>
+      {editing ? (
+        <InlineInput
+          initial={session.title || ""}
+          placeholder={t("ai.sessionTitlePlaceholder")}
+          onCommit={(value) => {
+            const trimmed = value.trim();
+            if (trimmed && trimmed !== session.title) {
+              renameSession(session.id, trimmed);
+            }
+            setEditing(false);
+          }}
+          onCancel={() => setEditing(false)}
+        />
+      ) : (
+        <span className="min-w-0 flex-1 truncate">
+          {session.title || "New chat"}
+        </span>
+      )}
+      <button
+        type="button"
+        data-session-rename
+        onClick={(e) => {
+          e.stopPropagation();
+          setEditing(true);
+        }}
+        title={t("ai.renameSession")}
+        className="rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground group-hover:opacity-100"
+      >
+        <HugeiconsIcon icon={Edit01Icon} size={11} strokeWidth={1.75} />
+      </button>
       <button
         type="button"
         data-session-delete

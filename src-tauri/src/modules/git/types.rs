@@ -14,6 +14,7 @@ pub struct GitRepoInfo {
     pub branch: String,
     pub upstream: Option<String>,
     pub is_detached: bool,
+    pub has_submodules: bool,
 }
 
 #[derive(Serialize)]
@@ -152,4 +153,43 @@ impl TextSource {
             TextSource::Missing | TextSource::Binary => String::new(),
         }
     }
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitStashEntry {
+    /// Parsed stash reference, e.g. "0" from "stash@{0}".
+    pub index: String,
+    /// Human-facing "stash@{0}: On branch: message".
+    pub label: String,
+    pub branch: String,
+    pub message: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitConflict {
+    pub path: String,
+    pub status: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitConflictResult {
+    pub conflicts: Vec<GitConflict>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitSubmoduleStatus {
+    pub path: String,
+    pub status: String, // "clean" | "modified" | "new-commit" | "unmerged"
+    pub short_sha: String,
+    pub describe: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitSubmoduleStatusResult {
+    pub submodules: Vec<GitSubmoduleStatus>,
 }

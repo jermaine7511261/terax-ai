@@ -1,3 +1,12 @@
+import { homeDir } from "@tauri-apps/api/path";
+
+let cachedHome: string | null = null;
+void homeDir()
+  .then((h) => {
+    cachedHome = h.replace(/\\/g, "/").replace(/\/+$/, "");
+  })
+  .catch(() => {});
+
 export type ToolContext = {
   /** Active terminal tab cwd, used to resolve relative paths. Null = home. */
   getCwd: () => string | null;
@@ -30,6 +39,22 @@ export type ToolContext = {
 export function resolvePath(rawPath: string, cwd: string | null): string {
   if (rawPath.startsWith("/") || /^[a-zA-Z]:[\\/]/.test(rawPath))
     return rawPath;
+  // ~, ~/sub, ~user/... expand to the (current user's) home directory.
+  if (rawPath.startsWith("~")) {
+    if (!cachedHome)
+      throw new Error(
+        `cannot resolve "~" path "${rawPath}": home directory not available yet.`,
+      );
+    const rest = rawPath.slice(1);
+    if (rest === "" || rest.startsWith("/")) {
+      return rest ? `${cachedHome}${rest}` : cachedHome;
+    }
+    const slash = rest.indexOf("/");
+    const user = slash >= 0 ? rest.slice(0, slash) : rest;
+    const sub = slash >= 0 ? rest.slice(slash) : "";
+    const parent = cachedHome.replace(/[^/]*$/, "").replace(/\/$/, "");
+    return `${parent}/${user}${sub}`;
+  }
   if (!cwd)
     throw new Error(
       `cannot resolve relative path "${rawPath}": no active terminal cwd. Pass an absolute path.`,

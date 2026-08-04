@@ -1,4 +1,5 @@
 import { PopoverContent } from "@/components/ui/popover";
+import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { SlashCommandMeta } from "../lib/slashCommands";
@@ -23,6 +24,7 @@ export function SnippetPickerContent({
 }: Props) {
   const commands = items.filter((it) => it.kind === "command");
   const snippets = items.filter((it) => it.kind === "snippet");
+  const { t } = useI18n();
   let cursor = -1;
 
   return (
@@ -74,7 +76,11 @@ export function SnippetPickerContent({
                             <span className="font-mono text-muted-foreground">
                               #{c.name}
                             </span>
-                            <span className="font-medium">{c.label}</span>
+                            <span className="font-medium">
+                              {c.labelKey
+                                ? t(c.labelKey as Parameters<typeof t>[0])
+                                : c.label}
+                            </span>
                           </span>
                         </span>
                       </button>

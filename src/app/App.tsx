@@ -9,7 +9,7 @@ import { consumeLaunchFiles, getLaunchDir } from "@/lib/launchDir";
 import { quoteShellArg } from "@/lib/shellQuote";
 import { usePresence } from "@/lib/usePresence";
 import { useZoom } from "@/lib/useZoom";
-import { isMarkdownPath } from "@/lib/utils";
+import { isMarkdownPath, isPreviewableFilePath } from "@/lib/utils";
 import {
   type AgentLaunchRequest,
   AgentNotificationsBridge,
@@ -97,7 +97,7 @@ import {
 import { ThemeProvider, useThemeFileEditing } from "@/modules/theme";
 import { UpdaterDialog } from "@/modules/updater";
 import { useWorkspaceEnvStore, type WorkspaceEnv } from "@/modules/workspace";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { SearchAddon } from "@xterm/addon-search";
@@ -617,9 +617,12 @@ export default function App() {
       // it to the raw editor. Other files default to preview (pin=false);
       // explicit actions like context-menu "Open" pass pin=true to persist.
       if (isMarkdownPath(path)) newMarkdownTab(path);
-      else openFileTab(path, pin ?? false);
+      else if (isPreviewableFilePath(path)) {
+        // Images and PDFs render in the preview pane via the asset protocol.
+        newPreviewTab(convertFileSrc(path));
+      } else openFileTab(path, pin ?? false);
     },
-    [openFileTab, newMarkdownTab],
+    [openFileTab, newMarkdownTab, newPreviewTab],
   );
 
   // "Open With" files arrive via the event (warm start) and get_launch_files
@@ -1377,6 +1380,8 @@ export default function App() {
               privateActive={
                 activeTab?.kind === "terminal" && activeTab.private === true
               }
+              sourceControl={sourceControl}
+              onOpenSourceControl={toggleSourceControl}
             />
           )}
 

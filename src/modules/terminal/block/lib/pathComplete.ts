@@ -1,9 +1,7 @@
 import { currentWorkspaceEnv } from "@/modules/workspace";
-import {
-  type Completion,
-  startCompletion,
-} from "@codemirror/autocomplete";
+import { type Completion, startCompletion } from "@codemirror/autocomplete";
 import { invoke } from "@tauri-apps/api/core";
+import { homeDir } from "@tauri-apps/api/path";
 
 type DirEntry = {
   name: string;
@@ -16,12 +14,55 @@ export type PathResult = { fromOffset: number; options: Completion[] };
 
 function joinRel(cwd: string, rel: string): string {
   const base = cwd.endsWith("/") ? cwd.slice(0, -1) : cwd;
-  const clean = rel.replace(/\/$/, "");
+  const clean = rel.replace(/^\/+|\/+$/g, "");
   return clean ? `${base}/${clean}` : base;
 }
 
-function resolveDir(dirPart: string, cwd: string): string | null {
-  if (dirPart.startsWith("~")) return null; // home expansion not handled yet
+// Module-level cache of the user's home directory, primed eagerly so the
+// first `~` completion is instant. Falls back to an empty string (treated
+// as "no home known" -> completion disabled for `~`) if Tauri can't resolve.
+let cachedHome: string | null = null;
+let homePromise: Promise<string> | null = null;
+
+function getHome(): Promise<string> {
+  if (cachedHome !== null) return Promise.resolve(cachedHome);
+  if (!homePromise) {
+    homePromise = homeDir()
+      .then((h) => {
+        cachedHome = h.replace(/\\/g, "/").replace(/\/+$/, "");
+        return cachedHome;
+      })
+      .catch(() => {
+        cachedHome = "";
+        return "";
+      });
+  }
+  return homePromise;
+}
+
+/**
+ * Expand a directory part (the `a/b/` prefix of a completion token) into an
+ * absolute path. Handles `~`, `~/sub/`, `~user/...`, absolute paths and
+ * relative-to-cwd paths.
+ */
+export function resolveDir(
+  dirPart: string,
+  cwd: string,
+  home: string,
+): string | null {
+  if (dirPart.startsWith("~")) {
+    if (!home) return null;
+    const rest = dirPart.slice(1);
+    // `~` or `~/`
+    if (rest === "" || rest.startsWith("/")) return joinRel(home, rest);
+    // `~user` / `~user/...` -> sibling of the current user's home.
+    const slash = rest.indexOf("/");
+    const user = slash >= 0 ? rest.slice(0, slash) : rest;
+    const sub = slash >= 0 ? rest.slice(slash) : "";
+    const parent = home.replace(/[^/]*$/, "").replace(/\/$/, "");
+    const userHome = joinRel(parent, user);
+    return sub ? joinRel(userHome, sub) : userHome;
+  }
   if (dirPart.startsWith("/")) return dirPart || "/";
   return joinRel(cwd, dirPart);
 }
@@ -35,7 +76,8 @@ export async function pathCompletions(
   const slash = token.lastIndexOf("/");
   const dirPart = slash >= 0 ? token.slice(0, slash + 1) : "";
   const base = slash >= 0 ? token.slice(slash + 1) : token;
-  const dir = resolveDir(dirPart, cwd);
+  const home = await getHome();
+  const dir = resolveDir(dirPart, cwd, home);
   if (!dir) return null;
 
   let entries: DirEntry[];

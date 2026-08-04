@@ -43,6 +43,7 @@ export type GitRepoInfo = {
   branch: string;
   upstream: string | null;
   isDetached: boolean;
+  hasSubmodules: boolean;
 };
 
 export type GitChangedFile = {
@@ -134,6 +135,33 @@ export type GitBranchEntry = {
 
 export type GitBranchListResult = {
   branches: GitBranchEntry[];
+};
+
+export type GitStashEntry = {
+  index: string;
+  label: string;
+  branch: string;
+  message: string;
+};
+
+export type GitConflict = {
+  path: string;
+  status: string;
+};
+
+export type GitConflictResult = {
+  conflicts: GitConflict[];
+};
+
+export type GitSubmoduleStatus = {
+  path: string;
+  status: string;
+  shortSha: string;
+  describe: string;
+};
+
+export type GitSubmoduleStatusResult = {
+  submodules: GitSubmoduleStatus[];
 };
 
 export const native = {
@@ -411,6 +439,98 @@ export const native = {
     invoke<void>("git_checkout_branch", {
       repoRoot,
       branch,
+      workspace: currentWorkspaceEnv(),
+    }),
+  gitCreateBranch: (repoRoot: string, name: string) =>
+    invoke<void>("git_create_branch", {
+      repoRoot,
+      name,
+      workspace: currentWorkspaceEnv(),
+    }),
+  gitDeleteBranch: (repoRoot: string, name: string) =>
+    invoke<void>("git_delete_branch", {
+      repoRoot,
+      name,
+      workspace: currentWorkspaceEnv(),
+    }),
+  gitRenameBranch: (repoRoot: string, old: string, newName: string) =>
+    invoke<void>("git_rename_branch", {
+      repoRoot,
+      old,
+      new: newName,
+      workspace: currentWorkspaceEnv(),
+    }),
+  gitPushUpstream: (repoRoot: string, remote?: string | null) =>
+    invoke<GitPushResult>("git_push_upstream", {
+      repoRoot,
+      remote: remote ?? null,
+      workspace: currentWorkspaceEnv(),
+    }),
+  gitPull: (repoRoot: string, strategy?: "ff" | "rebase" | "merge" | null) =>
+    invoke<void>("git_pull", {
+      repoRoot,
+      strategy: strategy ?? null,
+      workspace: currentWorkspaceEnv(),
+    }),
+  gitStashSave: (repoRoot: string, message?: string | null) =>
+    invoke<void>("git_stash_save", {
+      repoRoot,
+      message: message ?? null,
+      workspace: currentWorkspaceEnv(),
+    }),
+  gitStashList: (repoRoot: string) =>
+    invoke<GitStashEntry[]>("git_stash_list", {
+      repoRoot,
+      workspace: currentWorkspaceEnv(),
+    }),
+  gitStashPop: (repoRoot: string, index?: string | null) =>
+    invoke<void>("git_stash_pop", {
+      repoRoot,
+      index: index ?? null,
+      workspace: currentWorkspaceEnv(),
+    }),
+  gitStashApply: (repoRoot: string, index?: string | null) =>
+    invoke<void>("git_stash_apply", {
+      repoRoot,
+      index: index ?? null,
+      workspace: currentWorkspaceEnv(),
+    }),
+  gitStashDrop: (repoRoot: string, index?: string | null) =>
+    invoke<void>("git_stash_drop", {
+      repoRoot,
+      index: index ?? null,
+      workspace: currentWorkspaceEnv(),
+    }),
+  gitConflicts: (repoRoot: string) =>
+    invoke<GitConflictResult>("git_conflicts", {
+      repoRoot,
+      workspace: currentWorkspaceEnv(),
+    }),
+  gitMergeAbort: (repoRoot: string) =>
+    invoke<void>("git_merge_abort", {
+      repoRoot,
+      workspace: currentWorkspaceEnv(),
+    }),
+  gitCheckoutOurs: (repoRoot: string, path: string) =>
+    invoke<void>("git_checkout_ours", {
+      repoRoot,
+      path,
+      workspace: currentWorkspaceEnv(),
+    }),
+  gitCheckoutTheirs: (repoRoot: string, path: string) =>
+    invoke<void>("git_checkout_theirs", {
+      repoRoot,
+      path,
+      workspace: currentWorkspaceEnv(),
+    }),
+  gitSubmoduleStatus: (repoRoot: string) =>
+    invoke<GitSubmoduleStatusResult>("git_submodule_status", {
+      repoRoot,
+      workspace: currentWorkspaceEnv(),
+    }),
+  gitSubmoduleUpdate: (repoRoot: string) =>
+    invoke<void>("git_submodule_update", {
+      repoRoot,
       workspace: currentWorkspaceEnv(),
     }),
 };

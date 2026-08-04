@@ -25,8 +25,60 @@ fn now() -> i64 {
         .unwrap_or(0)
 }
 
+// Persisted command history lives at ~/.yamet/history. Shell histories
+// (bash/zsh/fish) are read-only sources; every accepted prompt-mode command is
+// recorded here with its frequency so it survives app restarts.
+fn persist_path() -> Option<PathBuf> {
+    let home = dirs::home_dir()?;
+    Some(home.join(".yamet").join("history"))
+}
+
+fn read_persisted() -> Vec<(String, i64)> {
+    let Some(path) = persist_path() else {
+        return Vec::new();
+    };
+    let Ok(content) = std::fs::read_to_string(&path) else {
+        return Vec::new();
+    };
+    content
+        .lines()
+        .filter_map(|line| {
+            let line = line.trim();
+            if line.is_empty() {
+                return None;
+            }
+            // Format: "<count>\t<command>". A line without the tab is a bare
+            // command with implicit count 1.
+            let (count, cmd) = match line.split_once('\t') {
+                Some((c, cmd)) => (c.parse::<i64>().unwrap_or(1).max(1), cmd),
+                None => (1, line),
+            };
+            if cmd.trim().is_empty() {
+                return None;
+            }
+            Some((cmd.trim().to_string(), count))
+        })
+        .collect()
+}
+
+fn write_persisted(entries: &[HistEntry]) {
+    let Some(path) = persist_path() else {
+        return;
+    };
+    if let Some(dir) = path.parent() {
+        let _ = std::fs::create_dir_all(dir);
+    }
+    let mut sorted = entries.to_vec();
+    sort_recent(&mut sorted);
+    let mut out = String::new();
+    for e in sorted {
+        out.push_str(&format!("{}\t{}\n", e.count, e.cmd));
+    }
+    let _ = std::fs::write(&path, out);
+}
+
 fn read_histories() -> Vec<(String, i64)> {
-    let mut all = Vec::new();
+    let mut all = read_persisted();
     let home = dirs::home_dir();
 
     if let Some(path) = zsh_histfile(home.as_ref()) {
@@ -182,5 +234,6 @@ pub fn history_record(state: tauri::State<'_, HistoryState>, command: String) {
             }),
         }
         sort_recent(&mut idx.entries);
+        write_persisted(&idx.entries);
     }
 }
