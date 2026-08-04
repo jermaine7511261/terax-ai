@@ -183,37 +183,46 @@ pub fn call_tool(
             let re = regex::Regex::new(pattern)
                 .map_err(|e| format!("invalid regex: {e}"))?;
             let mut results = Vec::new();
-            let walk = if full.is_dir() {
-                ignore::WalkBuilder::new(&full)
+            if full.is_dir() {
+                let walk = ignore::WalkBuilder::new(&full)
                     .hidden(false)
                     .git_ignore(true)
-                    .build()
-                    .filter_map(|e| e.ok())
-                    .filter(|e| e.file_type().map(|t| t.is_file()).unwrap_or(false))
-                    .collect::<Vec<_>>()
-            } else {
-                vec![ignore::DirEntry::from(full)]
-            };
-            for entry in walk {
-                let path = entry.path();
-                // Skip .git directory
-                if path.components().any(|c| c.as_os_str() == ".git") {
-                    continue;
+                    .build();
+                for entry in walk.filter_map(|e| e.ok()) {
+                    let path = entry.path();
+                    // Skip .git directory
+                    if path.components().any(|c| c.as_os_str() == ".git") {
+                        continue;
+                    }
+                    let Ok(content) = std::fs::read_to_string(path) else {
+                        continue;
+                    };
+                    for (i, line) in content.lines().enumerate() {
+                        if re.is_match(line) {
+                            let rel = path
+                                .strip_prefix(workdir)
+                                .unwrap_or(path)
+                                .to_string_lossy();
+                            results.push(format!("{}:{}: {}", rel, i + 1, line));
+                            if results.len() >= 200 {
+                                results.push("... (truncated at 200 matches)".into());
+                                return Ok(vec![json!({"type": "text", "text": results.join("\n")})]);
+                            }
+                        }
+                    }
                 }
-                let Ok(content) = std::fs::read_to_string(path) else {
-                    continue;
+            } else {
+                // Single file
+                let Ok(content) = std::fs::read_to_string(&full) else {
+                    return Ok(vec![json!({"type": "text", "text": ""})]);
                 };
                 for (i, line) in content.lines().enumerate() {
                     if re.is_match(line) {
-                        let rel = path
+                        let rel = full
                             .strip_prefix(workdir)
-                            .unwrap_or(path)
+                            .unwrap_or(&full)
                             .to_string_lossy();
                         results.push(format!("{}:{}: {}", rel, i + 1, line));
-                        if results.len() >= 200 {
-                            results.push("... (truncated at 200 matches)".into());
-                            return Ok(vec![json!({"type": "text", "text": results.join("\n")})]);
-                        }
                     }
                 }
             }

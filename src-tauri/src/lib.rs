@@ -14,7 +14,7 @@ struct LaunchDir(Mutex<Option<String>>);
 
 /// Standalone MCP server entry (`yamet __mcp_server`): serves read-only
 /// workspace tools to external agents over stdio JSON-RPC (★ L1 LangBot).
-pub fn mcp_server_run(cwd: &str) -> Result<(), String> {
+pub fn mcp_server_run(cwd: &str) {
     mcp_server::run_server(std::path::Path::new(cwd))
 }
 

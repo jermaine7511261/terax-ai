@@ -12,13 +12,8 @@ fn main() {
             .filter(|s| !s.is_empty())
             .or_else(|| std::env::current_dir().ok().map(|p| p.to_string_lossy().into_owned()))
             .unwrap_or_default();
-        match yamet_lib::mcp_server_run(&cwd) {
-            Ok(()) => std::process::exit(0),
-            Err(e) => {
-                eprintln!("yamet mcp server: {e}");
-                std::process::exit(1);
-            }
-        }
+        yamet_lib::mcp_server_run(&cwd);
+        std::process::exit(0);
     }
 
     #[cfg(target_os = "macos")]
