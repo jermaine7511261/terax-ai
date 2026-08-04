@@ -1,3 +1,4 @@
+import { OnboardingDialog } from "@/components/OnboardingDialog";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -47,10 +48,11 @@ import { setLspNavigator } from "@/modules/lsp";
 import type { PreviewPaneHandle } from "@/modules/preview";
 import { openSettingsWindow } from "@/modules/settings/openSettingsWindow";
 import { usePreferencesStore } from "@/modules/settings/preferences";
+import { setHasOnboarded } from "@/modules/settings/store";
 import {
-  shouldDisablePaneSwapShortcut,
   type ShortcutHandlers,
   type ShortcutId,
+  shouldDisablePaneSwapShortcut,
   useGlobalShortcuts,
 } from "@/modules/shortcuts";
 import {
@@ -77,9 +79,9 @@ import {
   useWindowTitle,
   useWorkspaceCwd,
 } from "@/modules/tabs";
-import { SshConnectDialog } from "@/modules/tabs/SshConnectDialog";
 import type { SshTarget } from "@/modules/tabs/lib/useTabs";
 import { DEFAULT_SPACE_ID } from "@/modules/tabs/lib/useTabs";
+import { SshConnectDialog } from "@/modules/tabs/SshConnectDialog";
 import {
   clearFocusedTerminal,
   disposeSession,
@@ -87,8 +89,8 @@ import {
   hasLeaf,
   leafIds,
   navigateFocusedBlocks,
-  setLeafSearchQuery,
   type PaneBounds,
+  setLeafSearchQuery,
   type TerminalPaneHandle,
   useTerminalFileDrop,
   whenSessionReady,
@@ -97,7 +99,7 @@ import {
 import { ThemeProvider, useThemeFileEditing } from "@/modules/theme";
 import { UpdaterDialog } from "@/modules/updater";
 import { useWorkspaceEnvStore, type WorkspaceEnv } from "@/modules/workspace";
-import { invoke, convertFileSrc } from "@tauri-apps/api/core";
+import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { SearchAddon } from "@xterm/addon-search";
@@ -293,6 +295,20 @@ export default function App() {
 
   const [newEditorOpen, setNewEditorOpen] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [onboardingOpen, setOnboardingOpen] = useState(false);
+  const prefsHydrated = usePreferencesStore((s) => s.hydrated);
+  const hasOnboarded = usePreferencesStore((s) => s.hasOnboarded);
+  // Show the first-run welcome once prefs are hydrated and the user hasn't
+  // dismissed it before. Persist via setHasOnboarded so it never reappears.
+  useEffect(() => {
+    if (!prefsHydrated || hasOnboarded) return;
+    const t = setTimeout(() => setOnboardingOpen(true), 400);
+    return () => clearTimeout(t);
+  }, [prefsHydrated, hasOnboarded]);
+  const completeOnboarding = useCallback(() => {
+    setOnboardingOpen(false);
+    void setHasOnboarded();
+  }, []);
   const [paletteInitialMode, setPaletteInitialMode] = useState<
     "commands" | "content"
   >("commands");
@@ -1440,6 +1456,12 @@ export default function App() {
             open={sshDialogOpen}
             onOpenChange={setSshDialogOpen}
             onConnect={openSshTab}
+          />
+
+          <OnboardingDialog
+            open={onboardingOpen}
+            onOpenChange={setOnboardingOpen}
+            onComplete={completeOnboarding}
           />
 
           <UpdaterDialog />

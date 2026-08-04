@@ -1,4 +1,9 @@
 import {
+  type AgentLaunchCommands,
+  DEFAULT_AGENT_LAUNCH_COMMANDS,
+  normalizeAgentLaunchCommands,
+} from "@/modules/agents/lib/launcher";
+import {
   type AutocompleteProviderId,
   type CustomEndpoint,
   compatModelIdForEndpoint,
@@ -14,11 +19,6 @@ import {
   type SttProvider,
   WHISPERCPP_DEFAULT_BASE_URL,
 } from "@/modules/ai/config";
-import {
-  type AgentLaunchCommands,
-  DEFAULT_AGENT_LAUNCH_COMMANDS,
-  normalizeAgentLaunchCommands,
-} from "@/modules/agents/lib/launcher";
 import type { KeyBinding, ShortcutId } from "@/modules/shortcuts/shortcuts";
 import { emit, listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { LazyStore } from "@tauri-apps/plugin-store";
@@ -184,6 +184,8 @@ export type Preferences = {
   /** Persisted project-level auto-approve arming. Set when the user picks
    *  "remember for this project" on an approval — survives window restart. */
   autoApproveProjectArmed: boolean;
+  /** True once the first-run onboarding has been shown/dismissed. */
+  hasOnboarded: boolean;
 };
 
 export type EditorFormatter =
@@ -271,6 +273,7 @@ const KEY_LSP_ACTIVATION = "lspActivation";
 const KEY_LSP_CUSTOM_SERVERS = "lspCustomServers";
 const KEY_AUTO_APPROVE_TOOLS = "autoApproveTools";
 const KEY_AUTO_APPROVE_PROJECT = "autoApproveProjectArmed";
+const KEY_HAS_ONBOARDED = "hasOnboarded";
 
 export const TERMINAL_FONT_SIZE_DEFAULT = 14;
 export const TERMINAL_FONT_SIZE_MIN = 8;
@@ -352,6 +355,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   lspCustomServers: [],
   autoApproveTools: false,
   autoApproveProjectArmed: false,
+  hasOnboarded: false,
 };
 
 const store = new LazyStore(STORE_PATH, { defaults: {}, autoSave: 200 });
@@ -446,7 +450,8 @@ export async function loadPreferences(): Promise<Preferences> {
       get<string>(KEY_AUTOCOMPLETE_MODEL) ??
       DEFAULT_PREFERENCES.autocompleteModelId,
     llamaCppBaseURL:
-      get<string>(KEY_LLAMA_CPP_BASE_URL) ?? DEFAULT_PREFERENCES.llamaCppBaseURL,
+      get<string>(KEY_LLAMA_CPP_BASE_URL) ??
+      DEFAULT_PREFERENCES.llamaCppBaseURL,
     llamaCppModelId:
       get<string>(KEY_LLAMA_CPP_MODEL_ID) ??
       DEFAULT_PREFERENCES.llamaCppModelId,
@@ -557,7 +562,13 @@ export async function loadPreferences(): Promise<Preferences> {
     autoApproveProjectArmed:
       get<boolean>(KEY_AUTO_APPROVE_PROJECT) ??
       DEFAULT_PREFERENCES.autoApproveProjectArmed,
+    hasOnboarded:
+      get<boolean>(KEY_HAS_ONBOARDED) ?? DEFAULT_PREFERENCES.hasOnboarded,
   };
+}
+
+export async function setHasOnboarded(): Promise<void> {
+  await writePref(KEY_HAS_ONBOARDED, true);
 }
 
 export async function setLspActivation(

@@ -106,6 +106,19 @@ export const zhMessages = {
     completionRetry: "重试",
     completionDegraded: "补全已自动停用",
   },
+  onboarding: {
+    title: "欢迎使用 Yamet",
+    subtitle: "AI 原生的终端与开发环境",
+    terminal: "多标签终端",
+    terminalDesc:
+      "原生 PTY，支持 zsh/bash/pwsh/fish，OSC 集成、块式输出与 AI 驱动。",
+    editor: "内置编辑器",
+    editorDesc: "CodeMirror 6，LSP 诊断与跳转、AI 补全、格式化。",
+    ai: "AI Agent",
+    aiDesc: "自带 API 密钥或完全本地模型，可驱动终端、编辑文件、管理 Git。",
+    getStarted: "开始使用",
+    skip: "跳过",
+  },
   sidebar: {
     explorer: "资源管理器",
     files: "文件",
@@ -1022,6 +1035,21 @@ export const enMessages = {
     completionFailed: "Autocomplete failed",
     completionRetry: "Retry",
     completionDegraded: "Autocomplete auto-disabled",
+  },
+  onboarding: {
+    title: "Welcome to Yamet",
+    subtitle: "An AI-native terminal and development environment",
+    terminal: "Multi-tab terminal",
+    terminalDesc:
+      "Native PTY with zsh/bash/pwsh/fish, OSC integration, block output and AI drive.",
+    editor: "Built-in editor",
+    editorDesc:
+      "CodeMirror 6 with LSP diagnostics and navigation, AI autocomplete, formatting.",
+    ai: "AI Agent",
+    aiDesc:
+      "Bring your own API keys or run fully local models — drive the terminal, edit files, manage Git.",
+    getStarted: "Get started",
+    skip: "Skip",
   },
   sidebar: {
     explorer: "Explorer",
