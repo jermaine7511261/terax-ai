@@ -3,6 +3,7 @@ import { buildEditTools } from "./edit";
 import { buildExternalAgentTools } from "./externalAgent";
 import { buildFsTools } from "./fs";
 import { buildGitTools } from "./git";
+import { buildMemoryTools } from "./memory";
 import { buildSearchTools } from "./search";
 import { buildShellTools } from "./shell";
 import { buildSubagentTools } from "./subagent";
@@ -41,6 +42,7 @@ export function buildTools(ctx: import("./context").ToolContext) {
     ...buildExternalAgentTools(ctx),
     ...buildTerminalTools(ctx),
     ...buildTodoTools(ctx),
+    ...buildMemoryTools(ctx),
     ...buildManagedAgentTools(ctx),
   } as const;
 }

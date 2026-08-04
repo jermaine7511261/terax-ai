@@ -59,6 +59,7 @@ const TOOL_META: Record<string, { label: string; icon: typeof File01Icon }> = {
   git_stage: { label: "Git stage", icon: FolderGitTwoIcon },
   git_commit: { label: "Git commit", icon: FolderGitTwoIcon },
   todo_write: { label: "Todos", icon: CheckListIcon },
+  update_project_memory: { label: "Project memory", icon: SparklesIcon },
 };
 
 const STATUS_DOT: Record<ToolPart["state"], string> = {
@@ -133,6 +134,8 @@ function deriveSummary(toolName: string, input: unknown): string | null {
         ? `${items.length} item${items.length === 1 ? "" : "s"}`
         : null;
     }
+    case "update_project_memory":
+      return str("entry");
     default:
       return null;
   }
