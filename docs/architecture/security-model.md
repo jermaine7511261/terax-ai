@@ -1,96 +1,96 @@
-# Security model
+# 安全模型
 
-This guide elaborates on `YAMET.md`. If anything here conflicts with `YAMET.md`, `YAMET.md` wins.
+本指南展开说明 `YAMET.md`。如有冲突，以 `YAMET.md` 为准。
 
-Yamet runs shells, reads and writes files, and sends data to AI providers. The security model is defense-in-depth: no single guard is enough, so every boundary validates input before acting on it.
+Yamet 运行 shell、读写文件、向 AI 提供商发数据。安全模型是纵深防御：单层守卫不够，所以每个边界都在行动前校验输入。
 
-## Boundaries
+## 边界
 
-The main trust boundaries are:
+主要信任边界：
 
-1. **IPC boundary** - commands registered in `src-tauri/src/lib.rs`, gated by `src-tauri/capabilities/default.json`.
-2. **File-system boundary** - AI tools go through `src/modules/ai/lib/security.ts`; PTY spawn goes through the workspace authorization registry.
-3. **Network boundary** - AI HTTP proxy in `src-tauri/src/modules/net.rs` with SSRF and DNS-rebinding defenses.
-4. **Secret-storage boundary** - keys live in the OS keychain, never on disk or in `localStorage`.
-5. **Terminal escape-sequence boundary** - OSC sequences are parsed and acted on, but never blindly trusted to mutate state.
+1. **IPC 边界**：注册在 `src-tauri/src/lib.rs` 的命令，经 `src-tauri/capabilities/default.json` 门控。
+2. **文件系统边界**：AI 工具走 `src/modules/ai/lib/security.ts`；PTY spawn 走工作区授权注册表。
+3. **网络边界**：`src-tauri/src/modules/net.rs` 的 AI HTTP 代理带 SSRF 与 DNS 重绑定防御。
+4. **密钥存储边界**：密钥在 OS 钥匙串，绝不着盘或进 `localStorage`。
+5. **终端转义序列边界**：OSC 序列被解析并执行动作，但绝不盲目信任来改状态。
 
-## Secret-path deny-list
+## 密钥路径拒绝名单
 
-`src/modules/ai/lib/security.ts` refuses reads and writes of obvious secret paths. This applies **on both read and write** and must never be bypassed.
+`src/modules/ai/lib/security.ts` 拒绝明显密钥路径的读写。**读写两侧**都生效，绝不可绕过。
 
-Blocked categories include:
+拦截类别包括：
 
-- Files: `.env*`, `*.pem`, `*.key`, `*.p12`, `id_rsa*`, `known_hosts`, `credentials`, `service-account*.json`, and similar.
-- Directories: `~/.ssh`, `~/.gnupg`, `~/.aws`, `~/.kube`, `~/.config/gh`, `~/.git`, system dirs (`/etc`, `/proc`, `/sys`), and Windows credential stores.
-- System write prefixes: `/etc/`, `/var/db/`, `/usr/bin/`, `/windows/`, `/program files/`, etc.
+- 文件：`.env*`、`*.pem`、`*.key`、`*.p12`、`id_rsa*`、`known_hosts`、`credentials`、`service-account*.json` 等。
+- 目录：`~/.ssh`、`~/.gnupg`、`~/.aws`、`~/.kube`、`~/.config/gh`、`~/.git`、系统目录（`/etc`、`/proc`、`/sys`）与 Windows 凭据存储。
+- 系统写前缀：`/etc/`、`/var/db/`、`/usr/bin/`、`/windows/`、`/program files/` 等。
 
-The comparison surface normalizes paths: backslashes to forward slashes, strips Windows drive letters, strips NTFS alternate data streams, strips trailing dots/spaces, lowercases, and collapses duplicate slashes. Protected directories are matched as exact path or descendant, not raw substring.
+比较面对路径做归一化：反斜杠转正斜杠、剥 Windows 盘符、剥 NTFS 备用数据流、剥尾点/空格、小写化、折叠重复斜杠。受保护目录按精确路径或后代匹配，而非裸子串。
 
-`checkReadableCanonical` and `checkWritableCanonical` also canonicalize the path and re-check the resolved form so a symlink at an innocent path pointing into `~/.ssh` is caught.
+`checkReadableCanonical` 与 `checkWritableCanonical` 还会规范化路径并复核解析后的形态，因此指向 `~/.ssh` 的无害路径上的符号链接也能被抓住。
 
-## Workspace authorization registry
+## 工作区授权注册表
 
-`WorkspaceRegistry` (`src-tauri/src/modules/workspace.rs:20`) tracks directories that PTY spawn, git commands, and AI tools are allowed to operate in.
+`WorkspaceRegistry`（`src-tauri/src/modules/workspace.rs:20`）跟踪 PTY spawn、git 命令与 AI 工具允许操作的目录。
 
-- `workspace_authorize` adds a directory.
-- `authorize_spawn_cwd` rejects a spawn cwd outside an authorized root.
-- `authorize_user_spawn_cwd` registers the user's chosen cwd as a new root instead of rejecting it.
-- The registry is bootstrapped with the launch directory and the user's home directory (`workspace.rs:135`).
+- `workspace_authorize` 添加目录。
+- `authorize_spawn_cwd` 拒绝授权根之外的 spawn cwd。
+- `authorize_user_spawn_cwd` 把用户选择的 cwd 登记为新根，而非拒绝。
+- 注册表以启动目录与用户 home 目录引导（`workspace.rs:135`）。
 
-This is the allow side of the file-system boundary. Any new feature that spawns a shell or mutates files outside the current workspace must interact with this registry.
+这是文件系统边界的允许侧。任何 spawn shell 或在当前工作区外变更文件的新功能都必须与此注册表交互。
 
-## AI tool approval flow
+## AI 工具审批流
 
-In `src/modules/ai/tools/tools.ts`:
+在 `src/modules/ai/tools/tools.ts`：
 
-- Read-only tools (`read_file`, `list_directory`, `grep`, `glob`) auto-execute after passing the deny-list.
-- Mutating tools (`write_file`, `edit`, `multi_edit`, `create_directory`, `run_command`, `shell_session_run`, `shell_bg_spawn`) set `needsApproval: true`. The AI SDK pauses and surfaces a `tool-approval-request` part rendered as a confirmation card.
-- `edit` / `multi_edit` enforce a read-before-edit invariant: the model must have read the file earlier in the session.
+- 只读工具（`read_file`、`list_directory`、`grep`、`glob`）过拒绝名单后自动执行。
+- 变更工具（`write_file`、`edit`、`multi_edit`、`create_directory`、`run_command`、`shell_session_run`、`shell_bg_spawn`）置 `needsApproval: true`。AI SDK 暂停并渲染为确认卡。
+- `edit` / `multi_edit` 强制先读后改不变量：模型必须在本会话早前读过该文件。
 
-Auto-send after approval uses `lastAssistantMessageIsCompleteWithApprovalResponses`.
+批准后自动发送用 `lastAssistantMessageIsCompleteWithApprovalResponses`。
 
-## SSRF and DNS rebinding defense
+## SSRF 与 DNS 重绑定防御
 
-`src-tauri/src/modules/net.rs` proxies AI provider requests and local-model pings. Before connecting:
+`src-tauri/src/modules/net.rs` 代理 AI 提供商请求与本地模型 ping。连接前：
 
-1. Resolve the hostname once (`resolve_and_classify`).
-2. Classify every resolved IP as public, private, loopback, or blocked metadata.
-3. Block cloud metadata endpoints (`169.254.169.254`, `metadata.google.internal`, AWS IPv6 metadata, etc.).
-4. Pin reqwest to the resolved IPs so a second DNS lookup cannot return a different address (DNS rebinding).
+1. 一次性解析主机名（`resolve_and_classify`）。
+2. 把每个解析出的 IP 分类为公网、私网、loopback 或拦截的元数据。
+3. 拦截云元数据端点（`169.254.169.254`、`metadata.google.internal`、AWS IPv6 元数据等）。
+4. 把 reqwest 钉到已解析 IP，使第二次 DNS 查询无法返回不同地址（DNS 重绑定）。
 
-Local LLM endpoints are explicitly allowed because the user opted in by pointing Yamet at them, but they are still classified and logged.
+本地 LLM 端点显式放行，因为用户主动把 Yamet 指向它们，但仍会被分类并记录日志。
 
-## Secret storage
+## 密钥存储
 
-API keys are stored via `secrets_*` commands (`src-tauri/src/modules/secrets.rs`):
+API 密钥经 `secrets_*` 命令存储（`src-tauri/src/modules/secrets.rs`）：
 
-- macOS: Keychain via `keyring`
-- Windows: Credential Manager via `keyring`
-- Linux: a JSON file in the app's local data dir with mode `0600` (atomic write to `.tmp` then rename)
+- macOS：经 `keyring` 的钥匙串
+- Windows：经 `keyring` 的凭据管理器
+- Linux：应用本地数据目录里的 JSON 文件，权限 `0600`（原子写 `.tmp` 后 rename）
 
-Service constant: `yamet-ai`. Keys never touch disk outside the keychain/Linux secrets file, never go in `localStorage`, and never appear in logs.
+服务常量：`yamet-ai`。密钥除钥匙串/Linux 密钥文件外绝不着盘，绝不进 `localStorage`，绝不进日志。
 
-## OSC trust gating
+## OSC 信任门控
 
-The terminal parses OSC sequences from the PTY byte stream:
+终端解析来自 PTY 字节流的 OSC 序列：
 
-- **OSC 7** updates the tab cwd.
-- **OSC 133 A/B/C/D** marks prompt/command boundaries.
-- **OSC 777** is used by the agent detector to signal coding-agent state transitions.
+- **OSC 7** 更新标签 cwd。
+- **OSC 133 A/B/C/D** 标记提示符/命令边界。
+- **OSC 777** 供 agent 检测器发编码 agent 状态转换。
 
-The agent detector (`src-tauri/src/modules/pty/agent_detect.rs`) is armed by `OSC 133;C;<cmd>` or by a self-armed marker and emits `yamet:agent-signal` events. It is driven **only by OSC sequences**, never by raw output, so a repainting TUI never flaps.
+agent 检测器（`src-tauri/src/modules/pty/agent_detect.rs`）由 `OSC 133;C;<cmd>` 或自武装标记触发，发出 `yamet:agent-signal` 事件。它**只由 OSC 序列驱动**，绝不凭原始输出，重绘 TUI 不会抖动。
 
-## Invariants
+## 不变量
 
-- The deny-list in `security.ts` applies on both read and write. Never bypass it.
-- New file-system-touching commands must respect the workspace authorization registry.
-- New network-facing commands must go through the `net.rs` proxy or reimplement the same classification and DNS pinning.
-- New plugin APIs must be added to `src-tauri/capabilities/default.json`.
-- Keys, tokens, and credentials stay in the keychain / Linux secrets file.
+- `security.ts` 的拒绝名单在读写两侧都生效。绝不绕过。
+- 触碰文件系统的新命令必须尊重工作区授权注册表。
+- 面向网络的新命令必须走 `net.rs` 代理，或重实现同样的分类与 DNS 钉扎。
+- 新插件 API 必须加到 `src-tauri/capabilities/default.json`。
+- 密钥、token 与凭据留在钥匙串 / Linux 密钥文件。
 
-## See also
+## 参见
 
-- [`YAMET.md`](../../YAMET.md) - the architecture source of truth
-- [`docs/README.md`](../README.md) - index of contributor guides
-- [Two-process model](two-process-model.md) - IPC boundary and command catalog
-- [AI subsystem](ai-subsystem.md) - tools, approval flow, and provider handling
+- [`YAMET.md`](../../YAMET.md)：架构事实来源
+- [`docs/README.md`](../README.md)：贡献者指南索引
+- [双进程模型](two-process-model.md)：IPC 边界与命令目录
+- [AI 子系统](ai-subsystem.md)：工具、审批流与提供商处理

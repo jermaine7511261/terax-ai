@@ -26,9 +26,11 @@ import {
   AlertCircleIcon,
   ArrowDown01Icon,
   Cancel01Icon,
+  Clock01Icon,
   Delete02Icon,
   Edit01Icon,
   FilterIcon,
+  Search01Icon,
   TerminalIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -186,6 +188,8 @@ function Body({
 }) {
   const focusInput = useChatStore((s) => s.focusInput);
   const step = useChatStore((s) => s.agentMeta.step);
+  const switchSession = useChatStore((s) => s.switchSession);
+  const [showHistory, setShowHistory] = useState(false);
 
   const chat = useMemo(() => getOrCreateChat(sessionId), [sessionId]);
   const helpers = useChat<UIMessage>({ chat });
@@ -214,13 +218,23 @@ function Body({
         onClose={onClose}
         onExpand={onExpand}
         messages={helpers.messages}
+        showHistory={showHistory}
+        onToggleHistory={() => setShowHistory((v) => !v)}
         onHeaderPointerDown={onHeaderPointerDown}
       />
 
       <PlanModeStrip />
 
       <div className="flex min-h-0 flex-1 flex-col">
-        {helpers.messages.length === 0 ? (
+        {showHistory ? (
+          <HistoryPanel
+            onClose={() => setShowHistory(false)}
+            onSwitch={(id) => {
+              switchSession(id);
+              setShowHistory(false);
+            }}
+          />
+        ) : helpers.messages.length === 0 ? (
           <EmptyState onPick={focusInput} />
         ) : (
           <div className="flex min-h-0 flex-1 flex-col [&_.text-sm]:text-[12px] [&_p]:leading-relaxed">
@@ -295,6 +309,8 @@ function Header({
   isBusy,
   onClose,
   messages,
+  showHistory,
+  onToggleHistory,
   onHeaderPointerDown,
 }: {
   step: string | null;
@@ -302,6 +318,8 @@ function Header({
   onClose: () => void;
   onExpand: () => void;
   messages?: UIMessage[];
+  showHistory?: boolean;
+  onToggleHistory?: () => void;
   onHeaderPointerDown: (e: React.PointerEvent) => void;
 }) {
   const { t } = useI18n();
@@ -327,6 +345,17 @@ function Header({
           </span>
         ) : null}
         <SessionPicker />
+        <button
+          type="button"
+          onClick={onToggleHistory}
+          title={t("ai.history")}
+          className={cn(
+            "flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
+            showHistory && "bg-accent text-foreground",
+          )}
+        >
+          <HugeiconsIcon icon={Clock01Icon} size={12} strokeWidth={1.75} />
+        </button>
         <Button
           type="button"
           size="icon"
@@ -600,6 +629,205 @@ function SessionRow({
         <HugeiconsIcon icon={Delete02Icon} size={11} strokeWidth={1.75} />
       </button>
     </DropdownMenuItem>
+  );
+}
+
+function dayKey(ts: number): string {
+  const d = new Date(ts);
+  const today = new Date();
+  const startOf = (x: Date) =>
+    new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diff = Math.round((startOf(today) - startOf(d)) / 86_400_000);
+  if (diff <= 0) return "Today";
+  if (diff === 1) return "Yesterday";
+  return d.toLocaleDateString();
+}
+
+function timeLabel(ts: number): string {
+  const min = Math.floor((Date.now() - ts) / 60_000);
+  if (min < 1) return "now";
+  if (min < 60) return `${min}m`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `${h}h`;
+  const d = Math.floor(h / 24);
+  if (d < 7) return `${d}d`;
+  return new Date(ts).toLocaleDateString();
+}
+
+function HistoryPanel({
+  onClose,
+  onSwitch,
+}: {
+  onClose: () => void;
+  onSwitch: (id: string) => void;
+}) {
+  const { t } = useI18n();
+  const sessions = useChatStore((s) => s.sessions);
+  const activeId = useChatStore((s) => s.activeSessionId);
+  const deleteSession = useChatStore((s) => s.deleteSession);
+  const renameSession = useChatStore((s) => s.renameSession);
+  const [query, setQuery] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  const groups = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const sorted = [...sessions].sort((a, b) => b.updatedAt - a.updatedAt);
+    const filtered = q
+      ? sorted.filter((s) => (s.title || "").toLowerCase().includes(q))
+      : sorted;
+    const map = new Map<string, SessionMeta[]>();
+    for (const s of filtered) {
+      const key = dayKey(s.updatedAt);
+      const arr = map.get(key);
+      if (arr) arr.push(s);
+      else map.set(key, [s]);
+    }
+    return [...map.entries()];
+  }, [sessions, query]);
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex shrink-0 items-center gap-1.5 border-b border-border/40 px-3 py-2">
+        <HugeiconsIcon
+          icon={Search01Icon}
+          size={12}
+          strokeWidth={1.75}
+          className="shrink-0 text-muted-foreground"
+        />
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={t("ai.historySearch")}
+          className="min-w-0 flex-1 bg-transparent text-[12px] outline-none placeholder:text-muted-foreground/60"
+        />
+        <button
+          type="button"
+          onClick={onClose}
+          title={t("ai.closeEsc")}
+          className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        >
+          <HugeiconsIcon icon={Cancel01Icon} size={11} strokeWidth={1.75} />
+        </button>
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto px-2 py-1.5">
+        {groups.length === 0 ? (
+          <div className="py-8 text-center text-[11.5px] text-muted-foreground">
+            {t("ai.historyEmpty")}
+          </div>
+        ) : (
+          groups.map(([label, list]) => (
+            <div key={label} className="mb-2">
+              <div className="px-1.5 py-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground/60">
+                {label}
+              </div>
+              {list.map((s) => (
+                <HistoryRow
+                  key={s.id}
+                  session={s}
+                  active={s.id === activeId}
+                  editing={editingId === s.id}
+                  onSelect={() => onSwitch(s.id)}
+                  onRename={() => setEditingId(s.id)}
+                  onCommitRename={(value) => {
+                    const trimmed = value.trim();
+                    if (trimmed && trimmed !== s.title) {
+                      renameSession(s.id, trimmed);
+                    }
+                    setEditingId(null);
+                  }}
+                  onCancelRename={() => setEditingId(null)}
+                  onDelete={() => deleteSession(s.id)}
+                />
+              ))}
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+function HistoryRow({
+  session,
+  active,
+  editing,
+  onSelect,
+  onRename,
+  onCommitRename,
+  onCancelRename,
+  onDelete,
+}: {
+  session: SessionMeta;
+  active: boolean;
+  editing: boolean;
+  onSelect: () => void;
+  onRename: () => void;
+  onCommitRename: (value: string) => void;
+  onCancelRename: () => void;
+  onDelete: () => void;
+}) {
+  const { t } = useI18n();
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={editing ? undefined : onSelect}
+      onKeyDown={(e) => {
+        if (editing) return;
+        if (e.key === "Enter") {
+          e.preventDefault();
+          onSelect();
+        }
+      }}
+      className={cn(
+        "group flex cursor-pointer items-center gap-2 rounded-md px-1.5 py-1.5 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-primary/40",
+        active ? "bg-accent" : "hover:bg-accent/50",
+      )}
+    >
+      {editing ? (
+        <div className="min-w-0 flex-1">
+          <InlineInput
+            initial={session.title || ""}
+            placeholder={t("ai.sessionTitlePlaceholder")}
+            onCommit={onCommitRename}
+            onCancel={onCancelRename}
+          />
+        </div>
+      ) : (
+        <>
+          <span className="min-w-0 flex-1 truncate text-[12px] text-foreground">
+            {session.title || "New chat"}
+          </span>
+          <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground/50">
+            {timeLabel(session.updatedAt)}
+          </span>
+          <div className="hidden shrink-0 items-center gap-0.5 group-hover:flex">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRename();
+              }}
+              title={t("ai.renameSession")}
+              className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            >
+              <HugeiconsIcon icon={Edit01Icon} size={11} strokeWidth={1.75} />
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete();
+              }}
+              title={t("ai.deleteSession")}
+              className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+            >
+              <HugeiconsIcon icon={Delete02Icon} size={11} strokeWidth={1.75} />
+            </button>
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 

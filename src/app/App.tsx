@@ -212,6 +212,7 @@ export default function App() {
     launchCwdResolved,
     switchWorkspace,
     adoptWorkspaceEnv,
+    openFolder,
   } = useWorkspaceSwitcher({
     tabsRef,
     workspaceEnv,
@@ -1203,6 +1204,7 @@ export default function App() {
             searchTarget,
             explorerRoot,
             home,
+            openFolder,
             openNewTab,
             openNewBlock: openNewBlockTab,
             openNewPrivate: openNewPrivateTab,
@@ -1234,6 +1236,7 @@ export default function App() {
       searchTarget,
       explorerRoot,
       home,
+      openFolder,
       openNewTab,
       openNewBlockTab,
       openNewPrivateTab,

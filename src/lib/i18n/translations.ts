@@ -434,6 +434,9 @@ export const zhMessages = {
       test: "查找并运行相关测试",
       fix: "修复最近的错误",
     },
+    history: "对话历史",
+    historySearch: "搜索对话…",
+    historyEmpty: "还没有历史对话。",
   },
   updater: {
     checkForUpdates: "检查更新",
@@ -1368,6 +1371,9 @@ export const enMessages = {
       test: "Find and run relevant tests",
       fix: "Fix the most recent error",
     },
+    history: "Chat history",
+    historySearch: "Search conversations…",
+    historyEmpty: "No conversations yet.",
   },
   agents: {
     agents: "Agents",

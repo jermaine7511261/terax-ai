@@ -1,56 +1,56 @@
-# Two-process model and IPC command reference
+# 双进程模型与 IPC 命令参考
 
-This guide elaborates on `YAMET.md`. If anything here conflicts with `YAMET.md`, `YAMET.md` wins.
+本指南展开说明 `YAMET.md`。如有冲突，以 `YAMET.md` 为准。
 
-## The split
+## 分工
 
-Yamet is two processes: the Rust backend (`src-tauri/`) and the webview frontend (`src/`).
+Yamet 是两个进程：Rust 后端（`src-tauri/`）与 webview 前端（`src/`）。
 
-- **Rust owns all OS access**: PTY, file system, git, shell spawn, network, secrets, workspace authorization.
-- **The webview never touches the FS, processes, or shells directly**. Every host operation goes through an `invoke()` call to a command registered in `src-tauri/src/lib.rs`.
+- **Rust 持有全部 OS 访问**：PTY、文件系统、git、shell 启动、网络、密钥、工作区授权。
+- **webview 绝不直接碰 FS、进程或 shell**。每个宿主操作都经 `invoke()` 调用注册在 `src-tauri/src/lib.rs` 的命令。
 
-This boundary is the root of the security model. Untrusted input (terminal escape sequences, file content, AI tool results) is parsed and validated in Rust or in carefully scoped frontend code, never executed by the renderer.
+这个边界是安全模型的根基。不可信输入（终端转义序列、文件内容、AI 工具结果）在 Rust 或经过仔细限定的前端代码里解析与校验，绝不由渲染器执行。
 
-## Adding a new IPC command
+## 新增 IPC 命令
 
-1. Write the `#[tauri::command]` async function in the appropriate `src-tauri/src/modules/<area>/` module.
-2. Register it in `src-tauri/src/lib.rs` inside the `tauri::generate_handler![...]` block (`src-tauri/src/lib.rs:191`).
-3. If the command uses a Tauri plugin API (window, clipboard, dialog, etc.), add the plugin permission to `src-tauri/capabilities/default.json`.
-4. Add a typed frontend wrapper in the matching `src/modules/<area>/lib/` directory and call it through Tauri's `invoke()` API.
-5. If the command touches the file system, network, or shell, it must go through the existing guards (`security.ts` deny-list, workspace authorization registry, SSRF guard, AI tool approval).
+1. 在对应的 `src-tauri/src/modules/<area>/` 模块里写 `#[tauri::command]` async 函数。
+2. 在 `src-tauri/src/lib.rs` 的 `tauri::generate_handler![...]` 块中注册（`src-tauri/src/lib.rs:191`）。
+3. 若命令使用 Tauri 插件 API（window、clipboard、dialog 等），把插件权限加到 `src-tauri/capabilities/default.json`。
+4. 在对应的 `src/modules/<area>/lib/` 目录加类型化前端包装，经 Tauri 的 `invoke()` API 调用。
+5. 若命令触碰文件系统、网络或 shell，必须走既有守卫（`security.ts` 拒绝名单、工作区授权注册表、SSRF 守卫、AI 工具审批）。
 
-Custom commands do not need to be listed one-by-one in `default.json`; the capability covers the window. Plugin permissions do.
+自定义命令无需在 `default.json` 里逐条列出；能力覆盖整个窗口。插件权限需要。
 
-## Command catalog
+## 命令目录
 
-The commands registered in `src-tauri/src/lib.rs` are grouped below by module. Names are the Rust function names as seen by the frontend.
+以下命令按模块分组，均注册于 `src-tauri/src/lib.rs`。名称是前端看到的 Rust 函数名。
 
-### PTY (`src-tauri/src/modules/pty/`)
+### PTY（`src-tauri/src/modules/pty/`）
 
-Long-lived interactive terminal sessions.
+长生命周期交互式终端会话。
 
-- `pty_open` - create a new PTY session
-- `pty_write` - send input bytes (text or control sequences)
-- `pty_resize` - resize the PTY
-- `pty_close` / `pty_close_all` - destroy one or all sessions
-- `pty_has_foreground_process` / `pty_has_foreground_job` - detect whether a command is running
-- `pty_shell_name` / `pty_list_shells` - shell detection and enumeration
+- `pty_open`：新建 PTY 会话
+- `pty_write`：发送输入字节（文本或控制序列）
+- `pty_resize`：调整 PTY 尺寸
+- `pty_close` / `pty_close_all`：销毁一个或全部会话
+- `pty_has_foreground_process` / `pty_has_foreground_job`：检测是否有命令在运行
+- `pty_shell_name` / `pty_list_shells`：shell 检测与枚举
 
-Output streams from `pty_open` via a Tauri `Channel<PtyEvent>`.
+`pty_open` 的输出经 Tauri `Channel<PtyEvent>` 流式推送。
 
-### File system (`src-tauri/src/modules/fs/`)
+### 文件系统（`src-tauri/src/modules/fs/`）
 
 #### Tree
 
-- `list_subdirs` - list subdirectories
-- `fs_read_dir` - read a directory
+- `list_subdirs`：列子目录
+- `fs_read_dir`：读目录
 
 #### File
 
-- `fs_read_file` - read file contents
-- `fs_write_file` - write file contents
-- `fs_stat` - file metadata
-- `fs_canonicalize` - canonical path
+- `fs_read_file`：读文件内容
+- `fs_write_file`：写文件内容
+- `fs_stat`：文件元数据
+- `fs_canonicalize`：规范路径
 
 #### Mutate
 
@@ -59,22 +59,22 @@ Output streams from `pty_open` via a Tauri `Channel<PtyEvent>`.
 
 #### Watch
 
-- `fs_watch_add` / `fs_watch_remove` - filesystem change notifications
+- `fs_watch_add` / `fs_watch_remove`：文件系统变更通知
 
 #### Search
 
-- `fs_search` - fuzzy file finder
-- `fs_list_files` - recursive file listing
+- `fs_search`：模糊文件查找
+- `fs_list_files`：递归文件列表
 
 #### Grep
 
-- `fs_grep` - content search
-- `fs_grep_interactive` - interactive content search
-- `fs_glob` - glob matching
+- `fs_grep`：内容搜索
+- `fs_grep_interactive`：交互式内容搜索
+- `fs_glob`：glob 匹配
 
-### Git (`src-tauri/src/modules/git/`)
+### Git（`src-tauri/src/modules/git/`）
 
-All git commands are gated through the workspace authorization registry.
+所有 git 命令都经工作区授权注册表门控。
 
 - `git_resolve_repo` / `git_panel_snapshot`
 - `git_status`
@@ -86,50 +86,50 @@ All git commands are gated through the workspace authorization registry.
 - `git_remote_url`
 - `git_list_branches` / `git_checkout_branch`
 
-### Shell (`src-tauri/src/modules/shell/`)
+### Shell（`src-tauri/src/modules/shell/`）
 
-Three distinct surfaces:
+三个截然不同的面：
 
-- `shell_run_command` - one-shot subshell exec for AI tools
-- `shell_session_open` / `shell_session_run` / `shell_session_close` - persistent agent shell with state across calls
-- `shell_bg_spawn` / `shell_bg_logs` / `shell_bg_kill` / `shell_bg_list` - long-running background processes with bounded ring-buffer log capture
+- `shell_run_command`：AI 工具用的一次性子 shell 执行
+- `shell_session_open` / `shell_session_run` / `shell_session_close`：跨调用保留状态的持久 agent shell
+- `shell_bg_spawn` / `shell_bg_logs` / `shell_bg_kill` / `shell_bg_list`：带有限环形缓冲日志捕获的后台进程
 
-### Workspace (`src-tauri/src/modules/workspace.rs`)
+### 工作区（`src-tauri/src/modules/workspace.rs`）
 
-- `workspace_authorize` / `workspace_current_dir` - the spawn/git/AI cwd authorization registry
-- `wsl_list_distros` / `wsl_default_distro` / `wsl_home` - WSL bridge
+- `workspace_authorize` / `workspace_current_dir`：spawn/git/AI 的 cwd 授权注册表
+- `wsl_list_distros` / `wsl_default_distro` / `wsl_home`：WSL 桥
 
-### Network (`src-tauri/src/modules/net.rs`)
+### 网络（`src-tauri/src/modules/net.rs`）
 
-- `ai_http_request` / `ai_http_stream` - AI HTTP proxy with SSRF guard
-- `lm_ping` - local-model ping
+- `ai_http_request` / `ai_http_stream`：带 SSRF 守卫的 AI HTTP 代理
+- `lm_ping`：本地模型 ping
 
-### Secrets (`src-tauri/src/modules/secrets.rs`)
+### 密钥（`src-tauri/src/modules/secrets.rs`）
 
-- `secrets_get` / `secrets_set` / `secrets_delete` / `secrets_get_all` - OS keychain access, service `yamet-ai`
+- `secrets_get` / `secrets_set` / `secrets_delete` / `secrets_get_all`：OS 钥匙串访问，服务 `yamet-ai`
 
-### Agent hooks (`src-tauri/src/modules/agent.rs`)
+### Agent hooks（`src-tauri/src/modules/agent.rs`）
 
-- `agent_enable_hooks` / `agent_hooks_status` - install/status terminal coding-agent hooks (Claude Code, Codex, Gemini CLI)
+- `agent_enable_hooks` / `agent_hooks_status`：安装/查询终端编码 agent hooks（Claude Code、Codex、Gemini CLI）
 
-### History (`src-tauri/src/modules/history/`)
+### 历史（`src-tauri/src/modules/history/`）
 
-- `history_suggest` / `history_commands` / `history_record` / `history_list` - shell history integration
+- `history_suggest` / `history_commands` / `history_record` / `history_list`：shell 历史集成
 
-### Settings window
+### 设置窗口
 
-- `get_launch_dir` - CLI launch directory, drained on first read
-- `open_settings_window` - open the separate settings webview (optional `tab` deep-link)
+- `get_launch_dir`：CLI 启动目录，首次读取即清空
+- `open_settings_window`：打开独立设置 webview（可选 `tab` 深链）
 
-## Invariants
+## 不变量
 
-- The webview must not spawn processes, read files, or make network calls except through the commands above.
-- New commands must be registered in `lib.rs` and guarded at the boundary (workspace auth, deny-list, SSRF, approval flow).
-- Plugin permissions must be added to `src-tauri/capabilities/default.json` if the command uses a plugin API.
+- webview 不得经上述命令之外的途径 spawn 进程、读文件或发网络请求。
+- 新命令必须在 `lib.rs` 注册，并在边界加守卫（工作区认证、拒绝名单、SSRF、审批流）。
+- 命令使用插件 API 时，插件权限必须加到 `src-tauri/capabilities/default.json`。
 
-## See also
+## 参见
 
-- [`YAMET.md`](../../YAMET.md) - the architecture source of truth
-- [`docs/README.md`](../README.md) - index of contributor guides
-- [PTY shell integration](pty-shell-integration.md) - how sessions and shell integration work
-- [Security model](security-model.md) - the boundaries every command must respect
+- [`YAMET.md`](../../YAMET.md)：架构事实来源
+- [`docs/README.md`](../README.md)：贡献者指南索引
+- [PTY shell 集成](pty-shell-integration.md)：会话与 shell 集成如何工作
+- [安全模型](security-model.md)：每条命令都必须遵守的边界

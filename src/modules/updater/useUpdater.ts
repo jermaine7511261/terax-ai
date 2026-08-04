@@ -87,6 +87,11 @@ export function useUpdater({ autoCheck = true }: HookOptions = {}) {
   const [status, setStatus] = useState<UpdaterStatus>({ kind: "idle" });
 
   const runCheck = useCallback(async ({ manual }: Options = {}) => {
+    if (!GITHUB_LATEST_RELEASE && !manual) {
+      // No release source configured yet (pre-first-release): stay silent on
+      // automatic checks; the manual button still runs to surface a clear error.
+      return;
+    }
     if (!manual) {
       const last = Number(localStorage.getItem(LAST_CHECK_KEY) ?? 0);
       if (Date.now() - last < CHECK_INTERVAL_MS) return;

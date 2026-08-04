@@ -6,6 +6,7 @@ import {
   DashboardSquare01Icon,
   FileEditIcon,
   FileSearchIcon,
+  Folder01Icon,
   Globe02Icon,
   IncognitoIcon,
   KeyboardIcon,
@@ -38,6 +39,7 @@ export type CommandPaletteActionContext = {
   searchTarget: SearchTarget;
   explorerRoot: string | null;
   home: string | null;
+  openFolder: () => void;
   openNewTab: () => void;
   openNewBlock: () => void;
   openNewPrivate: () => void;
@@ -91,6 +93,14 @@ export function createCommandItems(
       icon: Settings01Icon,
       shortcutId: "settings.open",
       run: ctx.openSettings,
+    },
+    {
+      id: "workspace.openFolder",
+      title: "Open folder as workspace...",
+      group: "General",
+      keywords: ["workspace", "folder", "directory", "open", "choose", "project"],
+      icon: Folder01Icon,
+      run: ctx.openFolder,
     },
     {
       id: "theme.pick",

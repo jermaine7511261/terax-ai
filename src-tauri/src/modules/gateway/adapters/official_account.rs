@@ -19,7 +19,7 @@ use crate::modules::gateway::adapter::{
     ChatTarget, EventTx, PlatformAdapter, SendReceipt, SendResult,
 };
 use crate::modules::gateway::crypto::{constant_time_eq, sha1_hex};
-use crate::modules::gateway::message::{ChatType, MessageEvent};
+use crate::modules::gateway::message::{ChatType, MediaItem, MediaKind, MessageEvent};
 use crate::modules::gateway::platform::PlatformId;
 use base64::Engine;
 
@@ -350,6 +350,8 @@ fn parse_oa_message(xml: &str) -> Result<MessageEvent, String> {
     let msg_type = get("MsgType");
     let content = get("Content");
     let msg_id = get("MsgId");
+    let media_id = get("MediaId");
+    let pic_url = get("PicUrl");
     Ok(MessageEvent {
         platform: PlatformId::OfficialAccount,
         chat_type: ChatType::Dm,
@@ -358,8 +360,70 @@ fn parse_oa_message(xml: &str) -> Result<MessageEvent, String> {
         text: if msg_type == "text" { Some(content) } else { None },
         message_id: if msg_id.is_empty() { None } else { Some(msg_id) },
         reply_to: None,
-        media: Vec::new(),
+        media: build_media(&msg_type, &media_id, &pic_url),
         raw: serde_json::json!({ "xml": xml }),
         timestamp: Utc::now(),
     })
+}
+
+/// Build a media item for a non-text callback message. `PicUrl` (image) is
+/// directly fetchable; `MediaId` requires the platform `media/get` API, so the
+/// raw id is carried in `url` for the consumer to resolve.
+fn build_media(msg_type: &str, media_id: &str, pic_url: &str) -> Vec<MediaItem> {
+    if msg_type == "text" {
+        return Vec::new();
+    }
+    let kind = match msg_type {
+        "image" => MediaKind::Image,
+        "voice" => MediaKind::Voice,
+        "video" => MediaKind::Video,
+        "file" => MediaKind::File,
+        _ => return Vec::new(),
+    };
+    let url = if !pic_url.is_empty() {
+        pic_url.to_string()
+    } else if !media_id.is_empty() {
+        media_id.to_string()
+    } else {
+        return Vec::new();
+    };
+    vec![MediaItem {
+        kind,
+        url: Some(url),
+        name: None,
+        size: None,
+        encrypted_query: None,
+        local_path: None,
+    }]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn build_media_text_is_empty() {
+        assert!(build_media("text", "m1", "").is_empty());
+    }
+
+    #[test]
+    fn build_media_prefers_pic_url_over_media_id() {
+        let media = build_media("image", "media-1", "https://x/p.png");
+        assert_eq!(media.len(), 1);
+        assert_eq!(media[0].kind, MediaKind::Image);
+        assert_eq!(media[0].url.as_deref(), Some("https://x/p.png"));
+    }
+
+    #[test]
+    fn build_media_falls_back_to_media_id() {
+        let media = build_media("voice", "media-2", "");
+        assert_eq!(media.len(), 1);
+        assert_eq!(media[0].kind, MediaKind::Voice);
+        assert_eq!(media[0].url.as_deref(), Some("media-2"));
+    }
+
+    #[test]
+    fn build_media_unknown_type_is_empty() {
+        assert!(build_media("event", "", "").is_empty());
+    }
 }

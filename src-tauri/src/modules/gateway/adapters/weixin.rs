@@ -33,7 +33,7 @@ use tokio::task::JoinHandle;
 use crate::modules::gateway::adapter::{
     ChatTarget, EventTx, PlatformAdapter, SendReceipt, SendResult,
 };
-use crate::modules::gateway::message::{ChatType, MediaItem, MessageEvent};
+use crate::modules::gateway::message::{ChatType, MediaItem, MediaKind, MessageEvent};
 use crate::modules::gateway::platform::PlatformId;
 
 // --- iLink protocol constants (mirror weixin.py) ----------------------------
@@ -444,6 +444,37 @@ fn extract_text(item_list: &Value) -> String {
     String::new()
 }
 
+/// Extract media items from `item_list`. iLink image items (`type` 2) carry
+/// the payload in `image_item.image`, which is a base64 blob or an http url
+/// depending on the server build.
+fn extract_media(item_list: &Value) -> Vec<MediaItem> {
+    let mut out = Vec::new();
+    if let Some(items) = item_list.as_array() {
+        for item in items {
+            let ty = item.get("type").and_then(Value::as_i64);
+            if ty != Some(2) {
+                continue;
+            }
+            let img = item
+                .pointer("/image_item/image")
+                .and_then(Value::as_str)
+                .unwrap_or("");
+            if img.is_empty() {
+                continue;
+            }
+            out.push(MediaItem {
+                kind: MediaKind::Image,
+                url: Some(img.to_string()),
+                name: None,
+                size: None,
+                encrypted_query: None,
+                local_path: None,
+            });
+        }
+    }
+    out
+}
+
 // --- Config + adapter --------------------------------------------------------
 
 /// Weixin configuration. `token`/`account_id` come from a successful QR login
@@ -613,8 +644,10 @@ impl WeixinAdapter {
         }
 
         let (chat_type, chat_id) = guess_chat_type(message, account_id);
-        let text = extract_text(&message.get("item_list").cloned().unwrap_or(Value::Null));
-        if text.is_empty() {
+        let item_list = &message.get("item_list").cloned().unwrap_or(Value::Null);
+        let text = extract_text(item_list);
+        let media = extract_media(item_list);
+        if text.is_empty() && media.is_empty() {
             return;
         }
 
@@ -623,10 +656,10 @@ impl WeixinAdapter {
             chat_type,
             chat_id,
             sender_id,
-            text: Some(text),
+            text: if text.is_empty() { None } else { Some(text) },
             message_id: if message_id.is_empty() { None } else { Some(message_id) },
             reply_to: None,
-            media: Vec::<MediaItem>::new(),
+            media,
             raw: message.clone(),
             timestamp: Utc::now(),
         };
@@ -1109,5 +1142,24 @@ mod tests {
         assert_eq!(classify_qr_status("scaned"), QrStatus::Scanned);
         assert_eq!(classify_qr_status("wait"), QrStatus::Waiting);
         assert_eq!(classify_qr_status("unknown"), QrStatus::Waiting);
+    }
+
+    #[test]
+    fn extract_media_picks_image_items() {
+        let items = json!([
+            { "type": 1, "text_item": { "text": "hi" } },
+            { "type": 2, "image_item": { "image": "https://x/img.png" } },
+        ]);
+        let media = extract_media(&items);
+        assert_eq!(media.len(), 1);
+        assert_eq!(media[0].kind, MediaKind::Image);
+        assert_eq!(media[0].url.as_deref(), Some("https://x/img.png"));
+    }
+
+    #[test]
+    fn extract_media_ignores_text_and_empty_image() {
+        assert!(extract_media(&json!([{ "type": 1, "text_item": { "text": "x" } }])).is_empty());
+        assert!(extract_media(&json!([{ "type": 2, "image_item": { "image": "" } }])).is_empty());
+        assert!(extract_media(&json!([])).is_empty());
     }
 }

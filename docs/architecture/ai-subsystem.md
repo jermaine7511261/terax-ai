@@ -1,97 +1,97 @@
-# AI subsystem
+# AI 子系统
 
-This guide elaborates on `YAMET.md`. If anything here conflicts with `YAMET.md`, `YAMET.md` wins.
+本指南展开说明 `YAMET.md`。如有冲突，以 `YAMET.md` 为准。
 
-## Overview
+## 概览
 
-The AI subsystem is BYOK (bring your own key). It supports cloud providers via `@ai-sdk/*` and local / offline providers via OpenAI-compatible endpoints. The agent layer is built on Vercel AI SDK v6 chat semantics: `streamText`, tool definitions, and `stopWhen` step limits.
+AI 子系统是 BYOK（自带密钥）。云端提供商经 `@ai-sdk/*`，本地/离线提供商经 OpenAI 兼容端点。agent 层构建在 Vercel AI SDK v6 聊天语义上：`streamText`、工具定义与 `stopWhen` 步数上限。
 
-Main entry point: `runAgentStream` in `src/modules/ai/lib/agent.ts`.
+主入口：`src/modules/ai/lib/agent.ts` 的 `runAgentStream`。
 
-## Providers
+## 提供商
 
-Cloud providers are defined in `src/modules/ai/config.ts`:
+云端提供商定义在 `src/modules/ai/config.ts`：
 
-- OpenAI, Anthropic, Google, xAI, Cerebras, Groq, DeepSeek, Mistral, OpenRouter
-- `openai-compatible` for any custom base URL
-- Local: LM Studio, MLX, Ollama
+- OpenAI、Anthropic、Google、xAI、Cerebras、Groq、DeepSeek、Mistral、OpenRouter
+- `openai-compatible`：任意自定义 base URL
+- 本地：LM Studio、MLX、Ollama
 
-`buildLanguageModel` in `src/modules/ai/lib/agent.ts:76` branches on `provider` to construct the correct AI SDK provider instance. Local providers use `createOpenAICompatible` with a `localProxyFetch` that allows private-network access, while cloud providers use their dedicated SDK constructors.
+`src/modules/ai/lib/agent.ts:76` 的 `buildLanguageModel` 按 `provider` 分支构造正确的 AI SDK 提供商实例。本地提供商用带 `localProxyFetch` 的 `createOpenAICompatible`（允许私网访问），云端提供商用各自专属的 SDK 构造器。
 
-Model metadata (context limits, costs, reasoning behavior) lives in the model registry in `config.ts`. `resolveModel` maps a model id to its provider and defaults.
+模型元数据（上下文上限、成本、推理行为）在 `config.ts` 的模型注册表里。`resolveModel` 把模型 id 映射到其提供商与默认值。
 
-### Adding a new provider
+### 新增提供商
 
-1. Add a `ProviderInfo` entry to `PROVIDERS` in `src/modules/ai/config.ts`.
-2. Add model ids and metadata to the model registry in the same file.
-3. Add a branch in `buildLanguageModel` (`src/modules/ai/lib/agent.ts:99`) that constructs the provider instance. For OpenAI-compatible APIs you can often reuse `createOpenAICompatible`.
-4. If the provider requires an API key, update `providerNeedsKey` in `config.ts` and the keyring service mapping.
-5. If it needs a dedicated `@ai-sdk/*` package, add it to `package.json` and justify the bundle cost (see `CONTRIBUTING.md`).
-6. New built-ins must justify unique value beyond `openai-compatible` and OpenRouter; `CONTRIBUTING.md` calls this out explicitly.
+1. 在 `src/modules/ai/config.ts` 的 `PROVIDERS` 加 `ProviderInfo` 条目。
+2. 在同一个文件的模型注册表加模型 id 与元数据。
+3. 在 `buildLanguageModel`（`src/modules/ai/lib/agent.ts:99`）加构造提供商实例的分支。OpenAI 兼容 API 通常可复用 `createOpenAICompatible`。
+4. 提供商需要 API 密钥时，更新 `config.ts` 的 `providerNeedsKey` 与 keyring 服务映射。
+5. 需要专属 `@ai-sdk/*` 包时，加到 `package.json` 并论证打包成本（见 `CONTRIBUTING.md`）。
+6. 新增内置提供商必须论证超出 `openai-compatible` 与 OpenRouter 的独特价值；`CONTRIBUTING.md` 已明确这点。
 
-Keys are never persisted outside the OS keychain / Linux secrets file.
+密钥除 OS 钥匙串 / Linux 密钥文件外绝不持久化。
 
-## Agent run loop
+## Agent 运行循环
 
-`runAgentStream` (`agent.ts:391`):
+`runAgentStream`（`agent.ts:391`）：
 
-1. Resolves the model via `buildConfiguredLanguageModel`.
-2. Builds a stable system prompt from `selectSystemPrompt(modelId)` plus optional persona, custom instructions, and `YAMET.md` project memory.
-3. Converts UI messages to model messages, prunes reasoning content if the model does not keep it, and compacts old messages if the context limit is exceeded.
-4. Streams via `streamText` with the tool set from `buildTools(ctx)` and `stopWhen: stepCountIs(MAX_AGENT_STEPS)`.
-5. Emits step labels, usage deltas, and finish metadata.
+1. 经 `buildConfiguredLanguageModel` 解析模型。
+2. 由 `selectSystemPrompt(modelId)` 加可选人设、自定义指令与 `YAMET.md` 项目记忆构建稳定系统提示词。
+3. 把 UI 消息转成模型消息，模型不保留推理时修剪 reasoning 内容，超上下文上限时压缩旧消息。
+4. 用 `buildTools(ctx)` 的工具集与 `stopWhen: stepCountIs(MAX_AGENT_STEPS)` 经 `streamText` 流式输出。
+5. 发出步骤标签、用量增量与结束元数据。
 
-The tool set is assembled in `src/modules/ai/tools/tools.ts` from `fs`, `edit`, `search`, `shell`, `subagent`, `terminal`, `todo`, and `managedAgent` builders.
+工具集在 `src/modules/ai/tools/tools.ts` 由 `fs`、`edit`、`search`、`shell`、`subagent`、`terminal`、`todo` 与 `managedAgent` 构造器组装。
 
-## Sub-agents
+## 子 agent
 
-`src/modules/ai/agents/registry.ts` defines read-only sub-agents: `explore`, `code-review`, `security`, and `general`. Each has a whitelist of tools and its own system prompt. `run_subagent` cannot recurse (the subagent tool set excludes `run_subagent` itself).
+`src/modules/ai/agents/registry.ts` 定义只读子 agent：`explore`、`code-review`、`security` 与 `general`。每个有工具白名单与各自系统提示词。`run_subagent` 不可递归（子 agent 工具集排除 `run_subagent` 自身）。
 
-## Sessions
+## 会话
 
-Conversations are organized into sessions. Persistence lives in `yamet-ai-sessions.json` via `tauri-plugin-store` (`src/modules/ai/lib/sessions.ts`):
+对话组织成会话。持久化在 `yamet-ai-sessions.json`，经 `tauri-plugin-store`（`src/modules/ai/lib/sessions.ts`）：
 
-- `sessions` key: list of session metadata
-- `activeId` key: active session id
-- `messages:<id>` keys: per-session messages, loaded lazily
+- `sessions` 键：会话元数据列表
+- `activeId` 键：活动会话 id
+- `messages:<id>` 键：每会话消息，懒加载
 
-`AgentRunBridge` mirrors active-session messages to disk on every change and auto-derives titles from the first user message.
+`AgentRunBridge` 每次变更把活动会话消息镜像到磁盘，并自动从首条用户消息派生标题。
 
 ## Composer
 
-`AiComposerProvider` (`src/modules/ai/lib/composer.tsx`) is a React context that holds shared input state (text, attachments, voice) for the docked input bar and any other surface. Attachments can be images, text files, or `selection` chips from the terminal or editor. Selections are wrapped as `<selection source="terminal|editor">…</selection>` blocks at submit time and are not pasted into the textarea.
+`AiComposerProvider`（`src/modules/ai/lib/composer.tsx`）是 React context，为停靠输入条与任何其他面持有共享输入状态（文本、附件、语音）。附件可为图片、文本文件，或来自终端/编辑器的 `selection` chip。选区在提交时包成 `<selection source="terminal|editor">…</selection>` 块，不粘贴进 textarea。
 
-The composer derives `isBusy` from `agentMeta.status` so it can mount safely before sessions hydrate.
+composer 从 `agentMeta.status` 派生 `isBusy`，可在会话水合前安全挂载。
 
-## Tools and approval
+## 工具与审批
 
-Tool definitions live under `src/modules/ai/tools/`:
+工具定义在 `src/modules/ai/tools/`：
 
-- Read-only tools (`read_file`, `list_directory`, `grep`, `glob`) auto-execute after passing the security deny-list.
-- Mutating tools (`write_file`, `edit`, `multi_edit`, `create_directory`, `bash_run`, `bash_background`) set `needsApproval: true`. The AI SDK pauses and the UI renders an approval card.
-- `edit` / `multi_edit` enforce a read-before-edit invariant: the model must have read the file earlier in the session.
-- In plan mode, mutating tools queue edits for batch review instead of applying them immediately.
+- 只读工具（`read_file`、`list_directory`、`grep`、`glob`）过安全拒绝名单后自动执行。
+- 变更工具（`write_file`、`edit`、`multi_edit`、`create_directory`、`bash_run`、`bash_background`）置 `needsApproval: true`。AI SDK 暂停，UI 渲染审批卡。
+- `edit` / `multi_edit` 强制先读后改不变量：模型必须在本会话早前读过该文件。
+- 计划模式下，变更工具把编辑排队批量评审，而非立即应用。
 
-Auto-send after approval uses `lastAssistantMessageIsCompleteWithApprovalResponses`.
+批准后自动发送用 `lastAssistantMessageIsCompleteWithApprovalResponses`。
 
-## Edit diffs
+## 编辑 diff
 
-AI-proposed file edits open in an `ai-diff` tab. The user accepts or rejects per hunk. Only after acceptance does the `write_file` or `edit` tool actually run. This keeps the approval UI decoupled from the tool execution.
+AI 提议的文件编辑打开 `ai-diff` 标签。用户逐块接受或拒绝。只有接受后 `write_file` 或 `edit` 工具才真正执行。这让审批 UI 与工具执行解耦。
 
-## Live context bridge
+## 实时上下文桥
 
-`App.tsx` calls `setLive({ getCwd, getTerminalContext, … })` so tools can read the currently active terminal's cwd and the last 300 lines of buffer. It is lazy by design - tools call for it only when needed rather than pre-snapshotting every turn.
+`App.tsx` 调 `setLive({ getCwd, getTerminalContext, … })`，让工具读取当前活动终端的 cwd 与末 300 行 buffer。它刻意懒取：工具只在需要时调用，而非每轮预快照。
 
-## Invariants
+## 不变量
 
-- Keep the Vercel AI SDK v6 chat shape (`streamText`, tools, step limits); the rest of the UI depends on it.
-- Keys only via `secrets_*` commands; never disk, settings store, or `localStorage`.
-- New providers must justify their bundle cost and unique value.
-- Mutating tools require approval; read-only tools still pass the deny-list.
+- 保持 Vercel AI SDK v6 聊天形态（`streamText`、工具、步数上限）；UI 其余部分依赖它。
+- 密钥只经 `secrets_*` 命令；绝不着盘、进设置 store 或 `localStorage`。
+- 新提供商必须论证打包成本与独特价值。
+- 变更工具需要审批；只读工具仍要过拒绝名单。
 
-## See also
+## 参见
 
-- [`YAMET.md`](../../YAMET.md) - the architecture source of truth
-- [`docs/README.md`](../README.md) - index of contributor guides
-- [Two-process model](two-process-model.md) - IPC boundary and command catalog
-- [Security model](security-model.md) - the boundaries every tool must respect
+- [`YAMET.md`](../../YAMET.md)：架构事实来源
+- [`docs/README.md`](../README.md)：贡献者指南索引
+- [双进程模型](two-process-model.md)：IPC 边界与命令目录
+- [安全模型](security-model.md)：每条工具都必须遵守的边界

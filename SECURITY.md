@@ -1,45 +1,45 @@
-# Security
+# 安全
 
-Yamet runs shells, reads/writes files, and talks to AI providers, so security bugs matter. If you find one, please tell us before posting it publicly.
+Yamet 运行 shell、读写文件并与 AI 提供商通信，所以安全问题很重要。如果你发现一个，请先私下告诉我们，不要公开发帖。
 
-## Reporting
+## 报告方式
 
-Report security issues privately to the maintainers (not in a public GitHub issue). Include:
+安全报告请私下发给维护者（不要在公开 GitHub issue 里发）。包含：
 
-- What the issue is and what it lets an attacker do
-- Steps to reproduce (a small PoC is great)
-- Version, OS, arch
+- 问题是什么、能让攻击者做什么
+- 复现步骤（小 PoC 很好）
+- 版本、系统、架构
 
-We'll get back to you within a few days. Once it's fixed, we'll credit you in the release notes - unless you'd rather stay anonymous.
+我们几天内回复。修复后会在发布说明中致谢，除非你希望匿名。
 
-Please **don't** open a public GitHub issue for security reports.
+请**不要**为安全报告开公开 GitHub issue。
 
-## Supported versions
+## 受支持的版本
 
-Until `1.0.0`, only the latest minor gets security fixes. See the current version in `package.json` or on your fork's Releases page. 
+`1.0.0` 之前，只有最新小版本获得安全修复。当前版本见 `package.json` 或你 fork 的 Releases 页。
 
-## What's in scope
+## 范围内
 
-- The Rust backend in `src-tauri/` (PTY, FS, IPC, plugins)
-- The frontend in `src/` - anywhere untrusted input lands (terminal output, file content, AI tool results, credentials)
-- Release artifacts and the auto-updater
+- `src-tauri/` 的 Rust 后端（PTY、FS、IPC、插件）
+- `src/` 的前端：任何不可信输入落地之处（终端输出、文件内容、AI 工具结果、凭据）
+- 发布产物与自动更新
 
-## What's not
+## 范围外
 
-- Bugs in upstream deps (Tauri, xterm.js, CodeMirror, AI SDKs…) - report those upstream. We'll ship the fix once it's released.
-- Anything that needs an already-compromised machine or a local attacker with shell access
-- Older versions (`< 0.5`)
+- 上游依赖的 bug（Tauri、xterm.js、CodeMirror、AI SDK 等）：向上游报告。发布后我们会带上修复。
+- 任何需要已沦陷机器或本地有 shell 权限的攻击者的情况
+- 旧版本（`< 0.5`）
 
-## What we do to keep things safe
+## 我们为安全做了什么
 
-- **API keys** live in the OS keychain via `keyring` - not on disk, not in `localStorage`, not in logs.
-- **No telemetry.** Yamet only talks to the network when you ask it to (AI requests, update checks, web preview).
-- **AI tool approval.** File writes and shell commands from the agent need your OK before they run.
-- **No Node in the renderer.** The frontend only reaches the host through the allow-listed Tauri commands.
-- **Signed releases.** Updates are verified before they're applied.
+- **API 密钥**经 `keyring` 存 OS 钥匙串：不着盘、不进 `localStorage`、不进日志。
+- **无遥测。** Yamet 只在你要求时联网（AI 请求、更新检查、网页预览）。
+- **AI 工具审批。** agent 的写文件与 shell 命令需你确认后才执行。
+- **渲染器里无 Node。** 前端只经白名单 Tauri 命令触达宿主。
+- **签名发布。** 更新应用前先验证。
 
-## What we can't promise
+## 我们不能承诺的
 
-- Yamet runs whatever you (or the agent) tell it to run, with your permissions. That's kind of the point of a terminal.
-- AI providers see whatever you send them. Read their retention policies.
-- Local LLM endpoints (LM Studio, OpenAI-compatible) are trusted at the network level - only point Yamet at servers you control.
+- Yamet 以你的权限运行你（或 agent）让它运行的任何东西。这本来就是终端的意义。
+- AI 提供商会看到你发给它的内容。读它们的留存政策。
+- 本地 LLM 端点（LM Studio、OpenAI 兼容）在网络层受信任：只把 Yamet 指向你控制的服务器。

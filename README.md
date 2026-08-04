@@ -2,7 +2,7 @@
   <img src="public/logo.png" width="144" height="144" alt="Yamet" />
   <h1>Yamet</h1>
 
-  <p><strong>Lightweight Terminal-first AI-native dev workspace.</strong></p>
+  <p><strong>轻量级、终端优先的 AI 原生开发工作台。</strong></p>
 
   <p>
     <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey" alt="platform" />
@@ -11,138 +11,138 @@
 
 ---
 
-Yamet is a lightweight open-source terminal (ADE) built on Tauri 2 + Rust and React 19. A native PTY backend with a WebGL renderer, an agentic AI side-panel that runs against your own keys or fully local models, plus a code editor, file explorer, source control with a git graph, and a web preview pane built in. About 7-8 MB on disk. No telemetry. No account.
+Yamet 是一个开源、轻量的终端（ADE，agentic development environment），基于 Tauri 2 + Rust 与 React 19 构建。原生 PTY 后端配合 WebGL 渲染器，内置可接自有密钥或完全本地模型的 agentic AI 侧面板，以及代码编辑器、文件浏览器、带 git 图的源码管理、网页预览面板。磁盘占用约 7-8 MB。无遥测、无账号。
 
-## Screenshots
+## 截图
 
 <table>
   <tr>
-    <td align="center"><img src="docs/terminal.png" alt="Terminal" /><br/><sub>Multi-tab terminal with WebGL rendering</sub></td>
-    <td align="center"><img src="docs/themes.png" alt="Themes and background image" /><br/><sub>Custom themes, presets, and background images</sub></td>
+    <td align="center"><img src="docs/terminal.png" alt="终端" /><br/><sub>WebGL 渲染的多标签终端</sub></td>
+    <td align="center"><img src="docs/themes.png" alt="主题与背景图" /><br/><sub>自定义主题、预设与背景图片</sub></td>
   </tr>
   <tr>
-    <td align="center"><img src="docs/web-preview.png" alt="Web preview" /><br/><sub>Web preview of local dev servers</sub></td>
-    <td align="center"><img src="docs/source-control.png" alt="Source control and git graph" /><br/><sub>Source control panel with git graph in history</sub></td>
+    <td align="center"><img src="docs/web-preview.png" alt="网页预览" /><br/><sub>本地开发服务器网页预览</sub></td>
+    <td align="center"><img src="docs/source-control.png" alt="源码管理与 git 图" /><br/><sub>带历史 git 图的源码控制面板</sub></td>
   </tr>
   <tr>
-    <td colspan="2" align="center"><img src="docs/ai-workflow.png" alt="AI window" /><br/><sub>Agentic AI workflow with edit diffs in the code editor</sub></td>
+    <td colspan="2" align="center"><img src="docs/ai-workflow.png" alt="AI 窗口" /><br/><sub>带编辑器 diff 的 agentic AI 工作流</sub></td>
   </tr>
 </table>
 
-## Features
+## 功能特性
 
-### Terminal
+### 终端
 
-- xterm.js with WebGL renderer, multi-tab with background streaming
-- GPU-accelerated block-based terminal with editor-like command input
-- Native PTY backend via `portable-pty` (zsh, bash, pwsh, fish, cmd)
-- Split panels (horizontal and vertical)
-- Inline search, link detection, true-color
-- Per-tab workspace environments on Windows (Local, or any installed WSL distro)
+- 基于 xterm.js 的 WebGL 渲染器，多标签 + 后台流式输出
+- GPU 加速的块状终端，编辑器式命令输入
+- 通过 `portable-pty` 的原生 PTY 后端（zsh、bash、pwsh、fish、cmd）
+- 分屏面板（横向与纵向）
+- 行内搜索、链接识别、真彩色
+- Windows 上按标签独立的工作区环境（本地或任意已装 WSL 发行版）
 
-### Code editor
+### 代码编辑器
 
-- CodeMirror 6 (supports all popular languages - TS/JS, Rust, Python, Go, C/C++, Java, HTML/CSS, JSON, Markdown, etc.)
-- Inline AI autocomplete with local model support
-- AI edit diffs, accept or reject hunk by hunk
-- Vim mode
-- Ten built-in editor themes: Atom One, Aura, Copilot, GitHub Dark / Light, Gruvbox Dark, Nord, Tokyo Night, Xcode Dark / Light
+- CodeMirror 6（支持所有主流语言：TS/JS、Rust、Python、Go、C/C++、Java、HTML/CSS、JSON、Markdown 等）
+- 支持本地模型的行内 AI 自动补全
+- AI 编辑 diff，逐块接受或拒绝
+- Vim 模式
+- 十款内置编辑器主题：Atom One、Aura、Copilot、GitHub Dark/Light、Gruvbox Dark、Nord、Tokyo Night、Xcode Dark/Light
 
-### Source control
+### 源码管理
 
-- Stage / unstage hunks, commit (Cmd+Enter / Ctrl+Enter), push with upstream awareness
-- Branch display including detached HEAD state
-- Git history pane with a real commit graph (lane rendering for merges and branches)
-- Commit search and filter, click through to the remote commit page
+- 逐块暂存/取消暂存、提交（Cmd+Enter / Ctrl+Enter）、感知上游的推送
+- 分支展示（含 detached HEAD 状态）
+- 带真实提交图的历史面板（合并与分支的泳道渲染）
+- 提交搜索与过滤，点击跳转远程提交页
 
-### File explorer
+### 文件浏览器
 
-- Catppuccin icon theme
-- Fuzzy search, keyboard navigation, inline rename, context actions
-- Attach files and selections directly to the AI side-panel
+- Catppuccin 图标主题
+- 模糊搜索、键盘导航、行内重命名、右键动作
+- 直接将文件与选区附加到 AI 侧面板
 
-### Web preview
+### 网页预览
 
-- Auto-detects local dev servers and opens them in a preview tab
-- External URL preview via a native child webview
+- 自动识别本地开发服务器并在预览标签页打开
+- 通过原生子 webview 预览外部 URL
 
-### Themes and customization
+### 主题与个性化
 
-- Custom themes built in-app, switch between bundled presets and your own
-- Create your own themes, share them or import from the community
-- Background images with adjustable opacity and blur
-- Editor theme is independent from the app theme
+- 应用内自建主题，可在内置预设与自有主题间切换
+- 自建主题、分享或导入社区主题
+- 背景图片，可调不透明度与模糊
+- 编辑器主题与应用主题互相独立
 
 ### AI
 
-- **BYOK providers:** OpenAI, Anthropic, Google (Gemini), Groq, xAI (Grok), Cerebras, OpenRouter, DeepSeek, Mistral, plus any OpenAI-compatible endpoint
-- **Local / offline:** LM Studio, MLX, Ollama
-- **Agentic workflow:** plans, sub-agents, project memory via `YAMET.md`, file read / write / edit / multi-edit / grep / glob, bash with approval gating, background processes
-- **Composer:** snippets via `#handle`, files via `@path`, slash commands, voice input, attach-to-agent from explorer or selection
-- **Custom agents** with their own system prompt and tool subset
-- **Plan mode** for multi-step work, generates and confirms before doing
+- **BYOK 提供商**：OpenAI、Anthropic、Google（Gemini）、Groq、xAI（Grok）、Cerebras、OpenRouter、DeepSeek、Mistral，以及任意 OpenAI 兼容端点
+- **本地 / 离线**：LM Studio、MLX、Ollama
+- **Agentic 工作流**：计划、子 agent、通过 `YAMET.md` 的项目记忆、文件读写/编辑/多编辑/grep/glob、带审批门禁的 bash、后台进程
+- **Composer**：`#handle` 片段、`@path` 文件、斜杠命令、语音输入、从浏览器或选区附加给 agent
+- **自定义 agent**：各自的系统提示词与工具子集
+- **计划模式**：面向多步工作，先出计划确认后再执行
 
-## Install
+## 安装
 
-Build from source (see below) or grab the latest installer from your fork's [Releases](https://github.com/your-org/yamet/releases/latest) page once published. Yamet auto-updates from there.
+从源码构建（见下文），或发布后从你 fork 的 [Releases](https://github.com/your-org/yamet/releases/latest) 页下载最新安装包。Yamet 会从该处自动更新。
 
-### Windows notes
+### Windows 说明
 
-- On first launch Windows shows "Windows protected your PC" because Yamet isn't code-signed yet. Click **More info** then **Run anyway**.
-- Default shell detection: `pwsh.exe` (PowerShell 7+) -> `powershell.exe` (Windows PowerShell 5.1) -> `cmd.exe`.
-- WSL is a first-class workspace environment, not a wrapped subprocess.
+- 首次启动时 Windows 会显示"已保护你的电脑"，因为 Yamet 尚未代码签名。点击**更多信息**后选择**仍要运行**。
+- 默认 shell 检测顺序：`pwsh.exe`（PowerShell 7+）→ `powershell.exe`（Windows PowerShell 5.1）→ `cmd.exe`。
+- WSL 是一等公民的工作区环境，而非包装后的子进程。
 
-### Linux notes
+### Linux 说明
 
-- **Arch / AUR:** `yay -S yamet-bin` (or `paru`, etc.). Tracks the latest release.
-- **NixOS / Nix**: use the flake - `nix profile install github:your-org/yamet` (non-NixOS), or import the flake and add `inputs.yamet.packages.${pkgs.system}.yamet` to `environment.systemPackages` (NixOS). The `nixosModules.yamet` output is also available for a simpler setup.
-- **AppImage:** needs FUSE. Without it: `./Yamet_*.AppImage --appimage-extract-and-run`. On Wayland with rendering glitches, try `WEBKIT_DISABLE_DMABUF_RENDERER=1`. Otherwise the `.deb` / `.rpm` packages link against the system GTK stack and tend to be smoother.
+- **Arch / AUR**：`yay -S yamet-bin`（或 `paru` 等），跟随最新 release。
+- **NixOS / Nix**：使用 flake。`nix profile install github:your-org/yamet`（非 NixOS）；或导入 flake，将 `inputs.yamet.packages.${pkgs.system}.yamet` 加入 `environment.systemPackages`（NixOS）。`nixosModules.yamet` 输出也可用于更简单的配置。
+- **AppImage**：需要 FUSE。没有的话：`./Yamet_*.AppImage --appimage-extract-and-run`。Wayland 下渲染异常可试 `WEBKIT_DISABLE_DMABUF_RENDERER=1`。否则 `.deb` / `.rpm` 包链接系统 GTK 栈，通常更流畅。
 
-## Configure AI
+## 配置 AI
 
-1. Open **Settings -> AI**.
-2. Pick a provider and paste your API key. For local inference, point Yamet at your LM Studio / MLX / Ollama endpoint.
-3. Keys are written to the OS keychain via `keyring`. They never touch disk or localStorage.
+1. 打开**设置 → AI**。
+2. 选择提供商并粘贴 API 密钥。本地推理则将 Yamet 指向你的 LM Studio / MLX / Ollama 端点。
+3. 密钥经 `keyring` 写入操作系统钥匙串，永不着盘或进 localStorage。
 
-## Build from source
+## 从源码构建
 
-**Prerequisites**
-- Rust (stable), https://rustup.rs
-- Node 20+ and [pnpm](https://pnpm.io)
-- Tauri prerequisites for your platform, https://tauri.app/start/prerequisites/
+**前置条件**
+- Rust（stable），https://rustup.rs
+- Node 20+ 与 [pnpm](https://pnpm.io)
+- 各平台 Tauri 前置依赖，https://tauri.app/start/prerequisites/
 
-**Run**
+**运行**
 ```bash
 pnpm install
-pnpm tauri dev          # development
-pnpm tauri build        # production bundle
+pnpm tauri dev          # 开发
+pnpm tauri build        # 生产打包
 ```
 
-**Checks**
+**检查**
 ```bash
 pnpm lint
 pnpm check-types
 pnpm test
-cd src-tauri && cargo clippy --all-targets --locked -- -D warnings   # Rust lint (matches CI)
-cd src-tauri && cargo nextest run --locked                           # or: cargo test --locked
+cd src-tauri && cargo clippy --all-targets --locked -- -D warnings   # Rust lint（与 CI 一致）
+cd src-tauri && cargo nextest run --locked                           # 或：cargo test --locked
 ```
 
-## Tech stack
+## 技术栈
 
-Tauri 2, Rust, `portable-pty`, React 19, TypeScript, Vite, xterm.js, CodeMirror 6, Vercel AI SDK v6, Tailwind v4, shadcn/ui, Zustand.
+Tauri 2、Rust、`portable-pty`、React 19、TypeScript、Vite、xterm.js、CodeMirror 6、Vercel AI SDK v6、Tailwind v4、shadcn/ui、Zustand。
 
-## Contributing
+## 贡献
 
-Issues and PRs are welcome! Feel free to open issues, suggest features, or submit pull requests. See [CONTRIBUTING.md](CONTRIBUTING.md) and the [architecture docs](docs/README.md) for more details.
+欢迎提 issue 与 PR！可开 issue、提功能建议或提交 pull request。详见 [CONTRIBUTING.md](CONTRIBUTING.md) 与[架构文档](docs/README.md)。
 
-## Code signing
+## 代码签名
 
 <a href="https://signpath.org"><img src="https://avatars.githubusercontent.com/u/34448643?s=200&v=4" width="80" alt="SignPath" align="left" /></a>
 
-Windows builds are signed with a free code signing certificate provided by [SignPath.io](https://signpath.io), certificate by the [SignPath Foundation](https://signpath.org).
+Windows 构建使用 [SignPath.io](https://signpath.io) 提供的免费代码签名证书（证书由 [SignPath Foundation](https://signpath.org) 签发）。
 
 <br clear="left" />
 
-## License
+## 许可证
 
-Yamet is licensed under the Apache-2.0 License. For more information on our dependencies, see [Apache License 2.0](LICENSE).
+Yamet 采用 MIT 许可证。协议全文见 [LICENSE](LICENSE)。

@@ -1,34 +1,34 @@
-# Code of conduct
+# 行为准则
 
-Yamet is a small open-source project and we want it to stay a place people enjoy contributing to.
+Yamet 是一个小型开源项目，我们希望它保持一个让人乐于贡献的地方。
 
-## The rules, briefly
+## 简要规则
 
-- **Be respectful.** Disagreement is fine; rudeness, condescension, and personal attacks are not.
-- **Assume good faith.** Most miscommunication isn't malicious - clarify before escalating.
-- **Stay on topic.** Issues, PRs, and discussions are about Yamet. Take off-topic conversations elsewhere.
-- **No harassment.** Targeted insults, slurs, sustained disruption, sexualized comments, doxxing, or threats are not tolerated - anywhere, against anyone.
-- **No spam.** That includes promotional links, irrelevant cross-posting, and AI-generated noise that doesn't engage with the actual conversation.
+- **互相尊重。** 可以不同意，但粗鲁、居高临下与人身攻击不行。
+- **善意推定。** 多数误会并非恶意：升级前先澄清。
+- **就事论事。** Issue、PR 与讨论围绕 Yamet 展开。跑题对话去别处聊。
+- **禁止骚扰。** 针对性的侮辱、歧视性用语、持续搅扰、性化评论、人肉搜索或威胁绝不容忍：任何地方、对任何人都一样。
+- **禁止灌水。** 包括推广链接、无关的到处转发，以及不参与实际对话的 AI 生成噪音。
 
-This applies to everything inside the project: issues, PRs, discussions, commits, and any community space we create later (Discord, etc.).
+这适用于项目内的一切：issue、PR、讨论、提交，以及我们日后创建的任何社区空间（Discord 等）。
 
-## Enforcement
+## 执行
 
-If you see a violation - or experience one - report it privately to the maintainers, with subject `[Yamet conduct]`. Include links and context.
+看到违规（或被骚扰）时，以主题 `[Yamet conduct]` 私下向维护者报告，附链接与上下文。
 
-Maintainers may, at their discretion:
+维护者可酌情：
 
-1. Edit or delete the offending content
-2. Issue a private warning
-3. Lock the thread
-4. Block the account from the project
+1. 编辑或删除违规内容
+2. 私下警告
+3. 锁定线程
+4. 将账号移出项目
 
-We default to the lightest action that resolves the situation. Severe or repeat violations skip steps.
+我们默认采取能解决问题的最轻措施。严重或反复违规跳过中间步骤。
 
-## Scope
+## 范围
 
-Maintainers act in this project's spaces. We don't police behavior outside the project, but we do consider patterns of behavior elsewhere when deciding on enforcement here.
+维护者在项目空间内行事。我们不干预项目外的行为，但决定是否在此执行时会考虑别处的行为模式。
 
 ---
 
-*This document is intentionally short. It is inspired by the [Contributor Covenant](https://www.contributor-covenant.org/) but kept compact for a small project.*
+*本文刻意简短。灵感来自 [Contributor Covenant](https://www.contributor-covenant.org/)，但为小型项目保持精简。*

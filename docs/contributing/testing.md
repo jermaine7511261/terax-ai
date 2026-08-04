@@ -1,10 +1,10 @@
-# Testing
+# 测试
 
-This guide elaborates on `YAMET.md` and `CONTRIBUTING.md`. If anything conflicts with those files, they win.
+本指南展开说明 `YAMET.md` 与 `CONTRIBUTING.md`。如有冲突，以它们为准。
 
-## Running checks locally
+## 本地跑检查
 
-The canonical commands are what CI runs (`.github/workflows/ci.yml`):
+规范命令就是 CI 跑的命令（`.github/workflows/ci.yml`）：
 
 ```bash
 pnpm lint
@@ -13,41 +13,41 @@ pnpm test
 
 cd src-tauri
 cargo clippy --all-targets --locked -- -D warnings
-cargo nextest run --locked        # CI uses nextest
+cargo nextest run --locked        # CI 用 nextest
 ```
 
-If you do not have `cargo-nextest` installed, `cargo test --locked` is the local fallback. Install nextest with `cargo install cargo-nextest`.
+没装 `cargo-nextest` 时，本地回退是 `cargo test --locked`。用 `cargo install cargo-nextest` 安装 nextest。
 
-## What must have a test
+## 什么必须有测试
 
-`CONTRIBUTING.md` requires a test for any change that touches behavior in these load-bearing paths:
+`CONTRIBUTING.md` 要求，任何触碰以下承重路径行为的改动都要测试：
 
-- Shell / terminal spawn (what shell launches, with which cwd, env, and login flags)
-- Workspace authorization (both the allow and deny side)
-- Git command layer (repo-root resolution, pathspec/argument guards, status parsing)
-- Filesystem mutation (atomic writes, symlink handling, no-data-loss on partial failure)
-- IPC command surface and AI tool surface
-- Pure logic with wide reach (cwd inheritance, tab/split tree transforms, OSC/prompt parsing, command guard)
+- Shell / 终端 spawn（启动哪个 shell、用什么 cwd、env 与登录标志）
+- 工作区授权（允许与拒绝两侧）
+- git 命令层（仓库根解析、pathspec/参数守卫、status 解析）
+- 文件系统变更（原子写、符号链接处理、部分失败不丢数据）
+- IPC 命令面与 AI 工具面
+- 波及面广的纯逻辑（cwd 继承、标签/分屏树变换、OSC/提示符解析、命令守卫）
 
-The bar is real coverage of the contract, not a placeholder. Test the edge, the deny path, the "what happens one level above home".
+标准是真正覆盖契约，而非占位。测边界、拒绝路径、"home 上一层会怎样"。
 
-## What does not need a test
+## 什么不需要测试
 
-UI rendering, themes, syntax-highlight tables, and anything the type-checker already guarantees do not need tests.
+UI 渲染、主题、语法高亮表，以及类型检查器已保证的东西，不需要测试。
 
-## Writing a good test
+## 写一条好测试
 
-A good test locks the invariant you are relying on. Examples from the codebase:
+好测试锁定你依赖的不变量。代码库示例：
 
-- `src-tauri/src/modules/workspace.rs` `auth_tests` verify that an authorized path, a subdir of an authorized root, an unauthorized path, a missing path, and a symlink escape all behave correctly.
-- `src-tauri/src/modules/pty/job.rs` tests verify that dropping the Job Object kills the assigned process tree on Windows.
-- `src-tauri/src/modules/pty/session.rs` tests verify that dropping a `Session` kills the child process.
-- `src-tauri/src/modules/pty/shell_init.rs` tests verify shell classification and WSL fish launch specs.
-- `src/modules/ai/lib/security.ts` is exercised by tests that assert specific paths are refused and that canonicalization catches symlink traversal.
+- `src-tauri/src/modules/workspace.rs` 的 `auth_tests` 验证授权路径、授权根的子目录、未授权路径、缺失路径与符号链接逃逸都行为正确。
+- `src-tauri/src/modules/pty/job.rs` 的测试验证 Windows 上释放作业对象会杀掉指派进程树。
+- `src-tauri/src/modules/pty/session.rs` 的测试验证释放 `Session` 会杀子进程。
+- `src-tauri/src/modules/pty/shell_init.rs` 的测试验证 shell 分类与 WSL fish 启动规格。
+- `src/modules/ai/lib/security.ts` 由断言特定路径被拒、以及规范化能抓住符号链接穿越的测试覆盖。
 
-## Cross-platform PTY tests
+## 跨平台 PTY 测试
 
-Platform-specific behavior must be gated:
+平台专属行为必须门控：
 
 ```rust
 #[cfg(unix)]
@@ -57,26 +57,26 @@ fn shell_has_children(shell_pid: u32) -> bool { ... }
 fn shell_has_children(shell_pid: u32) -> bool { ... }
 ```
 
-Tests for ConPTY/Job Object belong behind `#[cfg(windows)]`; tests for Unix PTY lifecycle belong behind `#[cfg(unix)]`. Do not assume a helper that works on one platform works on the other.
+ConPTY/作业对象的测试放 `#[cfg(windows)]` 后；Unix PTY 生命周期的测试放 `#[cfg(unix)]` 后。不要假设一个平台上可用的 helper 在另一个平台也能用。
 
-## Security function tests
+## 安全函数测试
 
-When testing `src/modules/ai/lib/security.ts` or the Rust equivalents, cover:
+测试 `src/modules/ai/lib/security.ts` 或 Rust 对应物时，覆盖：
 
-1. The literal path is refused.
-2. The canonicalized path is re-refused (symlink case).
-3. Case variants match on case-insensitive filesystems.
-4. NTFS alternate data streams and trailing dot/space variants are normalized.
-5. Write-only deny prefixes block writes but allow reads where appropriate.
+1. 字面路径被拒。
+2. 规范化路径被再次拒绝（符号链接情形）。
+3. 大小写变体在不区分大小写的文件系统上匹配。
+4. NTFS 备用数据流与尾点/空格变体被归一化。
+5. 只写拒绝前缀在合适场景下拦写但放读。
 
-## Invariants
+## 不变量
 
-- A local fix with global blast radius must be caught by a test; review alone is not enough.
-- Test the deny path and the edge, not just the happy path.
-- Keep platform-specific tests behind the right `#[cfg(...)]` gate.
+- 局部修复 + 全局爆炸半径必须被测试抓住；仅靠评审不够。
+- 测拒绝路径与边界，不只测快乐路径。
+- 平台专属测试放在正确的 `#[cfg(...)]` 门控后。
 
-## See also
+## 参见
 
-- [`YAMET.md`](../../YAMET.md) - the architecture source of truth
-- [`CONTRIBUTING.md`](../../CONTRIBUTING.md) - quality bar, project layout, how to contribute
-- [`docs/README.md`](../README.md) - index of contributor guides
+- [`YAMET.md`](../../YAMET.md)：架构事实来源
+- [`CONTRIBUTING.md`](../../CONTRIBUTING.md)：质量门槛、项目布局、如何贡献
+- [`docs/README.md`](../README.md)：贡献者指南索引

@@ -1,178 +1,177 @@
 # YAMET.md
 
-Yamet loads `YAMET.md` from the workspace root as agent memory (similar to AGENTS.md / CLAUDE.md). This file is also the project's living architecture doc - read it before making changes.
+Yamet 从工作区根目录加载 `YAMET.md` 作为 agent 记忆（类似 AGENTS.md / CLAUDE.md）。本文件同时也是项目的活架构文档：改动前先读它。
 
-## Project
+## 项目
 
-**Yamet**: open-source AI-native terminal emulator. Tauri 2 + Rust (`portable-pty`) backend, React 19 + TypeScript + xterm.js (webgl) client, BYOK AI via Vercel AI SDK v6.
+**Yamet**：开源 AI 原生终端模拟器。Tauri 2 + Rust（`portable-pty`）后端，React 19 + TypeScript + xterm.js（webgl）客户端，BYOK AI 走 Vercel AI SDK v6。
 
-- Bundle id: `app.yamet.yamet`
-- Package manager: **pnpm**
-- Platforms: macOS, Linux, Windows
-- Frontend checks: `pnpm lint`, `pnpm check-types`, `pnpm test`
-- Rust checks: `cd src-tauri && cargo clippy --all-targets --locked -- -D warnings`, `cd src-tauri && cargo nextest run --locked` (local fallback: `cargo test --locked`)
+- Bundle id：`app.yamet.yamet`
+- 包管理器：**pnpm**
+- 平台：macOS、Linux、Windows
+- 前端检查：`pnpm lint`、`pnpm check-types`、`pnpm test`
+- Rust 检查：`cd src-tauri && cargo clippy --all-targets --locked -- -D warnings`、`cd src-tauri && cargo nextest run --locked`（本地回退：`cargo test --locked`）
 
-## Quality bar
+## 质量门槛
 
-Production-grade or it does not ship. Every change is judged against all of these, not just "it works":
+达到生产级才算完成，否则不发版。每个改动都要对照以下全部标准，而非只看"能跑"：
 
-- **Correctness**: edge cases, failure modes, concurrent access. No "works for now".
-- **Performance**: ultra-lightweight is the product. ~7-8 MB bundle, high-performance terminal. For every change ask: how much RAM it costs, whether it adds IPC round-trips or redundant requests, whether it triggers extra re-renders or wasted work, whether it pulls a heavy dependency. Unused features consume zero resources.
-- **Security**: no critical security holes. Validate at every boundary (IPC, fs, network, AI tool surface). The secret-path deny-list applies on both read and write and is never bypassed.
-- **UI/UX**: polished, professional, premium. Every state and detail considered.
-- **Architecture**: new or changed logic lives in pure, dependency-light functions (functional core); tauri commands and React components stay thin (imperative shell). Keeps it testable without a later rewrite.
+- **正确性**：边界情况、失败模式、并发访问。不接受"现在能用就行"。
+- **性能**：超轻量就是产品本身。约 7-8 MB 的包体、高性能终端。每个改动都要问：耗多少内存、是否增加 IPC 往返或冗余请求、是否触发多余重渲染或浪费、是否引入重型依赖。未使用的功能不占任何资源。
+- **安全**：无重大安全漏洞。在每个边界（IPC、fs、网络、AI 工具面）都做校验。密钥路径拒绝名单在读写两侧都生效，绝不能被绕过。
+- **UI/UX**：精致、专业、有质感。每个状态与细节都考虑到位。
+- **架构**：新增或变更的逻辑放在纯函数、少依赖的函数里（函数式核心）；tauri 命令与 React 组件保持薄壳（命令式外壳）。这样无需后续重写即可测试。
 
-Verify before claiming done:
+交付前必须验证：
 
-- Frontend: `pnpm lint`, `pnpm check-types`, `pnpm test`
-- Rust: `cd src-tauri && cargo clippy --all-targets --locked -- -D warnings`, `cd src-tauri && cargo nextest run --locked` (or `cargo test --locked`)
+- 前端：`pnpm lint`、`pnpm check-types`、`pnpm test`
+- Rust：`cd src-tauri && cargo clippy --all-targets --locked -- -D warnings`、`cd src-tauri && cargo nextest run --locked`（或 `cargo test --locked`）
 
-A change to a core subsystem (terminal/shell spawn, workspace auth, git, fs, IPC or AI tool surface) needs a test that locks the invariant.
+核心子系统（终端/shell 启动、工作区认证、git、fs、IPC 或 AI 工具面）的改动需要一条锁定不变量的测试。
 
-## Conventions
+## 约定
 
-- **Comments**: default to none, the code should explain itself. If genuinely needed, 1-2 lines on *why*, never *what*. No AI-generic filler.
-- **No em-dash** anywhere: code, comments, commits, docs.
-- **No emojis** anywhere.
-- **Imports**: always `@/...` on the frontend, never relative across modules.
-- **pnpm only**, never npm/npx/yarn.
+- **注释**：默认不写，代码应自解释。确有必要时写 1-2 行"为什么"，绝不写"是什么"。不要 AI 通用废话。
+- **禁 em-dash**：代码、注释、提交、文档任何地方都不用。
+- **禁 emoji**：任何地方都不用。
+- **导入**：前端一律 `@/...`，跨模块绝不使用相对路径。
+- **只用 pnpm**，绝不使用 npm/npx/yarn。
 
-## Architecture
+## 架构
 
-### Two-process model
+### 双进程模型
 
-**Rust (`src-tauri/`)** owns all OS access. The webview never touches the FS, processes, or shells directly - everything goes through `invoke()` calls to commands registered in `src-tauri/src/lib.rs`:
+**Rust（`src-tauri/`）持有全部 OS 访问**。webview 绝不直接碰 fs、进程或 shell，一切经 `invoke()` 调用注册在 `src-tauri/src/lib.rs` 的命令：
 
-- `pty::pty_*` - long-lived interactive PTY sessions (xterm ↔ portable-pty), managed by `PtyState` (`RwLock<HashMap<id, Session>>`). Output streams via a Tauri `Channel<PtyEvent>`.
-- `fs::tree::*` (`fs_read_dir`, `list_subdirs`), `fs::file::*` (`fs_read_file`, `fs_write_file`, `fs_stat`, `fs_canonicalize`), `fs::mutate::*` (`fs_create_file`, `fs_create_dir`, `fs_rename`, `fs_delete`): file explorer + editor IO.
-- `fs::search::*` (`fs_search`, `fs_list_files`), `fs::grep::*` (`fs_grep`, `fs_glob`): fuzzy file finder + content search (powered by `ignore` + `grep-*` crates).
-- `git::commands::*`: full source-control surface (`git_status`, `git_diff`, `git_diff_content`, `git_stage`, `git_unstage`, `git_discard`, `git_commit`, `git_fetch`, `git_pull_ff_only`, `git_push`, `git_log`, `git_show_commit`, `git_commit_files`, `git_commit_file_diff`, `git_panel_snapshot`, `git_resolve_repo`, `git_remote_url`). All gated through the workspace authorization registry.
-- `shell::shell_run_command`: one-shot subshell exec used by AI tools. Distinct from PTY sessions; not the user's interactive terminal. On Windows via PowerShell (`-NoProfile -Command`), on Unix via `$SHELL -lc`. Shared helper `build_oneshot_command`.
-- `shell::shell_session_*`: persistent agent shell with state across calls. `shell::shell_bg_*` (`spawn`, `logs`, `kill`, `list`): long-running background processes (dev servers etc.) with bounded ring-buffer log capture.
-- `workspace::*`: `workspace_authorize` / `workspace_current_dir` (the spawn/git/AI cwd authorization registry) plus the WSL bridge (`wsl_list_distros`, `wsl_default_distro`, `wsl_home`).
-- `lsp::*` (`lsp_detect`, `lsp_host_pid`, `lsp_resolve_root`, `lsp_spawn`, `lsp_send`, `lsp_kill`): language server process host. Dumb JSON-RPC pipe: Content-Length framing + process lifecycle in Rust (`lsp/framing.rs`, pure + tested), protocol intelligence on the frontend. Spawn cwd gated through the workspace registry; binaries resolve via the captured login-shell env (`lsp/env.rs`, GUI apps get a bare PATH on macOS); root detection walks up to markers but never to or above `$HOME`. Servers run in their own process group on Unix and are group-killed (cargo check / proc-macro children die with the server); Windows children get a `proc::job::ProcessJob` (kill-on-close, shared with pty). All sessions killed on `RunEvent::Exit`.
-- `net::*` (`ai_http_request`, `ai_http_stream`, `lm_ping`): AI HTTP proxy with SSRF guard; keeps provider calls and local-model pings off the webview.
-- `secrets::secrets_*`: OS keychain via the `keyring` crate. Service constant `yamet-ai`. Linux uses a file-based fallback gated behind `#[cfg(target_os = "linux")]`.
-- `gateway::*` (`modules/gateway/`): domestic IM gateway. Adapters (`adapters/*.rs`) for DingTalk / Feishu / WeCom / QQ (OneBot v11 WebSocket / go-cqhttp) / WeChat personal (iLink Bot API, QR login + long-poll) / Official Account (callback). `registry.rs` owns adapters + dispatches inbound to the agent; `session.rs` enforces an auth gate (default-deny + per-session approval whitelist + auto-approve). Credentials persist to the OS keychain (`gateway:<platform>`). `weixin.rs` re-logins via QR on session expiry (`errcode -14` / stale `-2`); `gateway_weixin_qr_login` streams the QR as an SVG data-URL to the settings UI. `agent_probe` (in `shell/external_agent.rs`) detects installed external agent CLIs + versions.
-- `open_settings_window`: separate webview window for Settings (optional `tab` arg deep-links a section).
+- `pty::pty_*`：长生命周期交互式 PTY 会话（xterm ↔ portable-pty），由 `PtyState`（`RwLock<HashMap<id, Session>>`）管理。输出经 Tauri `Channel<PtyEvent>` 流式推送。
+- `fs::tree::*`（`fs_read_dir`、`list_subdirs`）、`fs::file::*`（`fs_read_file`、`fs_write_file`、`fs_stat`、`fs_canonicalize`）、`fs::mutate::*`（`fs_create_file`、`fs_create_dir`、`fs_rename`、`fs_delete`）：文件浏览器 + 编辑器 IO。
+- `fs::search::*`（`fs_search`、`fs_list_files`）、`fs::grep::*`（`fs_grep`、`fs_glob`）：模糊文件查找 + 内容搜索（基于 `ignore` + `grep-*` crate）。
+- `git::commands::*`：完整源码控制面（`git_status`、`git_diff`、`git_diff_content`、`git_stage`、`git_unstage`、`git_discard`、`git_commit`、`git_fetch`、`git_pull_ff_only`、`git_push`、`git_log`、`git_show_commit`、`git_commit_files`、`git_commit_file_diff`、`git_panel_snapshot`、`git_resolve_repo`、`git_remote_url`）。全部经工作区授权注册表门控。
+- `shell::shell_run_command`：一次性子 shell 执行，供 AI 工具使用。不同于 PTY 会话，不是用户的交互终端。Windows 用 PowerShell（`-NoProfile -Command`），Unix 用 `$SHELL -lc`。共享助手 `build_oneshot_command`。
+- `shell::shell_session_*`：跨调用保留状态的持久 agent shell。`shell::shell_bg_*`（`spawn`、`logs`、`kill`、`list`）：长运行后台进程（开发服务器等），带有限环形缓冲日志捕获。
+- `workspace::*`：`workspace_authorize` / `workspace_current_dir`（spawn/git/AI 的 cwd 授权注册表）以及 WSL 桥（`wsl_list_distros`、`wsl_default_distro`、`wsl_home`）。
+- `lsp::*`（`lsp_detect`、`lsp_host_pid`、`lsp_resolve_root`、`lsp_spawn`、`lsp_send`、`lsp_kill`）：语言服务器进程宿主。哑 JSON-RPC 管道：Rust 侧做 Content-Length 帧协议 + 进程生命周期（`lsp/framing.rs`，纯函数 + 已测试），协议智能在前端。spawn 的 cwd 经工作区注册表门控；二进制经捕获的登录 shell 环境解析（`lsp/env.rs`，macOS GUI 应用是裸 PATH）；根目录发现向上找标记，但绝不越过 `$HOME`。Unix 下服务器在自己进程组运行并组杀（cargo check / proc-macro 子进程随服务器死）；Windows 子进程用 `proc::job::ProcessJob`（kill-on-close，与 pty 共用）。`RunEvent::Exit` 时杀全部会话。
+- `net::*`（`ai_http_request`、`ai_http_stream`、`lm_ping`）：带 SSRF 守卫的 AI HTTP 代理；把提供商调用与本地模型 ping 移出 webview。
+- `secrets::secrets_*`：经 `keyring` crate 访问系统钥匙串。服务常量 `yamet-ai`。Linux 用文件回退，以 `#[cfg(target_os = "linux")]` 门控。
+- `gateway::*`（`modules/gateway/`）：国内 IM 网关。适配器（`adapters/*.rs`）覆盖钉钉 / 飞书 / 企微 / QQ（OneBot v11 WebSocket / go-cqhttp）/ 微信个人（iLink Bot API，二维码登录 + 长轮询）/ 公众号（回调）。`registry.rs` 持有适配器并把入站分发给 agent；`session.rs` 实施认证门禁（默认拒绝 + 按会话批准白名单 + 自动批准）。凭据落系统钥匙串（`gateway:<platform>`）。`weixin.rs` 在会话过期时经二维码重登（`errcode -14` / 陈旧 `-2`）；`gateway_weixin_qr_login` 以 SVG data-URL 把二维码流式推给设置 UI。`agent_probe`（`shell/external_agent.rs`）检测已安装的外部 agent CLI 及版本。
+- `open_settings_window`：独立的设置 webview 窗口（可选 `tab` 参数深链到指定分区）。
 
-### PTY shell integration
+### PTY shell 集成
 
-PTY shells are bootstrapped via injected init scripts in `src-tauri/src/modules/pty/scripts/`:
+PTY shell 通过 `src-tauri/src/modules/pty/scripts/` 下的注入初始化脚本引导：
 
-- **Unix** (`zshenv.zsh`, `zprofile.zsh`, `zlogin.zsh`, `zshrc.zsh`, `bashrc.bash`) for zsh/bash, plus `init.fish` installed to `~/.config/fish/conf.d/yamet.fish` for fish. Emit OSC 7 (cwd) and OSC 133 A/B/C/D (prompt boundaries + exit code) so the host can track cwd and detect command boundaries without re-parsing the prompt. Fish 4.0+ writes its own OSC 133 prompt markers; Yamet sets `fish_features=no-mark-prompt` and re-asserts its own prompt via `-C` to avoid doubling.
-- **Windows** (`profile.ps1`) - passed via `pwsh -NoLogo -NoExit -ExecutionPolicy Bypass -File <path>`. Wraps the user's existing `prompt` function (after their `$PROFILE` runs) to emit OSC 7 + OSC 133 A/B/D. Shell priority: `pwsh.exe` (PS 7+) → `powershell.exe` (PS 5.1) → `cmd.exe` (no integration). cwd is normalized to backslashes before being passed to ConPTY (`CreateProcessW` misbehaves with forward-slash cwd).
+- **Unix**（`zshenv.zsh`、`zprofile.zsh`、`zlogin.zsh`、`zshrc.zsh`、`bashrc.bash`）用于 zsh/bash，另加 `init.fish` 安装到 `~/.config/fish/conf.d/yamet.fish` 用于 fish。发出 OSC 7（cwd）与 OSC 133 A/B/C/D（提示符边界 + 退出码），让宿主无需重解析提示符即可跟踪 cwd 与命令边界。Fish 4.0+ 自带 OSC 133 提示符标记；Yamet 设 `fish_features=no-mark-prompt` 并经 `-C` 重放自己的提示符避免重复。
+- **Windows**（`profile.ps1`）：经 `pwsh -NoLogo -NoExit -ExecutionPolicy Bypass -File <path>` 传入。在用户 `$PROFILE` 执行后包装其现有 `prompt` 函数，以发出 OSC 7 + OSC 133 A/B/D。shell 优先级：`pwsh.exe`（PS 7+）→ `powershell.exe`（PS 5.1）→ `cmd.exe`（无集成）。cwd 传给 ConPTY 前归一化为反斜杠（`CreateProcessW` 对正斜杠 cwd 有异常）。
 
-`pty/shell_init.rs` is split into `#[cfg(unix)]` / `#[cfg(windows)]` modules - keep new platform-specific code in the right cfg arm.
+`pty/shell_init.rs` 拆成 `#[cfg(unix)]` / `#[cfg(windows)]` 模块：新增平台专属代码时放在正确的 cfg 分支。
 
-ConPTY on Windows requires `SPAWN_LOCK` (Mutex) around `openpty + spawn_command` in `session.rs`. Concurrent spawns leave one of the resulting PTYs with a stalled output pipe. Don't remove the lock without verifying first-tab stability under fast tab spam.
+Windows 上 ConPTY 需要 `SPAWN_LOCK`（Mutex）包住 `session.rs` 里的 `openpty + spawn_command`。并发 spawn 会让其中一个 PTY 的输出管道停滞。未经快速标签连开的稳定性验证，不要移除该锁。
 
-Each ConPTY child is also assigned to a per-session **Job Object** with `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` (`pty/job.rs`). When the Job HANDLE drops - clean shutdown, panic, or even SIGKILL'd Yamet process - the kernel kills every descendant of the shell (e.g. `npm run dev` spawned from inside pwsh). Without this Windows orphans the entire process subtree because `TerminateProcess` only kills the immediate child. macOS/Linux rely on `Drop for Session → killer.kill()`; on dev-`Ctrl-C` of `cargo run` destructors don't fire and orphans are possible there too - acceptable for now since dev only.
+每个 ConPTY 子进程还挂到**作业对象**（`JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`，`pty/job.rs`）。当作业句柄释放（干净关闭、panic、甚至 Yamet 进程被 SIGKILL），内核会杀掉 shell 的所有后代（如从 pwsh 里启动的 `npm run dev`）。没有它，Windows 会因 `TerminateProcess` 只杀直接子进程而遗留整棵进程子树。macOS/Linux 依赖 `Drop for Session → killer.kill()`；`cargo run` 被 dev-`Ctrl-C` 时析构不触发，那里也可能有孤儿进程：目前可接受，仅限开发。
 
-`AiComposerProvider` is mounted unconditionally at the App.tsx root: a conditional wrapper would change the parent element type when keys load, remounting the entire tree (and re-spawning every PTY) the moment `getAllKeys()` resolves. Production happened to dodge this because keychain reads can land in the same paint frame; dev didn't. Keep the unconditional wrap.
+`AiComposerProvider` 无条件挂在 App.tsx 根部：条件包装会在密钥加载时改变父元素类型，导致整树重挂载（并在 `getAllKeys()` 解析瞬间重spawn 全部 PTY）。生产环境碰巧躲过（钥匙串读取可能与首帧同帧）；开发环境躲不过。保持无条件包装。
 
-### Frontend (`src/`)
+### 前端（`src/`）
 
-Single-window React app. Path alias `@/*` → `src/*`. Tabs are a tagged union (`kind`: `terminal` | `editor` | `preview` | `markdown` | `ai-diff` | `git-diff` | `git-history` | `git-commit-file`) and **not** unmounted on switch - they're hidden via `invisible pointer-events-none` so PTYs and dev servers keep streaming in the background.
+单窗口 React 应用。路径别名 `@/*` → `src/*`。标签是带标签联合（`kind`：`terminal` | `editor` | `preview` | `markdown` | `ai-diff` | `git-diff` | `git-history` | `git-commit-file`），切换时不卸载，而是用 `invisible pointer-events-none` 隐藏，让 PTY 与开发服务器持续后台流式输出。
 
-`App.tsx` wires modules together - keep it a coordinator. New features go inside the appropriate `modules/<area>/`.
+`App.tsx` 负责把模块接线，保持协调者角色。新功能放进对应 `modules/<area>/`。
 
-**i18n** (`lib/i18n/translations.ts`): all UI copy is keyed and bilingual - simplified-Chinese primary (`zhMessages`, defines the `TranslationKey` type via `Paths<>`) with an English fallback (`enMessages`). Keys/URLs/model names stay English; never hard-code UI text. `useI18n()` for components, `tStatic()` for module-scope.
+**i18n**（`lib/i18n/translations.ts`）：所有 UI 文案按键值组织并双语：简体中文为主（`zhMessages`，经 `Paths<>` 派生 `TranslationKey` 类型）+ 英文回退（`enMessages`）。键名/URL/模型名保持英文；绝不硬编码 UI 文本。组件用 `useI18n()`，模块作用域用 `tStatic()`。
 
-### Module layout (`src/modules/`)
+### 模块布局（`src/modules/`）
 
-Each module is self-contained, exports a thin barrel via `index.ts`, and owns its hooks under `lib/`.
+每个模块自包含，经 `index.ts` 薄 barrel 导出，hooks 归到 `lib/` 下。
 
-- **terminal/** - `TerminalStack` keeps one mounted xterm per tab via `useTerminalSession` + `pty-bridge`. `osc-handlers.ts` parses OSC 7 (with Windows drive-letter normalization: `/C:/Users/foo` → `C:/Users/foo`) and OSC 133 markers. The xterm color palette is driven by the central theme engine (`modules/theme`), not a local table. Renderer slots are pooled (`rendererPool.ts`, max 5): a hidden leaf with a foreground job (OSC 133 C..D, agent signal, or `pty_has_foreground_job`) keeps its live grid parked with rendering paused via `display:none`; an idle hidden leaf releases its slot but the buffer is retained and serialized lazily only when another leaf steals it. The `DormantRing` (1 MiB, no terminal reset on overflow) buffers bytes only for leaves whose slot was stolen or never bound. Never serialize a leaf that is mid-command: replaying incremental TUI repaints over a snapshot is what used to wipe Claude Code.
-  **Block terminal** (`terminal/block/`): an optional block-based surface (toggled per tab via `newBlockTab` / `TerminalPane blocks`) that groups commands and output into selectable blocks over OSC 133 A/B/C/D. A single workspace-wide `ShellInput` bar (not per-pane xterm input) drives typing; `block/lib/modeMachine.ts` tracks prompt vs running state, `blockDecorations.ts` renders the blocks, and `BlockOverlay.tsx`/`BlockWatermark.tsx` handle selection, run-again, and search. `block/lib/inlineSuggest.ts` + `pathComplete.ts` power shell suggestions inside the bar.
-- **editor/** - CodeMirror 6 stack (`EditorStack` mirrors `TerminalStack`). `extensions.ts` configures language modes; supports vim mode. Buffers live in LF space and the original EOL (`lib/eol.ts`, majority-vote detection) is restored on save; indent unit/tab size are detected per file (`lib/indent.ts`) via a per-pane compartment. Saves are conflict-checked against the disk mtime returned by `fs_read_file`/`fs_write_file` (mismatch → warning toast with explicit Overwrite, never silent last-writer-wins); external format-on-save only applies the disk read-back if the doc is unchanged since the save snapshot. Files over 10 MB offer "Open anyway" (hard cap 50 MB, `force` arg); above 4 MB syntax highlighting and LSP stay off. Cmd-F routes to CodeMirror's own search panel (find/replace/regex) when an editor tab is active, Ctrl-G opens go-to-line; both panels styled in `chromeTheme.ts`. Format-on-save formatters live in `lib/externalFormat.ts` (`FORMATTERS` registry: biome, prettier, ruff, rustfmt, gofmt, clang-format, shfmt, zig fmt, plus a custom `{file}` command template); `resolveFormatter` applies per-language overrides (`editorFormatterByLang`) over the global default, and a global external default only runs on languages its tool understands. Diff panes resolve the language before mounting CodeMirror: a late compartment reconfigure leaves the merge view's deleted-chunk widgets unhighlighted. AI inline completion (`lib/autocomplete/`) sends the buffer's indent unit with the request and normalizes unambiguous tab/space mismatches in responses (`normalizeIndent.ts`); triggering is `autocompleteTrigger` auto or manual, with `editor.aiComplete` / `editor.codeComplete` registry shortcuts (guarded to editor tabs so the keys fall through to terminals), and Tab accepts an open completion popup before the ghost. Multi-line ghosts render first-line-inline plus a block widget below the line (never inline `<br>`s); a closers-only line-suffix (cursor inside `fn(|)`) is hidden and re-appended after the block so the preview equals the accept result, and a line-suffix with real code caps the ghost to one line (`capToLineSuffix`). Suggestions echoing the recent prefix are dropped, multi-line suggestions and closing brackets never start on a line that ends with `;`, and closer-only lines are reindented from the previous line (`trimSuggestion`/`reindentClosers`, all tested). Markdown editing is GFM (`markdownLanguage` base) with fenced-code highlighting resolved through the shared lazy language registry, Cmd/Ctrl+Click URLs, and clickable task checkboxes (`markdownExtras.ts`, all inside the lazy markdown chunk; the eager-budget test enforces this). Dotenv files (`.env`, `.env.*`, and `*.env`) use the lazy shell grammar. Editor theme is decoupled from the app theme: the `editorTheme` pref is `"auto" | EditorThemeId` (default `"auto"`), resolved at render time by `useEditorThemeExt` via `resolveEditorThemeId`. In `auto` the editor follows the active app theme's `editorTheme[mode]` pairing (live, never stale); an explicit pick overrides. Theme ids + labels live in `settings/store.ts` (`EDITOR_THEMES`/`EDITOR_THEME_LABELS`); the matching extensions in `editor/lib/themes.ts` (`EDITOR_THEME_EXT`). Prebuilt `@uiw` themes plus locally-built ones in `editor/lib/cmThemes.ts` (Kanagawa wave/lotus/dragon, Everforest, Dracula, Solarized, Catppuccin, Rosé Pine) via `createTheme` (no extra deps). The three CM surfaces (`EditorPane`, `AiDiffPane`, `GitDiffPane`) all read the theme through `useEditorThemeExt`.
-  Editor code size is stored separately as `editorFontSize` and does not affect `terminalFontSize`.
-- **explorer/** - file tree with Material/Catppuccin icons (`iconResolver.ts`), fuzzy search, keyboard nav, inline rename, context actions. Backslash-aware `basename`.
-- **preview/** - auto-detected dev-server preview tab (status-bar pill suggests opening when a localhost URL is detected).
-- **tabs/** - `useTabs` is the source of truth for tab list + active id. `useWorkspaceCwd` derives explorer root + inherited cwd for new tabs from active tab. `basename` splits on both `/` and `\`.
-- **header/** - top bar + inline search (`SearchInline` adapts to terminal vs editor via `SearchTarget`). `WindowControls` rendered when `USE_CUSTOM_WINDOW_CONTROLS` is true (Linux + Windows; macOS uses native traffic lights).
-- **statusbar/** - bottom bar, `CwdBreadcrumb` (handles Unix paths, Windows drive letters, and home `~` segments via `pathUtils.segmentsFromCwd`), AI tools indicator.
-- **shortcuts/** - keymap registry (`shortcuts.ts`) + `useGlobalShortcuts`. Handlers live in `App.tsx` and are passed in by id (`tab.new`, `ai.toggle`, …). `metaKey || ctrlKey` for cross-platform Cmd/Ctrl.
-- **settings/** - settings store (`store.ts` via `tauri-plugin-store`), preferences hook, settings window opener.
-- **sidebar/** - activity bar + collapsible side panels (explorer, source control, git history).
-- **source-control/** - git status / stage / commit panel and diff workflow.
-- **git-history/** - commit graph rail, refs, per-commit file diffs.
-- **lsp/** - opt-in language server support, zero cost until enabled (no process, no PATH check, nothing in the eager bundle beyond a 14.5 kB shell). Statusbar pill offers Enable (binary found) or Install (with copyable command) per language; activation persists as `lspActivation` in the settings store (`enabled`/`dismissed`/unset). `sessionManager.ts` keys sessions by (server, workspace root), refcounts open docs, idle-kills after 3 min, and crash-backoffs (cooldown before respawn; 3 in 5 min → give up + toast with the server's stderr tail). Resource invariants: **no root marker → no session** (a dirname fallback once spawned a server per directory and burned GBs), hard cap of 4 sessions per server, lean per-preset `initializationOptions` (rust-analyzer: `cachePriming` off + bounded `lru`; tsls: `maxTsServerMemory`). Client is `codemirror-languageserver` behind a lazy import, subclassed (`lib/client.ts`) to add didClose/didSave/shutdown, `textDocument/references` (Shift-F12; multi-result definitions and references share the `locationsPanel.ts` picker) and the publishDiagnostics capability the lib forgets (tsls sends no diagnostics without it); `lib/transport.ts` bridges to the Rust pipe and answers server-to-client requests the lib ignores. `vscode-languageserver-protocol` is aliased to a 4-enum shim in vite.config.ts (~117 kB saved). Presets: typescript, rust-analyzer, pyright, ruff, gopls and more; custom stdio servers via Settings. Several presets can claim one language (pyright and ruff both take `py`): `serverForLanguage` prefers the enabled candidate, so enabling ruff while pyright is unset or dismissed routes Python to ruff. WSL workspaces excluded for now.
-- **markdown/** - markdown preview renderer (backs the `markdown` tab kind).
-- **workspace/** - workspace environment switching (Local + WSL distros).
-- **theme/** - custom theme engine (no `next-themes`). `ThemeProvider` + `applyTheme` write CSS variables; built-in presets in `themes/` (yamet-default, claude, kanagawa, kanagawa-dragon, tokyo-night, catppuccin, rose-pine, everforest, nord, gruvbox, dracula, solarized, tide, sage, caffeine), each optionally declaring an `editorTheme` pairing consumed by `resolveEditorThemeId` (see editor/). User themes via `customThemes.ts` + `validateTheme.ts`, optional background image via `bgImageStore.ts` + `SurfaceLayer`.
-- **updater/** - auto-updater UI built on `tauri-plugin-updater`.
-- **agents/** - agent launching, notifications, and management for both the built-in Yamet agent and terminal coding agents (Claude Code, Codex, Gemini CLI, Pi, OpenCode, Grok). The header launcher (`components/AgentLauncherPanel.tsx` + `lib/launcher.ts`) persists per-agent start commands in preferences and atomically builds balanced one-to-four-pane tabs. Shared store (`store/agentStore.ts`: terminal `sessions` + `localAgent` + `notifications`) and a shared router (`lib/route.ts`: suppress when focused-and-visible, OS-notify when unfocused, in-app Sonner toast when focused-but-hidden) feed the header `NotificationBell` (management surface, Yamet agent listed first, per-agent hook enable rows). Toasts use Sonner (`components/ui/sonner.tsx`) themed via the central engine; `lib/agentIcon.tsx` renders the per-agent brand mark. Terminal detection is Rust-side (`pty/agent_detect.rs`) on the PTY reader's byte filter, armed on `OSC 133;C;<cmd>` or self-armed by the marker, emitting `yamet:agent-signal` transitions (`started`/`working`/`attention`/`finished`/`exited`) driven only by OSC sequences (never raw output, so a repainting TUI never flaps) - zero cost when no agent runs. Hook-backed terminal agents converge on the same `OSC 777` marker the detector reads, installed via `agent_enable_hooks(agent)` / `agent_hooks_status(agent)` in `modules/agent.rs` (data-driven `AgentSpec` for JSON-hook agents plus a Yamet-owned Pi extension; atomic writes, foreign configuration preserved, idempotent; gated on `YAMET_TERMINAL`). OpenCode and Grok use OSC 133 process-lifecycle detection but do not install attention hooks. Delivery differs because only Claude's hook protocol can return terminal bytes in the hook *response*: **Claude** (`~/.claude/settings.json`, `UserPromptSubmit`/`Notification`/`Stop`) returns the marker via the `terminalSequence` field (legacy 3-field `notify;Yamet;<event>`). **Codex** (`~/.codex/hooks.json`, `UserPromptSubmit`/`PermissionRequest`/`Stop`) and **Gemini** (`~/.gemini/settings.json`, `BeforeAgent`/`Notification`/`AfterAgent`, `matcher:"*"`) can't, so the hook *command* emits the 4-field `notify;Yamet;<agent>;<event>` marker itself (`printf > /dev/tty` on Unix, or `yamet __yamet_notify` writing to `CONOUT$` after `AttachConsole` on Windows) and prints `{}` as a JSON stdout no-op (Codex's `Stop` and Gemini both reject empty/non-JSON stdout). **Pi** (`~/.pi/agent/extensions/yamet-notifications.ts`) uses `agent_start`/`agent_settled` extension events and writes its named marker directly to stdout. The agent-named marker lets a self-arm name the right agent when no preexec fired (bash/tmux/Windows). The Yamet agent path is `ai/components/LocalAgentNotificationsBridge.tsx`, mapping `chatStore.agentMeta` (`awaiting-approval`→attention, busy→idle→finished, `error`) into the same router.
-- **command-palette/** - modal command palette (`CommandPalette.tsx`, `commands.ts`) for actions and navigation.
-- **spaces/** - workspace spaces/projects (name, root, env, color, per-space tab persistence) via `useSpaces` and `SpaceSwitcher`.
-- **ai/** - see below.
+- **terminal/**：`TerminalStack` 通过 `useTerminalSession` + `pty-bridge` 为每标签保持一个挂载的 xterm。`osc-handlers.ts` 解析 OSC 7（含 Windows 盘符归一化：`/C:/Users/foo` → `C:/Users/foo`）与 OSC 133 标记。xterm 调色板由中心主题引擎（`modules/theme`）驱动，不是本地表。渲染槽有池化（`rendererPool.ts`，上限 5）：持有前台任务（OSC 133 C..D、agent 信号或 `pty_has_foreground_job`）的隐藏叶子保留活网格并以 `display:none` 暂停渲染；空闲隐藏叶子释放槽位但保留 buffer，仅在被抢占时懒序列化。`DormantRing`（1 MiB，溢出不清终端）只为槽位被抢占或从未绑定的叶子缓冲字节。绝不在命令中途序列化叶子：在快照上回放增量 TUI 重绘正是当初抹掉 Claude Code 的原因。
+  **块终端**（`terminal/block/`）：可选的基于块的界面（`newBlockTab` / `TerminalPane blocks` 按标签切换），基于 OSC 133 A/B/C/D 把命令与输出分组为可选中块。工作区级单一 `ShellInput` 条（非每 pane 的 xterm 输入）驱动输入；`block/lib/modeMachine.ts` 跟踪提示符与运行态，`blockDecorations.ts` 渲染块，`BlockOverlay.tsx`/`BlockWatermark.tsx` 处理选中、重跑、搜索。`block/lib/inlineSuggest.ts` + `pathComplete.ts` 在条内提供 shell 建议。
+- **editor/**：CodeMirror 6 栈（`EditorStack` 对应 `TerminalStack`）。`extensions.ts` 配置语言模式，支持 vim 模式。buffer 存于 LF 空间，保存时还原原 EOL（`lib/eol.ts`，多数票检测）；每文件经 per-pane compartment 检测缩进单位/制表符宽度（`lib/indent.ts`）。保存对照磁盘 mtime 做冲突检查（`fs_read_file`/`fs_write_file` 返回），不匹配则弹警告 toast 并显式覆盖，绝不静默 last-writer-wins；外部格式化保存时，仅当文档自保存快照以来未变才应用磁盘读回。超过 10 MB 给"仍然打开"（硬上限 50 MB，`force` 参数）；4 MB 以上关闭语法高亮与 LSP。编辑器标签激活时 Cmd-F 走 CodeMirror 自带搜索面板（查找/替换/正则），Ctrl-G 打开跳行；两个面板样式在 `chromeTheme.ts`。保存格式化器在 `lib/externalFormat.ts`（`FORMATTERS` 注册表：biome、prettier、ruff、rustfmt、gofmt、clang-format、shfmt、zig fmt + 自定义 `{file}` 命令模板）；`resolveFormatter` 按语言覆盖（`editorFormatterByLang`）应用在全局默认之上，全局外部默认只跑它懂的语言。diff 面板在挂载前解析语言：迟到的 compartment 重配置会让 merge 视图的删除块不高亮。AI 行内补全（`lib/autocomplete/`）随请求发送 buffer 缩进单位，并归一化响应中无歧义的 tab/空格不匹配（`normalizeIndent.ts`）；触发是 `autocompleteTrigger` 自动或手动，`editor.aiComplete` / `editor.codeComplete` 注册表快捷键（限定编辑器标签，让按键落到终端）；Tab 在 ghost 之前先接受打开的补全弹窗。多行 ghost 渲染为"首行内联 + 下方块级 widget"（绝不内联 `<br>`）；仅闭合符的行尾后缀（光标在 `fn(|)` 内）先隐藏、块后重挂，保证预览等于接受结果；带真实代码的行尾后缀把 ghost 压成一行（`capToLineSuffix`）。重复近期前缀的建议被丢弃，多行建议与闭合括号绝不从以 `;` 结尾的行开始，仅闭合符的行按上一行重缩进（`trimSuggestion`/`reindentClosers`，全部已测）。Markdown 编辑基于 GFM（`markdownLanguage` 基座），围栏代码高亮经共享懒语言注册表解析，Cmd/Ctrl+点击 URL、可点击任务复选框（`markdownExtras.ts`，全部在懒加载 markdown 块内；eager-budget 测试强制）。dotenv 文件（`.env`、`.env.*`、`*.env`）用懒加载 shell 语法。编辑器主题与应用主题解耦：`editorTheme` 偏好是 `"auto" | EditorThemeId`（默认 `"auto"`），渲染时由 `useEditorThemeExt` 经 `resolveEditorThemeId` 解析。`auto` 下编辑器跟随当前应用主题的 `editorTheme[mode]` 配对（实时，不陈旧）；显式选择则覆盖。主题 id + 标签在 `settings/store.ts`（`EDITOR_THEMES`/`EDITOR_THEME_LABELS`）；对应扩展在 `editor/lib/themes.ts`（`EDITOR_THEME_EXT`）。预构建 `@uiw` 主题 + `editor/lib/cmThemes.ts` 本地构建的（Kanagawa wave/lotus/dragon、Everforest、Dracula、Solarized、Catppuccin、Rosé Pine）经 `createTheme`（无额外依赖）。三块 CM 面（`EditorPane`、`AiDiffPane`、`GitDiffPane`）都经 `useEditorThemeExt` 读取主题。
+  编辑器字号单独存为 `editorFontSize`，不影响 `terminalFontSize`。
+- **explorer/**：带 Material/Catppuccin 图标的文件树（`iconResolver.ts`）、模糊搜索、键盘导航、行内重命名、右键动作。反斜杠感知的 `basename`。
+- **preview/**：自动识别的开发服务器预览标签（检测到 localhost URL 时状态栏徽标建议打开）。
+- **tabs/**：`useTabs` 是标签列表 + 活动 id 的事实来源。`useWorkspaceCwd` 从活动标签派生 explorer 根与新建标签的继承 cwd。`basename` 同时按 `/` 与 `\` 切分。
+- **header/**：顶栏 + 行内搜索（`SearchInline` 经 `SearchTarget` 适配终端/编辑器）。`USE_CUSTOM_WINDOW_CONTROLS` 为真时渲染 `WindowControls`（Linux + Windows；macOS 用原生红绿灯）。
+- **statusbar/**：底栏，`CwdBreadcrumb`（经 `pathUtils.segmentsFromCwd` 处理 Unix 路径、Windows 盘符与 home `~` 段）、AI 工具指示器。
+- **shortcuts/**：按键映射注册表（`shortcuts.ts`）+ `useGlobalShortcuts`。处理器在 `App.tsx` 按 id 传入（`tab.new`、`ai.toggle`…）。跨平台 Cmd/Ctrl 用 `metaKey || ctrlKey`。
+- **settings/**：设置 store（`store.ts`，`tauri-plugin-store`）、偏好 hook、设置窗口打开器。
+- **sidebar/**：活动栏 + 可折叠侧面板（explorer、源码管理、git 历史）。
+- **source-control/**：git status / stage / commit 面板与 diff 工作流。
+- **git-history/**：提交图轨道、refs、按提交的文件 diff。
+- **lsp/**：可选的语言服务器支持，未启用时零开销（无进程、无 PATH 检查、eager bundle 里除 14.5 kB shell 外什么都没有）。状态栏徽标提供启用（发现二进制）或安装（可复制命令）入口，按语言；激活状态以 `lspActivation` 存设置 store（`enabled`/`dismissed`/未设）。`sessionManager.ts` 按（server，workspace root）建键、对打开的文档引用计数、3 分钟空闲杀掉、崩溃退避（冷却后重spawn；3 次/5 分钟 → 放弃 + 附 stderr 尾部的 toast）。资源不变量：**无根标记 → 无会话**（dirname 回退曾每目录起一个服务器、烧掉数 GB）、每服务器 4 会话硬顶、精简的按预设 `initializationOptions`（rust-analyzer：关 `cachePriming` + 有界 `lru`；tsls：`maxTsServerMemory`）。客户端是 `codemirror-languageserver` 懒加载 + 子类化（`lib/client.ts`）以补 didClose/didSave/shutdown、`textDocument/references`（Shift-F12；多结果定义与引用共用 `locationsPanel.ts` 选择器）以及该库漏掉的 publishDiagnostics 能力（没有它 tsls 不发诊断）；`lib/transport.ts` 桥到 Rust 管道并回答库忽略的 server-to-client 请求。`vscode-languageserver-protocol` 在 vite.config.ts 中别名到 4 枚举 shim（省约 117 kB）。预设：typescript、rust-analyzer、pyright、ruff、gopls 等；设置里支持自定义 stdio 服务器。多个预设可认领同一语言（pyright 与 ruff 都占 `py`）：`serverForLanguage` 优先已启用候选，启用 ruff 而 pyright 未设或被 dismiss 时，Python 路由到 ruff。WSL 工作区暂排除。
+- **markdown/**：Markdown 预览渲染器（支撑 `markdown` 标签类型）。
+- **workspace/**：工作区环境切换（本地 + WSL 发行版）。
+- **theme/**：自定义主题引擎（无 `next-themes`）。`ThemeProvider` + `applyTheme` 写 CSS 变量；内置预设（yamet-default、claude、kanagawa、kanagawa-dragon、tokyo-night、catppuccin、rose-pine、everforest、nord、gruvbox、dracula、solarized、tide、sage、caffeine），每个可选声明 `editorTheme` 配对，供 `resolveEditorThemeId` 消费（见 editor/）。用户主题经 `customThemes.ts` + `validateTheme.ts`，可选背景图经 `bgImageStore.ts` + `SurfaceLayer`。
+- **updater/**：基于 `tauri-plugin-updater` 的自动更新 UI。
+- **agents/**：内置 Yamet agent 与终端编码 agent（Claude Code、Codex、Gemini CLI、Pi、OpenCode、Grok）的启动、通知与管理。顶栏启动器（`components/AgentLauncherPanel.tsx` + `lib/launcher.ts`）把各 agent 的启动命令持久化到偏好，原子构建平衡的一到四 pane 标签。共享 store（`store/agentStore.ts`：终端 `sessions` + `localAgent` + `notifications`）与共享路由（`lib/route.ts`：聚焦可见时抑制、失焦时系统通知、聚焦隐藏时应用内 Sonner toast）喂给顶栏 `NotificationBell`（管理面，Yamet agent 排第一，逐 agent 的 hook 启用行）。Toast 用 Sonner（`components/ui/sonner.tsx`），经中心引擎主题化；`lib/agentIcon.tsx` 渲染各 agent 品牌标记。终端检测在 Rust 侧（`pty/agent_detect.rs`），挂在 PTY 读线程的字节过滤器上，由 `OSC 133;C;<cmd>` 武装或自武装，发出 `yamet:agent-signal` 转换（`started`/`working`/`attention`/`finished`/`exited`），只由 OSC 序列驱动（绝不凭原始输出，重绘 TUI 不会抖动），无 agent 运行时零开销。基于 hook 的终端 agent 收敛到检测器读取的同一 `OSC 777` 标记，经 `agent_enable_hooks(agent)` / `agent_hooks_status(agent)`（`modules/agent.rs` 中数据驱动的 `AgentSpec` 用于 JSON-hook agent + Yamet 自有的 Pi 扩展；原子写、保留外部配置、幂等；以 `YAMET_TERMINAL` 门控）。OpenCode 与 Grok 用 OSC 133 进程生命周期检测但不装 attention hook。投递差异只因为 Claude 的 hook 协议能在 hook *响应*里返回终端字节：**Claude**（`~/.claude/settings.json`，`UserPromptSubmit`/`Notification`/`Stop`）经 `terminalSequence` 字段返回标记（旧式 3 字段 `notify;Yamet;<event>`）。**Codex**（`~/.codex/hooks.json`，`UserPromptSubmit`/`PermissionRequest`/`Stop`）与 **Gemini**（`~/.gemini/settings.json`，`BeforeAgent`/`Notification`/`AfterAgent`，`matcher:"*"`）做不到，所以 hook *命令*自己发 4 字段 `notify;Yamet;<agent>;<event>` 标记（Unix `printf > /dev/tty`，Windows `yamet __yamet_notify` 经 `AttachConsole` 写 `CONOUT$`）并打印 `{}` 作为 JSON stdout 空操作（Codex 的 `Stop` 与 Gemini 都拒绝空/非 JSON stdout）。**Pi**（`~/.pi/agent/extensions/yamet-notifications.ts`）用 `agent_start`/`agent_settled` 扩展事件，把自己的具名标记直接写 stdout。带 agent 名的标记让自武装在无 preexec 时（bash/tmux/Windows）能指对 agent。Yamet agent 路径是 `ai/components/LocalAgentNotificationsBridge.tsx`，把 `chatStore.agentMeta`（`awaiting-approval`→attention，busy→idle→finished，`error`）映射进同一路由。
+- **command-palette/**：模态命令面板（`CommandPalette.tsx`、`commands.ts`），动作与导航。
+- **spaces/**：工作区 spaces/项目（name、root、env、color、按 space 的标签持久化）经 `useSpaces` 与 `SpaceSwitcher`。
 
-### AI subsystem (`src/modules/ai/`)
+### AI 子系统（`src/modules/ai/`）
 
-BYOK. Built-in providers (all via `@ai-sdk/openai-compatible`): **DeepSeek, Mistral, OpenRouter**, plus **OpenAI-compatible** (any custom base URL, incl. the built-in opencode-go endpoint) and **llama.cpp** for local GGUF models. Provider list in `config.ts` (`PROVIDERS`); model registry includes `DEFAULT_MODEL_ID` + `DEFAULT_AUTOCOMPLETE_MODEL`. The `@ai-sdk/{openai,anthropic,google,xai,groq,cerebras}` packages are declared but unused — all providers route through the OpenAI-compatible transport.
+BYOK。内置提供商（全部经 `@ai-sdk/openai-compatible`）：**DeepSeek、Mistral、OpenRouter**，外加 **OpenAI-compatible**（任意自定义 base URL，含内置 opencode-go 端点）与 **llama.cpp**（本地 GGUF 模型）。提供商列表在 `config.ts`（`PROVIDERS`）；模型注册表含 `DEFAULT_MODEL_ID` + `DEFAULT_AUTOCOMPLETE_MODEL`。`@ai-sdk/{openai,anthropic,google,xai,groq,cerebras}` 包已声明但未用，所有提供商都走 OpenAI-compatible 传输。
 
-- **Key storage**: OS keychain via `keyring` (Rust). Frontend reads/writes through `secrets_*` commands. Service `KEYRING_SERVICE = "yamet-ai"`. Never persist keys to disk, settings store, or `localStorage`.
-- **Agent** (`lib/agent.ts`): `Experimental_Agent` with `stopWhen: stepCountIs(MAX_AGENT_STEPS)` and the system prompt from `config.ts`. Provider branching happens here - keep the `Agent` / `DirectChatTransport` shape; the rest of the system depends on AI SDK v6 chat semantics.
-- **Sub-agents** (`agents/registry.ts`, `agents/runSubagent.ts`): named sub-agents with their own system prompts and tool subsets, invoked by the main agent via `run_subagent` tool.
-- **Sessions** (`lib/sessions.ts` + `store/chatStore.ts`): conversations are organized into named sessions, persisted via `tauri-plugin-store` at `yamet-ai-sessions.json` (list + `activeId` + per-session `messages:<id>` keys). `chatStore.ts` keeps a module-scoped `Map<sessionId, Chat<UIMessage>>`; `getOrCreateChat(apiKey, sessionId)` lazily constructs a `Chat`, seeded with messages from a hydration map populated by `hydrateSessions()` (called once from `App.tsx`). `AgentRunBridge` mirrors active-session messages to disk on every change and auto-derives titles from the first user message. Switching the API key wipes the chat map; sessions persist.
-- **Composer** (`lib/composer.tsx`): React context providing shared input state (text, attachments, voice) for both the docked `AiInputBar` and any other surface. Attachments include image, text-file, and `selection` kinds - selections come from `useChatStore.attachSelection(text, source)` (drained into chips, not pasted into the textarea) and are wrapped as `<selection source="terminal|editor">…</selection>` blocks at submit. Composer derives `isBusy` from `agentMeta.status` so it can mount safely before sessions hydrate.
-- **Voice input**: streamed transcription pipeline. Toggled from the composer.
-- **Live context bridge**: `App.tsx` calls `setLive({ getCwd, getTerminalContext, … })` so tools can read the *currently active* terminal's cwd + last 300 lines of buffer. Lazy by design - don't pre-snapshot.
-- **Tools** (`tools/tools.ts`): `read_file`, `list_directory`, `fs_search`, `fs_grep` auto-execute. `write_file`, `create_directory`, `rename`, `delete`, `run_command`, `shell_session_run`, `shell_bg_spawn` set `needsApproval: true` and the AI SDK pauses for an in-UI confirmation card. Auto-send after approval uses `lastAssistantMessageIsCompleteWithApprovalResponses`. `lib/security.ts` is a deny-list refusing obvious secret paths (`.env*`, `.ssh/`, credentials, keychain dirs) - apply on **both** read and write paths and don't bypass it.
-- **Edit diffs**: AI-proposed edits open in a side-by-side diff tab (`ai-diff` tab kind); user accepts/rejects per hunk before the write tool actually runs.
-- **Skills / snippets**: reusable prompt fragments + tool-bundles surfaced in the composer.
+- **密钥存储**：OS 钥匙串（`keyring`，Rust）。前端经 `secrets_*` 命令读写。服务 `KEYRING_SERVICE = "yamet-ai"`。绝不把密钥落盘、落设置 store 或 localStorage。
+- **Agent**（`lib/agent.ts`）：`Experimental_Agent`，`stopWhen: stepCountIs(MAX_AGENT_STEPS)`，系统提示词在 `config.ts`。提供商分支在这里：保持 `Agent` / `DirectChatTransport` 形态，系统其余部分依赖 AI SDK v6 聊天语义。
+- **子 agent**（`agents/registry.ts`、`agents/runSubagent.ts`）：具名子 agent，自带系统提示词与工具子集，由主 agent 经 `run_subagent` 工具调用。
+- **会话**（`lib/sessions.ts` + `store/chatStore.ts`）：对话组织成具名会话，经 `tauri-plugin-store` 持久化到 `yamet-ai-sessions.json`（列表 + `activeId` + 每会话 `messages:<id>` 键）。`chatStore.ts` 维护模块级 `Map<sessionId, Chat<UIMessage>>`；`getOrCreateChat(apiKey, sessionId)` 懒构建 `Chat`，用 `hydrateSessions()`（`App.tsx` 启动时调一次）填充的水合映射播种。`AgentRunBridge` 每次变更把活动会话镜像到磁盘并自动从首条用户消息派生标题。切换 API 密钥清空 chat 映射；会话保留。
+- **Composer**（`lib/composer.tsx`）：React context，共享输入状态（文本、附件、语音），供停靠的 `AiInputBar` 与任何其他面使用。附件含图片、文本文件与 `selection` 类型；选区来自 `useChatStore.attachSelection(text, source)`（排空成 chip，不粘贴进 textarea），提交时包成 `<selection source="terminal|editor">…</selection>` 块。Composer 从 `agentMeta.status` 派生 `isBusy`，可在会话水合前安全挂载。
+- **语音输入**：流式转写管道。从 composer 切换。
+- **实时上下文桥**：`App.tsx` 调 `setLive({ getCwd, getTerminalContext, … })`，让工具读取*当前活动*终端的 cwd + 末 300 行 buffer。懒取设计，不预快照。
+- **工具**（`tools/tools.ts`）：`read_file`、`list_directory`、`fs_search`、`fs_grep` 自动执行。`write_file`、`create_directory`、`rename`、`delete`、`run_command`、`shell_session_run`、`shell_bg_spawn` 置 `needsApproval: true`，AI SDK 暂停等待应用内确认卡。批准后自动发送用 `lastAssistantMessageIsCompleteWithApprovalResponses`。`lib/security.ts` 是拒绝名单，拒绝明显密钥路径（`.env*`、`.ssh/`、凭据、钥匙串目录）：**读写两侧**都生效且不可绕过。
+- **编辑 diff**：AI 提议的编辑打开并排 diff 标签（`ai-diff` 类型）；写工具真正执行前逐块接受/拒绝。
+- **片段**：可复用提示词片段，经 composer 的 `#handle` 展示（设置在 Agents 下）。Tool-bundle 尚未实现。
 
-### UI conventions
+### UI 约定
 
-- **shadcn/ui** is configured (`components.json`, style `radix-luma`, base `mist`, icon lib **hugeicons**). Primitives in `src/components/ui/` - don't hand-edit; re-run `pnpm dlx shadcn add` to upgrade.
-- **AI Elements** (Vercel) live in `src/components/ai-elements/` from the `@ai-elements` registry in `components.json`. Same rule: regenerate, don't hand-patch - composition wrappers belong in `modules/ai/components/`.
-- **Tailwind v4** - no `tailwind.config.*`, config is in `src/App.css` via `@theme`. Use `cn()` from `@/lib/utils`.
-- Animation: `motion` (Framer Motion successor). Resizable layout: `react-resizable-panels`.
-- Path imports: always `@/…`, never relative across modules.
-- Cross-platform paths: anywhere a path may originate from OSC 7, the explorer, or the OS, normalize separators with `.split(/[\\/]/)` rather than `.split("/")`.
-- Canonical path form on the frontend is **forward-slash**. `homeDir()` returns backslashes on Windows; convert at the boundary (App.tsx setHome). OSC 7 already arrives as forward-slash. Equal canonical strings keep `useFileTree` from wiping its tree and flashing the explorer when `tab.cwd` first arrives.
+- **shadcn/ui** 已配置（`components.json`，style `radix-luma`，base `mist`，图标库 **hugeicons**）。原语在 `src/components/ui/`，不要手改；升级用 `pnpm dlx shadcn add`。
+- **AI Elements**（Vercel）在 `src/components/ai-elements/`，来自 `components.json` 的 `@ai-elements` 注册表。同规则：重新生成而非手改；组合包装放 `modules/ai/components/`。
+- **Tailwind v4**：无 `tailwind.config.*`，配置在 `src/App.css` 经 `@theme`。用 `cn()`（来自 `@/lib/utils`）。
+- 动画：`motion`（Framer Motion 继任者）。可调布局：`react-resizable-panels`。
+- 路径导入：一律 `@/…`，跨模块绝不用相对路径。
+- 跨平台路径：任何可能来自 OSC 7、explorer 或 OS 的路径，用 `.split(/[\\/]/)` 归一化分隔符，而非 `.split("/")`。
+- 前端规范路径形态是**正斜杠**。Windows 上 `homeDir()` 返回反斜杠；在边界转换（App.tsx setHome）。OSC 7 到达时已是正斜杠。规范字符串一致能避免 `useFileTree` 在 `tab.cwd` 首次到达时清树、闪烁 explorer。
 
-### Window styling
+### 窗口样式
 
-- macOS: `titleBarStyle: Overlay` + `hiddenTitle: true` in `tauri.conf.json` (native traffic lights via overlay).
-- Linux: `decorations: false` + `transparent: true` from `tauri.linux.conf.json`; re-asserted post-realize for GNOME/Mutter CSD.
-- Windows: same as Linux via `tauri.windows.conf.json`. React renders custom `WindowControls`.
+- macOS：`tauri.conf.json` 里 `titleBarStyle: Overlay` + `hiddenTitle: true`（overlay 提供原生红绿灯）。
+- Linux：`tauri.linux.conf.json` 里 `decorations: false` + `transparent: true`；realize 后为 GNOME/Mutter CSD 重设。
+- Windows：经 `tauri.windows.conf.json` 与 Linux 相同。React 渲染自定义 `WindowControls`。
 
 ### Tauri capabilities
 
-`src-tauri/capabilities/default.json` is the allowlist for plugin APIs available to the webview. New plugins (dialog, autostart, updater, window-state, store, opener, os, log are wired in `lib.rs`) typically need:
-1. `Cargo.toml` dependency
-2. `.plugin(...)` call in `lib.rs` `run()`
-3. capability entry in `default.json`
+`src-tauri/capabilities/default.json` 是 webview 可用的插件 API 白名单。新插件（dialog、autostart、updater、window-state、store、opener、os、log 已在 `lib.rs` 接线）通常需要：
+1. `Cargo.toml` 依赖
+2. `lib.rs` 的 `run()` 里 `.plugin(...)` 调用
+3. `default.json` 的能力条目
 
-### Cross-platform conventions
+### 跨平台约定
 
-- HOME / cache dirs: use the `dirs` crate (`dirs::home_dir()`, `dirs::cache_dir()`), never raw `$HOME` / `%USERPROFILE%`.
-- Shell init scripts: gate Unix-only logic behind `#[cfg(unix)]`; Windows arm in `pty::shell_init::windows`.
-- Terminal input: send `\r` (CR) for Enter, not `\n` (LF) - PowerShell on Windows requires CR.
+- HOME / 缓存目录：用 `dirs` crate（`dirs::home_dir()`、`dirs::cache_dir()`），绝不裸用 `$HOME` / `%USERPROFILE%`。
+- Shell 初始化脚本：Unix 专属逻辑用 `#[cfg(unix)]` 门控；Windows 分支在 `pty::shell_init::windows`。
+- 终端输入：Enter 发 `\r`（CR），不是 `\n`（LF）：Windows PowerShell 要求 CR。
 
-### Bundle config
+### 打包配置
 
-- `bundle.targets: "all"` plus per-platform sections in `tauri.conf.json`:
-  - **macOS**: `minimumSystemVersion: 10.15`.
-  - **Linux**: deb depends `libwebkit2gtk-4.1-0`, `libgtk-3-0`; rpm `webkit2gtk4.1`, `gtk3`; AppImage bundles its media framework.
-  - **Windows**: NSIS installer in `currentUser` mode (no admin required), WebView2 via `downloadBootstrapper` (downloads the runtime if missing; not an offline embed).
-- Auto-updater configured with a public minisign key; release artifacts are hosted by your fork's release channel (point the updater `endpoints` in `tauri.conf.json` at your `latest.json`).
+- `bundle.targets: "all"`，外加 `tauri.conf.json` 里的各平台段：
+  - **macOS**：`minimumSystemVersion: 10.15`。
+  - **Linux**：deb 依赖 `libwebkit2gtk-4.1-0`、`libgtk-3-0`；rpm `webkit2gtk4.1`、`gtk3`；AppImage 自带媒体框架。
+  - **Windows**：NSIS 安装器 `currentUser` 模式（无需管理员），WebView2 经 `downloadBootstrapper`（缺失时下载运行时；非离线内嵌）。
+- 自动更新配置了公开 minisign 密钥；发布产物托管在你 fork 的发布通道（把 `tauri.conf.json` 的 updater `endpoints` 指向你的 `latest.json`）。
 
-### Known gotchas
+### 已知坑
 
-- **React 19 strict mode** double-mounts `useEffect` in dev → terminals spawn twice on first render. The first PTY is cleaned up almost immediately. The `SPAWN_LOCK` mutex serializes this; don't be alarmed by `pty opened id=1` followed by `pty closed id=1` in dev logs.
-- **Windows PowerShell process lifecycle**: `killer.kill()` from `portable-pty` only kills the immediate child. Descendants (e.g. `npm run dev` started inside pwsh) survive unless something else takes them down. The Job Object in `pty/job.rs` handles this for the Yamet-process-death case; an explicit `pty_close` from JS also kills only the immediate child + relies on the Job to take the rest. Don't disable the Job without a replacement.
-- **Tab `cwd` storage**: comes from OSC 7 with forward slashes (after `parseOsc7` strips `/C:` → `C:`). Anything that consumes `tab.cwd` and passes it to a Rust fs command on Windows must normalize separators or accept both forms - `apply_common` in `pty::shell_init` handles this for PTY spawn; other call sites must do their own.
+- **React 19 严格模式**开发环境下双挂载 `useEffect` → 首帧终端 spawn 两次。第一个 PTY 几乎立刻清理。`SPAWN_LOCK` 互斥锁串行化此过程；开发日志里 `pty opened id=1` 后跟 `pty closed id=1` 不必惊慌。
+- **Windows PowerShell 进程生命周期**：`portable-pty` 的 `killer.kill()` 只杀直接子进程。后代（如 pwsh 内启动的 `npm run dev`）除非有别的东西处理，否则存活。`pty/job.rs` 的作业对象处理 Yamet 进程死亡的情况；JS 显式 `pty_close` 也只杀直接子进程，其余靠作业对象。没有替代方案前不要禁用作业对象。
+- **标签 `cwd` 存储**：来自 OSC 7，正斜杠（`parseOsc7` 剥掉 `/C:` → `C:` 之后）。任何消费 `tab.cwd` 并传给 Windows 上 Rust fs 命令的地方都必须归一化分隔符或同时接受两种形态：`pty::shell_init` 里的 `apply_common` 处理 PTY spawn，其他调用点要自己做。
 
-## Further reading
+## 延伸阅读
 
-Long-form contributor guides live under `docs/`. These guides elaborate on `YAMET.md`; if anything conflicts, `YAMET.md` wins.
+长文贡献者指南在 `docs/`。这些指南详述 `YAMET.md`；如有冲突，以 `YAMET.md` 为准。
 
-- `docs/README.md` - index of contributor guides
-- `docs/architecture/two-process-model.md` - IPC boundary and command reference
-- `docs/architecture/pty-shell-integration.md` - PTY, shell init scripts, OSC, ConPTY, Job Object
-- `docs/architecture/security-model.md` - consolidated security model and boundaries
-- `docs/architecture/ai-subsystem.md` - AI stack, sessions, tools, adding a provider
-- `docs/architecture/terminal-renderer-pool.md` - renderer pool and DormantRing invariants
-- `docs/contributing/testing.md` - testing contract and core-subsystem invariants
+- `docs/README.md`：贡献者指南索引
+- `docs/architecture/two-process-model.md`：IPC 边界与命令参考
+- `docs/architecture/pty-shell-integration.md`：PTY、shell 初始化脚本、OSC、ConPTY、作业对象
+- `docs/architecture/security-model.md`：合并后的安全模型与边界
+- `docs/architecture/ai-subsystem.md`：AI 栈、会话、工具、如何新增提供商
+- `docs/architecture/terminal-renderer-pool.md`：渲染池与 DormantRing 不变量
+- `docs/contributing/testing.md`：测试契约与核心子系统不变量

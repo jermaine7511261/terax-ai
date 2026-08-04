@@ -18,7 +18,7 @@ use tokio_tungstenite::tungstenite::http;
 use crate::modules::gateway::adapter::{
     ChatTarget, EventTx, PlatformAdapter, SendReceipt, SendResult,
 };
-use crate::modules::gateway::message::{ChatType, MessageEvent};
+use crate::modules::gateway::message::{ChatType, MediaItem, MediaKind, MessageEvent};
 use crate::modules::gateway::platform::PlatformId;
 use serde::{Deserialize, Serialize};
 
@@ -121,6 +121,46 @@ fn extract_text(message: &serde_json::Value) -> Option<String> {
         }
         _ => None,
     }
+}
+
+/// Extract media items (image/record/video/file segments) from a OneBot
+/// `message` array. go-cqhttp includes a direct `url` for most segment types;
+/// `file` segments carry `name` as well.
+fn extract_media(message: &serde_json::Value) -> Vec<MediaItem> {
+    let mut out = Vec::new();
+    if let serde_json::Value::Array(parts) = message {
+        for p in parts {
+            let ty = p.get("type").and_then(|t| t.as_str()).unwrap_or("");
+            let kind = match ty {
+                "image" => MediaKind::Image,
+                "record" => MediaKind::Voice,
+                "video" => MediaKind::Video,
+                "file" => MediaKind::File,
+                _ => continue,
+            };
+            let data = p.get("data");
+            let url = data
+                .and_then(|d| d.get("url"))
+                .and_then(|u| u.as_str())
+                .map(String::from);
+            let name = data
+                .and_then(|d| d.get("name"))
+                .and_then(|n| n.as_str())
+                .map(String::from);
+            if url.is_none() && name.is_none() {
+                continue;
+            }
+            out.push(MediaItem {
+                kind,
+                url,
+                name,
+                size: None,
+                encrypted_query: None,
+                local_path: None,
+            });
+        }
+    }
+    out
 }
 
 impl PlatformAdapter for QqAdapter {
@@ -297,6 +337,8 @@ async fn run_onebot_loop(inner: &Arc<QqInner>, tx: EventTx) -> Result<(), String
             let sender = v.get("user_id").and_then(|x| x.as_i64()).map(|i| i.to_string()).unwrap_or_default();
             let text = extract_text(v.get("message").unwrap_or(&serde_json::Value::Null));
             let message_id = v.get("message_id").map(|x| x.to_string());
+            let message = v.get("message").unwrap_or(&serde_json::Value::Null);
+            let media = extract_media(message);
             let ev = MessageEvent {
                 platform: PlatformId::Qq,
                 chat_type,
@@ -305,7 +347,7 @@ async fn run_onebot_loop(inner: &Arc<QqInner>, tx: EventTx) -> Result<(), String
                 text,
                 message_id,
                 reply_to: None,
-                media: Vec::new(),
+                media,
                 raw: v,
                 timestamp: Utc::now(),
             };
@@ -315,4 +357,36 @@ async fn run_onebot_loop(inner: &Arc<QqInner>, tx: EventTx) -> Result<(), String
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn extract_media_handles_image_record_file_segments() {
+        let msg = json!([
+            { "type": "text", "data": { "text": "hi" } },
+            { "type": "image", "data": { "url": "https://q.qlogo.cn/x.png" } },
+            { "type": "record", "data": { "url": "https://x/voice.amr" } },
+            { "type": "file", "data": { "name": "doc.pdf", "url": "https://x/doc.pdf" } },
+        ]);
+        let media = extract_media(&msg);
+        assert_eq!(media.len(), 3);
+        assert_eq!(media[0].kind, MediaKind::Image);
+        assert_eq!(media[0].url.as_deref(), Some("https://q.qlogo.cn/x.png"));
+        assert_eq!(media[1].kind, MediaKind::Voice);
+        assert_eq!(media[2].kind, MediaKind::File);
+        assert_eq!(media[2].name.as_deref(), Some("doc.pdf"));
+    }
+
+    #[test]
+    fn extract_media_skips_text_and_unknown_segments() {
+        assert!(
+            extract_media(&json!([{ "type": "text", "data": { "text": "x" } }])).is_empty()
+        );
+        assert!(extract_media(&json!([{ "type": "face", "data": {} }])).is_empty());
+        assert!(extract_media(&json!("plain string")).is_empty());
+    }
 }

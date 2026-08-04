@@ -1,4 +1,5 @@
 import { type RefObject, useCallback, useEffect, useState } from "react";
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { homeDir } from "@tauri-apps/api/path";
 import { native } from "@/modules/ai/lib/native";
 import type { Tab } from "@/modules/tabs";
@@ -127,11 +128,31 @@ export function useWorkspaceSwitcher({
     [setWorkspaceEnv, authorizeHome],
   );
 
+  /** Pick an arbitrary local folder and adopt it as the current workspace. */
+  const openFolder = useCallback(async (): Promise<boolean> => {
+    const dir = await openDialog({ directory: true, multiple: false });
+    if (typeof dir !== "string" || !dir) return false;
+    const dirty = tabsRef.current.some((t) => t.kind === "editor" && t.dirty);
+    if (dirty) {
+      window.alert(
+        "Save or close unsaved editor tabs before switching workspace.",
+      );
+      return false;
+    }
+    const normalized = dir.replace(/\\/g, "/");
+    clearWorkspaceState();
+    setWorkspaceEnv(LOCAL_WORKSPACE);
+    await authorizeHome(normalized);
+    resetWorkspace(normalized);
+    return true;
+  }, [tabsRef, clearWorkspaceState, setWorkspaceEnv, authorizeHome, resetWorkspace]);
+
   return {
     home,
     launchCwd,
     launchCwdResolved,
     switchWorkspace,
     adoptWorkspaceEnv,
+    openFolder,
   };
 }

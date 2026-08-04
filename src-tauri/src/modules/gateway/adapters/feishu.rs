@@ -178,7 +178,7 @@ async fn feishu_send_text(
     target: &ChatTarget,
     text: &str,
 ) -> SendResult {
-    let _ = cfg; // config retained for future media uploads
+    let _ = cfg; // used by future media uploads (send_file); text replies need no config
     let client = http_client();
 
     // Map the normalized target to Feishu's receive_id_type (mirrors LangBot's

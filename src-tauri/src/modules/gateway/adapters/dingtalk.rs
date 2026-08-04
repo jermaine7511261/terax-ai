@@ -292,8 +292,8 @@ fn extract_media(body: &serde_json::Value) -> Vec<MediaItem> {
             .map(|s| s.to_string());
         items.push(MediaItem {
             kind,
-            // TODO: resolve downloadCode → real URL via
-            //   POST /v1.0/robot/messageFiles/download
+            // `url` carries the downloadCode; the poll loop resolves it via
+            // download_dingtalk_media() and fills `local_path`.
             url: Some(code.to_string()),
             name,
             size: None,
