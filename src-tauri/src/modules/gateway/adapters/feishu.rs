@@ -45,6 +45,13 @@ use crate::modules::gateway::adapter::{ChatTarget, PlatformAdapter, SendReceipt,
 use crate::modules::gateway::message::{ChatType, MediaItem, MessageEvent};
 use crate::modules::gateway::platform::PlatformId;
 
+/// Shared HTTP client for all outbound Feishu calls. Reused instead of
+/// dialing a fresh connection pool per request.
+fn http_client() -> &'static reqwest::Client {
+    static CLIENT: std::sync::OnceLock<reqwest::Client> = std::sync::OnceLock::new();
+    CLIENT.get_or_init(reqwest::Client::new)
+}
+
 /// The gateway's inbound delivery channel (see `adapter::EventTx`).
 type EventTx = mpsc::Sender<MessageEvent>;
 
@@ -172,7 +179,7 @@ async fn feishu_send_text(
     text: &str,
 ) -> SendResult {
     let _ = cfg; // config retained for future media uploads
-    let client = reqwest::Client::new();
+    let client = http_client();
 
     // Map the normalized target to Feishu's receive_id_type (mirrors LangBot's
     // `send_message` mapping and Hermes' `_build_create_message_request`).
@@ -497,7 +504,7 @@ impl PlatformAdapter for FeishuAdapter {
         let target = target.clone();
         let text = text.to_string();
         Box::pin(async move {
-            let client = reqwest::Client::new();
+            let client = http_client();
             let token = match fetch_tenant_access_token(&client, &cfg).await {
                 Ok(t) => t,
                 Err(e) => return Err(e),

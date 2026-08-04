@@ -10,12 +10,12 @@ import { WebglAddon } from "@xterm/addon-webgl";
 import { type FontWeight, Terminal } from "@xterm/xterm";
 import { toast } from "sonner";
 import { shouldCursorBlink } from "./cursorBlink";
+import { terminalReadlineSequence } from "./keymap";
 import {
   readTerminalClipboard,
   writeTerminalClipboard,
 } from "./terminalClipboard";
 import { pasteIntoTerminal } from "./terminalPaste";
-import { terminalReadlineSequence } from "./keymap";
 
 export const POOL_MAX_SIZE = 5;
 const FIT_DEBOUNCE_MS = 8;
@@ -438,7 +438,10 @@ export function acquireSlot(params: AcquireParams): Slot {
     pick.slot.retainedLeafId !== null &&
     pick.slot.retainedLeafId !== params.leafId
   ) {
-    adapter?.storeSnapshot(pick.slot.retainedLeafId, serializeSlot(pick.slot));
+    adapter?.storeSnapshot(
+      pick.slot.retainedLeafId,
+      serializeSlot(pick.slot, true),
+    );
     discardRetention(pick.slot);
   }
   bindSlot(pick.slot, params);
@@ -657,11 +660,15 @@ export function releaseSlot(leafId: number): ReleaseOutput | null {
   return { cols: slot.term.cols, rows: slot.term.rows };
 }
 
-function serializeSlot(slot: Slot): SerializeOutput {
+function serializeSlot(slot: Slot, background = false): SerializeOutput {
   let snapshot: string | null = null;
   try {
+    // Background (hidden/evicted) slots keep only a bounded tail — a hidden
+    // leaf with 5000 lines is rarely worth the serialization cost, and the
+    // full buffer is re-fetched lazily on re-activation if needed.
+    const bgCap = background ? 1000 : SNAPSHOT_SCROLLBACK_CAP;
     const cap = Math.min(
-      SNAPSHOT_SCROLLBACK_CAP,
+      bgCap,
       usePreferencesStore.getState().terminalScrollback,
     );
     snapshot = slot.serializeAddon.serialize({ scrollback: cap });

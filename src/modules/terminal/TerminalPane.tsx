@@ -1,13 +1,3 @@
-import { useTheme } from "@/modules/theme";
-import type { SshTarget } from "@/modules/tabs";
-import type { SearchAddon } from "@xterm/addon-search";
-import {
-  forwardRef,
-  memo,
-  useEffect,
-  useImperativeHandle,
-  useRef,
-} from "react";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -16,13 +6,19 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { useI18n } from "@/lib/i18n";
+import type { SshTarget } from "@/modules/tabs";
+import { useTheme } from "@/modules/theme";
+import type { SearchAddon } from "@xterm/addon-search";
+import {
+  forwardRef,
+  memo,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+} from "react";
 import { BlockOverlay } from "./block/BlockOverlay";
 import { BlockWatermark } from "./block/BlockWatermark";
-import {
-  clearLeaf,
-  pasteIntoLeaf,
-  selectAllLeaf,
-} from "./lib/rendererPool";
+import { clearLeaf, pasteIntoLeaf, selectAllLeaf } from "./lib/rendererPool";
 import {
   readTerminalClipboard,
   writeTerminalClipboard,
@@ -163,6 +159,7 @@ export const TerminalPane = memo(
             <BlockOverlay
               subscribe={session.subscribeBlocks}
               getVisible={session.visibleBlocks}
+              getVersion={session.blockVersion}
               readOutput={(id) => session.readBlockId(id)?.output ?? null}
               searchBlock={session.searchBlock}
               revealMatch={session.revealMatch}

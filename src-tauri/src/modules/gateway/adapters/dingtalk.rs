@@ -33,6 +33,13 @@ use tokio_tungstenite::tungstenite::Message as WsMessage;
 use crate::modules::gateway::adapter::{
     ChatTarget, EventTx, PlatformAdapter, SendReceipt, SendResult,
 };
+
+/// Shared HTTP client for all outbound DingTalk calls. Reused instead of
+/// dialing a fresh connection pool per request.
+fn http_client() -> &'static reqwest::Client {
+    static CLIENT: std::sync::OnceLock<reqwest::Client> = std::sync::OnceLock::new();
+    CLIENT.get_or_init(reqwest::Client::new)
+}
 use crate::modules::gateway::message::{ChatType, MediaItem, MessageEvent};
 use crate::modules::gateway::platform::PlatformId;
 
@@ -404,7 +411,7 @@ async fn read_frame(ws: &mut WsStream) -> Result<StreamFrame, String> {
 /// Fetch an OAuth access token (cached per call-site).
 async fn fetch_access_token(app_key: &str, app_secret: &str) -> Result<String, String> {
     let url = format!("{OPENAPI_BASE}/v1.0/oauth2/accessToken");
-    let client = reqwest::Client::new();
+    let client = http_client();
     let body = serde_json::to_vec(&json!({ "appKey": app_key, "appSecret": app_secret }))
         .map_err(|e| format!("token serialization failed: {e}"))?;
     let resp = client
@@ -438,7 +445,7 @@ async fn send_robot_message(
     text: &str,
 ) -> Result<SendReceipt, String> {
     let token = fetch_access_token(app_key, app_secret).await?;
-    let client = reqwest::Client::new();
+    let client = http_client();
 
     let (url, body) = match target.chat_type {
         ChatType::Dm => {

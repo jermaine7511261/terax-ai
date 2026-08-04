@@ -323,6 +323,7 @@ export const zhMessages = {
     image: "图片",
     pdf: "PDF 文档",
     fileNotSupported: "无法预览此文件类型",
+    resetZoom: "重置缩放",
   },
   markdown: {
     preview: "预览",
@@ -1239,6 +1240,7 @@ export const enMessages = {
     image: "Image",
     pdf: "PDF Document",
     fileNotSupported: "Cannot preview this file type",
+    resetZoom: "Reset zoom",
   },
   markdown: {
     preview: "Preview",

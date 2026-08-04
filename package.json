@@ -24,17 +24,13 @@
     "analyze:bundle": "ANALYZE=true vite build",
     "analyze:eager": "node scripts/eager-graph.mjs src/main.tsx && node scripts/eager-graph.mjs src/settings/main.tsx",
     "size": "size-limit",
-    "knip": "knip"
+    "knip": "knip",
+    "verify": "powershell -ExecutionPolicy Bypass -File scripts/verify.ps1",
+    "version-bump": "node scripts/version-bump.mjs"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^3.0.94",
-    "@ai-sdk/cerebras": "^2.0.57",
-    "@ai-sdk/google": "^3.0.83",
-    "@ai-sdk/groq": "^3.0.42",
-    "@ai-sdk/openai": "^3.0.81",
     "@ai-sdk/openai-compatible": "^2.0.51",
     "@ai-sdk/react": "^3.0.209",
-    "@ai-sdk/xai": "^3.0.103",
     "@codemirror/autocomplete": "^6.20.3",
     "@codemirror/commands": "^6.10.4",
     "@codemirror/lang-css": "^6.3.1",

@@ -48,6 +48,7 @@ export const PreviewPane = forwardRef<PreviewPaneHandle, Props>(
     // contentWindow.location.reload() throws on cross-origin frames).
     const [nonce, setNonce] = useState(0);
     const [loaded, setLoaded] = useState(visible);
+    const [zoom, setZoom] = useState(1);
     const addressRef = useRef<PreviewAddressBarHandle>(null);
 
     useEffect(() => {
@@ -58,6 +59,11 @@ export const PreviewPane = forwardRef<PreviewPaneHandle, Props>(
       const t = setTimeout(() => setLoaded(false), SUSPEND_AFTER_MS);
       return () => clearTimeout(t);
     }, [visible]);
+
+    // Reset zoom when the previewed file changes.
+    useEffect(() => {
+      setZoom(1);
+    }, [url]);
 
     useImperativeHandle(
       ref,
@@ -116,12 +122,15 @@ export const PreviewPane = forwardRef<PreviewPaneHandle, Props>(
               <FilePreviewHeader
                 label={t("preview.image")}
                 onOpenExternal={() => window.open(url, "_blank")}
+                zoom={zoom}
+                onZoomChange={setZoom}
               >
                 <img
                   key={url}
                   src={url}
                   alt=""
-                  className="mx-auto max-h-full max-w-full object-contain"
+                  style={{ transform: `scale(${zoom})` }}
+                  className="mx-auto origin-center object-contain"
                 />
               </FilePreviewHeader>
             ) : kind === "pdf" ? (
@@ -222,10 +231,14 @@ function EmptyState() {
 function FilePreviewHeader({
   label,
   onOpenExternal,
+  zoom = 1,
+  onZoomChange,
   children,
 }: {
   label: string;
   onOpenExternal: () => void;
+  zoom?: number;
+  onZoomChange?: (z: number) => void;
   children: React.ReactNode;
 }) {
   return (
@@ -234,13 +247,46 @@ function FilePreviewHeader({
         <span className="truncate text-[11px] font-medium text-muted-foreground">
           {label}
         </span>
-        <button
-          type="button"
-          onClick={onOpenExternal}
-          className="shrink-0 text-[11px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-        >
-          {tStatic("preview.openExternal")}
-        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          {onZoomChange ? (
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => onZoomChange(Math.max(0.25, zoom - 0.25))}
+                className="text-[11px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+                title="Zoom out"
+              >
+                −
+              </button>
+              <span className="min-w-8 text-center font-mono text-[10.5px] text-muted-foreground">
+                {Math.round(zoom * 100)}%
+              </span>
+              <button
+                type="button"
+                onClick={() => onZoomChange(Math.min(4, zoom + 0.25))}
+                className="text-[11px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+                title="Zoom in"
+              >
+                +
+              </button>
+              <button
+                type="button"
+                onClick={() => onZoomChange(1)}
+                className="ml-1 text-[10.5px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+                title="Reset zoom"
+              >
+                {tStatic("preview.resetZoom")}
+              </button>
+            </div>
+          ) : null}
+          <button
+            type="button"
+            onClick={onOpenExternal}
+            className="text-[11px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+          >
+            {tStatic("preview.openExternal")}
+          </button>
+        </div>
       </div>
       <div className="min-h-0 flex-1 overflow-auto bg-white">{children}</div>
     </div>

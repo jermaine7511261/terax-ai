@@ -248,6 +248,25 @@ export class BlockDecorations {
     return this.entries.length > 0 || this.live !== null;
   }
 
+  /**
+   * Cheap change-detection key derived WITHOUT touching the DOM (no
+   * getBoundingClientRect / binary search). Consumers call this first and only
+   * fall back to the expensive {@link visibleBlocks} when it differs — a
+   * per-frame viewport scroll that repositions the same blocks re-renders
+   * without re-reading layout.
+   */
+  version(): string {
+    const buf = this.term.buffer.active;
+    const ids = this.entries
+      .map(
+        (e) => `${e.id}:${e.startMarker.isDisposed ? -1 : e.startMarker.line}`,
+      )
+      .join(",");
+    return `${this.mode.altScreen ? "A" : "N"}:${buf.length}:${buf.viewportY}:${ids}:${
+      this.live?.id ?? "-"
+    }`;
+  }
+
   visibleBlocks(): VisibleBlocks {
     const term = this.term;
     // No block chrome over a full-screen TUI (vim/htop) — it owns the screen.

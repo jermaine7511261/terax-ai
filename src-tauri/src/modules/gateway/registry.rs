@@ -70,6 +70,10 @@ struct Inner {
     /// Out-of-band platform events (e.g. Weixin background re-login QR frames).
     platform_event: Mutex<Option<PlatformEventHandler>>,
     connected: Mutex<HashSet<PlatformId>>,
+    /// Platforms whose connect is currently in flight — guards against
+    /// re-entrant connect_platform calls while an inbound loop is still
+    /// establishing.
+    connecting: Mutex<HashSet<PlatformId>>,
     /// message_id -> received_at_ms, for duplicate suppression.
     seen: Mutex<HashMap<String, u64>>,
     /// per-platform inbound rate buckets.
@@ -87,6 +91,7 @@ impl GatewayRegistry {
                 on_connected: Mutex::new(None),
                 platform_event: Mutex::new(None),
                 connected: Mutex::new(HashSet::new()),
+                connecting: Mutex::new(HashSet::new()),
                 seen: Mutex::new(HashMap::new()),
                 rates: Mutex::new(HashMap::new()),
             }),
@@ -164,6 +169,16 @@ impl GatewayRegistry {
     /// channel, touches the session router, and forwards each event to the
     /// agent handler.
     pub async fn connect_platform(&self, id: PlatformId) -> Result<(), String> {
+        // Idempotency guard: if already connected or already mid-connect, no-op
+        // rather than spawning a second inbound loop.
+        {
+            let connected = self.inner.connected.lock().unwrap();
+            let connecting = self.inner.connecting.lock().unwrap();
+            if connected.contains(&id) || connecting.contains(&id) {
+                return Ok(());
+            }
+        }
+        self.inner.connecting.lock().unwrap().insert(id.clone());
         let handler = self.inner.handler.lock().unwrap().clone();
         let (tx, mut rx) = mpsc::channel::<MessageEvent>(128);
         {
@@ -184,9 +199,16 @@ impl GatewayRegistry {
                 adapter.set_event_sink(sink);
             }
             // Drop the lock before awaiting the adapter's connect future.
-            adapter.connect(tx).await?;
+            match adapter.connect(tx).await {
+                Ok(()) => {}
+                Err(e) => {
+                    self.inner.connecting.lock().unwrap().remove(&id);
+                    return Err(e);
+                }
+            }
         }
-        self.inner.connected.lock().unwrap().insert(id);
+        self.inner.connecting.lock().unwrap().remove(&id);
+        self.inner.connected.lock().unwrap().insert(id.clone());
         // Surface the (possibly callback-based) local URL to the settings UI.
         if let Some(cb) = self.inner.on_connected.lock().unwrap().as_ref() {
             let url = self
@@ -284,6 +306,7 @@ impl GatewayRegistry {
             adapter.disconnect();
         }
         self.inner.connected.lock().unwrap().remove(&id);
+        self.inner.connecting.lock().unwrap().remove(&id);
     }
 
     pub fn is_connected(&self, id: PlatformId) -> bool {

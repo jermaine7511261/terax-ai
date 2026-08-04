@@ -4,8 +4,14 @@ import { useMemoryStore } from "../store/memoryStore";
 import type { ToolContext } from "./context";
 
 const transportMock = vi.hoisted(() => ({
-  appendProjectMemory: vi.fn(async () => ({ ok: true as const, path: "/w/YAMET.md" })),
-  updateProjectMemory: vi.fn(async () => ({ ok: true as const, path: "/w/YAMET.md" })),
+  appendProjectMemory: vi.fn(async () => ({
+    ok: true as const,
+    path: "/w/YAMET.md",
+  })),
+  updateProjectMemory: vi.fn(async () => ({
+    ok: true as const,
+    path: "/w/YAMET.md",
+  })),
 }));
 
 vi.mock("../lib/transport", () => transportMock);
@@ -48,7 +54,10 @@ async function runMemory(
 ): Promise<MemoryResult> {
   const execute = buildMemoryTools(ctx).update_project_memory.execute;
   if (!execute) throw new Error("update_project_memory has no execute");
-  return (await execute(input as never, toolOptions)) as unknown as MemoryResult;
+  return (await execute(
+    input as never,
+    toolOptions,
+  )) as unknown as MemoryResult;
 }
 
 beforeEach(() => {
@@ -98,7 +107,9 @@ describe("update_project_memory", () => {
     expect(empty.ok).toBe(false);
     expect(empty.error).toContain("empty");
     expect(transportMock.appendProjectMemory).not.toHaveBeenCalled();
-    expect(useMemoryStore.getState().bySession["session"] ?? []).toHaveLength(0);
+    expect(useMemoryStore.getState().bySession["session"] ?? []).toHaveLength(
+      0,
+    );
   });
 
   it("still writes session memory when there is no workspace root", async () => {
@@ -115,10 +126,9 @@ describe("update_project_memory", () => {
   });
 
   it("skips session-store write when there is no active session", async () => {
-    const result = await runMemory(
-      makeContext({ getSessionId: () => null }),
-      { entry: "orphan" },
-    );
+    const result = await runMemory(makeContext({ getSessionId: () => null }), {
+      entry: "orphan",
+    });
     expect(result.ok).toBe(true);
     // Persisted to disk even without a session.
     expect(transportMock.appendProjectMemory).toHaveBeenCalledTimes(1);

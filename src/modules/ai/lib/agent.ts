@@ -1,12 +1,13 @@
 import {
   convertToModelMessages,
+  type LanguageModel,
   pruneMessages,
   stepCountIs,
   streamText,
-  type LanguageModel,
   type UIMessage,
 } from "ai";
 import {
+  type CustomEndpoint,
   DEFAULT_MODEL_ID,
   endpointIdFromCompatModel,
   getModelContextLimit,
@@ -14,15 +15,14 @@ import {
   LLAMA_CPP_DEFAULT_BASE_URL,
   MAX_AGENT_STEPS,
   modelKeepsReasoning,
+  type ProviderId,
   providerNeedsKey,
   resolveModel,
   selectSystemPrompt,
-  type CustomEndpoint,
-  type ProviderId,
 } from "../config";
 import { buildTools, type ToolContext } from "../tools/tools";
 import { compactModelMessagesDetailed } from "./compact";
-import type { ProviderKeys, CustomEndpointKeys } from "./keyring";
+import type { CustomEndpointKeys, ProviderKeys } from "./keyring";
 import { prepareAgentPrompt } from "./prompt";
 import { createProxyFetch } from "./proxyFetch";
 
@@ -57,7 +57,8 @@ const TOOL_LABELS: Record<string, (input: Record<string, unknown>) => string> =
     run_external_agent: (i) =>
       `Delegating to ${String(i.agent ?? "external agent")}`,
     git_status: () => `Reading git status`,
-    git_diff: (i) => `Showing git diff${shortPath(i.path) ? ` for ${shortPath(i.path)}` : ""}`,
+    git_diff: (i) =>
+      `Showing git diff${shortPath(i.path) ? ` for ${shortPath(i.path)}` : ""}`,
     git_stage: () => `Staging changes`,
     git_commit: (i) => `Committing: ${ellipsize(String(i.message ?? ""), 40)}`,
   };
@@ -79,6 +80,20 @@ export type BuildModelOptions = {
 };
 
 const modelCache = new Map<string, LanguageModel>();
+// Cap cached model instances so a long session cycling through many provider/
+// key/model combos doesn't accumulate unboundedly. LRU eviction: re-insert on
+// hit (Map preserves insertion order), drop oldest when over the limit.
+const MODEL_CACHE_MAX = 24;
+
+function cacheModel(key: string, model: LanguageModel): LanguageModel {
+  modelCache.delete(key);
+  modelCache.set(key, model);
+  if (modelCache.size > MODEL_CACHE_MAX) {
+    const oldest = modelCache.keys().next().value;
+    if (oldest !== undefined) modelCache.delete(oldest);
+  }
+  return model;
+}
 
 export async function buildLanguageModel(
   provider: ProviderId,
@@ -98,13 +113,19 @@ export async function buildLanguageModel(
   const epKey = customEndpointKey ?? "";
   const cacheKey = `${provider} ${key} ${epKey} ${resolvedModelId} ${llamaCppURL} ${compatURL}`;
   const hit = modelCache.get(cacheKey);
-  if (hit) return hit;
+  if (hit) {
+    // Re-insert to mark as most-recently-used (LRU ordering).
+    modelCache.delete(cacheKey);
+    modelCache.set(cacheKey, hit);
+    return hit;
+  }
 
   let built: LanguageModel;
   switch (provider) {
     case "deepseek": {
-      const { createOpenAICompatible } =
-        await import("@ai-sdk/openai-compatible");
+      const { createOpenAICompatible } = await import(
+        "@ai-sdk/openai-compatible"
+      );
       built = createOpenAICompatible({
         name: "deepseek",
         baseURL: "https://api.deepseek.com",
@@ -113,8 +134,9 @@ export async function buildLanguageModel(
       break;
     }
     case "mistral": {
-      const { createOpenAICompatible } =
-        await import("@ai-sdk/openai-compatible");
+      const { createOpenAICompatible } = await import(
+        "@ai-sdk/openai-compatible"
+      );
       built = createOpenAICompatible({
         name: "mistral",
         baseURL: "https://api.mistral.ai/v1",
@@ -123,8 +145,9 @@ export async function buildLanguageModel(
       break;
     }
     case "openrouter": {
-      const { createOpenAICompatible } =
-        await import("@ai-sdk/openai-compatible");
+      const { createOpenAICompatible } = await import(
+        "@ai-sdk/openai-compatible"
+      );
       built = createOpenAICompatible({
         name: "openrouter",
         baseURL: "https://openrouter.ai/api/v1",
@@ -142,8 +165,9 @@ export async function buildLanguageModel(
           "OpenAI-compatible provider has no base URL. Set it in Settings → Models.",
         );
       }
-      const { createOpenAICompatible } =
-        await import("@ai-sdk/openai-compatible");
+      const { createOpenAICompatible } = await import(
+        "@ai-sdk/openai-compatible"
+      );
       built = createOpenAICompatible({
         name: "openai-compatible",
         baseURL: compatURL,
@@ -153,8 +177,9 @@ export async function buildLanguageModel(
       break;
     }
     case "llama.cpp": {
-      const { createOpenAICompatible } =
-        await import("@ai-sdk/openai-compatible");
+      const { createOpenAICompatible } = await import(
+        "@ai-sdk/openai-compatible"
+      );
       built = createOpenAICompatible({
         name: "llama.cpp",
         baseURL: llamaCppURL,
@@ -167,8 +192,7 @@ export async function buildLanguageModel(
       throw new Error(`Unsupported provider: ${_exhaustive as ProviderId}`);
     }
   }
-  modelCache.set(cacheKey, built);
-  return built;
+  return cacheModel(cacheKey, built);
 }
 
 export type LocalProviderConfig = {
@@ -191,9 +215,7 @@ export function buildConfiguredLanguageModel(
     const ep = local.customEndpoints?.find((e) => e.id === eid);
     if (!ep) throw new Error(`Custom endpoint not found: ${eid}`);
     if (!ep.modelId.trim()) {
-      throw new Error(
-        `${ep.name}: no model id set. Open Settings → Models.`,
-      );
+      throw new Error(`${ep.name}: no model id set. Open Settings → Models.`);
     }
     return buildLanguageModel(
       "openai-compatible",

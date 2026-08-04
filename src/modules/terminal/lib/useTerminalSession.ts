@@ -1,6 +1,6 @@
 import { ensureMonoFontsLoaded } from "@/lib/fonts";
-import type { SshTarget } from "@/modules/tabs";
 import { usePreferencesStore } from "@/modules/settings/preferences";
+import type { SshTarget } from "@/modules/tabs";
 import { invoke } from "@tauri-apps/api/core";
 import type { SearchAddon } from "@xterm/addon-search";
 import {
@@ -32,9 +32,9 @@ import {
   applyBackgroundActive,
   applyCursorBlink,
   applyLetterSpacing,
-  applyTerminalFont,
   applyTheme as applyPoolTheme,
   applyScrollback,
+  applyTerminalFont,
   applyWebglPreference,
   configureRendererPool,
   discardRetainedSlot,
@@ -874,7 +874,12 @@ export function useTerminalSession({
 
   useEffect(() => {
     let cancelled = false;
-    const s = ensureSession(leafId, initialCwdRef.current, blocks, initialSshRef.current);
+    const s = ensureSession(
+      leafId,
+      initialCwdRef.current,
+      blocks,
+      initialSshRef.current,
+    );
     s.ready.then(() => {
       if (cancelled || s.disposed) return;
       const node = container.current;
@@ -895,7 +900,12 @@ export function useTerminalSession({
   const [blockMode, setBlockMode] = useState<BlockMode>("prompt");
   useEffect(() => {
     if (!blocks) return;
-    const s = ensureSession(leafId, initialCwdRef.current, blocks, initialSshRef.current);
+    const s = ensureSession(
+      leafId,
+      initialCwdRef.current,
+      blocks,
+      initialSshRef.current,
+    );
     setBlockMode(s.blockMode);
     const cb = () => setBlockMode(sessions.get(leafId)?.blockMode ?? "prompt");
     s.blockListeners.add(cb);
@@ -1050,6 +1060,13 @@ export function useTerminalSession({
     [leafId],
   );
 
+  // Cheap change-detection key (no DOM read) used by BlockOverlay to skip the
+  // expensive layout pass when nothing meaningful changed.
+  const blockVersion = useCallback(
+    (): string => sessions.get(leafId)?.blockDecorations?.version() ?? "",
+    [leafId],
+  );
+
   const searchBlock = useCallback(
     (id: string, query: string) =>
       sessions.get(leafId)?.blockDecorations?.searchBlock(id, query) ?? [],
@@ -1078,6 +1095,7 @@ export function useTerminalSession({
       readBlockId,
       subscribeBlocks,
       visibleBlocks,
+      blockVersion,
       searchBlock,
       revealMatch,
       clearSearch,
@@ -1093,6 +1111,7 @@ export function useTerminalSession({
       readBlockId,
       subscribeBlocks,
       visibleBlocks,
+      blockVersion,
       searchBlock,
       revealMatch,
       clearSearch,

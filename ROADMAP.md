@@ -108,7 +108,8 @@ The themes below frame every scope decision.
 - [x] AI agent meta-orchestration (Yamet agent spawning and managing external coding agents like Claude Code / OpenCode)
 - [ ] More slash commands and skills
 - [ ] Approval flow improvements (project-scoped policies, per-tool trust; auto-approve already shipped)
-- [x] Persistent terminal sessions and layout restore
+- [x] Persistent terminal sessions and layout restore (tab/panel/spaces layout + per-tab cwd restored on restart)
+- [ ] Full PTY process/history restore (re-attach to live shell state, foreground process & shell history replay) — deliberately deferred (I1c): layout + cwd restore shipped; re-attaching live PTY state across restarts is out of scope for now
 - [ ] Preview surface expansion (better image / Markdown handling)
 - [ ] Test coverage expansion (PTY edge cases, security functions, AI tool guards, IM gateway crypto/state machines)
 - [x] IM gateway: per-platform onboarding/QR polish, officialaccount/wecom callback tunnel guide, onebot config assistant

@@ -1,6 +1,6 @@
-import { invoke, Channel } from "@tauri-apps/api/core";
 import type { SshTarget } from "@/modules/tabs";
 import { currentWorkspaceEnv } from "@/modules/workspace";
+import { Channel, invoke } from "@tauri-apps/api/core";
 
 const textEncoder = new TextEncoder();
 
@@ -59,10 +59,28 @@ export async function openPty(
   let closed = false;
   const headers = { "x-pty-id": String(id) };
 
+  // Split very large writes (paste of a big file/log) into bounded chunks so a
+  // single multi-MB IPC payload can't stall the renderer or overflow a backend
+  // buffer. Small writes pass through in one call (no per-keystroke cost).
+  const WRITE_CHUNK_BYTES = 32 * 1024;
+
   return {
     id,
     // Raw bytes + id header: no JSON round-trip on the per-keystroke path.
-    write: (data) => invoke("pty_write", textEncoder.encode(data), { headers }),
+    write: async (data) => {
+      const bytes = textEncoder.encode(data);
+      if (bytes.length <= WRITE_CHUNK_BYTES) {
+        await invoke("pty_write", bytes, { headers });
+        return;
+      }
+      // Large payload: chunk + yield to the event loop between writes so the
+      // UI thread stays responsive and the backend flushes progressively.
+      for (let i = 0; i < bytes.length; i += WRITE_CHUNK_BYTES) {
+        const chunk = bytes.subarray(i, i + WRITE_CHUNK_BYTES);
+        await invoke("pty_write", chunk, { headers });
+        await new Promise<void>((r) => setTimeout(r, 0));
+      }
+    },
     resize: (c, r) => invoke("pty_resize", { id, cols: c, rows: r }),
     close: async () => {
       if (closed) return;

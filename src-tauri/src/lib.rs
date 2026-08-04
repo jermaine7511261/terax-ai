@@ -225,6 +225,18 @@ pub fn run() {
                 use tauri::Emitter;
                 let h = app.handle().clone();
                 let reg = app.state::<gateway::registry::GatewayRegistry>();
+                // Deliver authorized inbound messages to the frontend so they
+                // can drive the agent (session-approved IM chats reach the AI
+                // surface instead of being silently dropped). Unauthorized
+                // messages stay on the approval path.
+                reg.set_handler(std::sync::Arc::new(move |ev| {
+                    let _ = h.emit("yamet:gateway-message", &ev);
+                }));
+            }
+            {
+                use tauri::Emitter;
+                let h = app.handle().clone();
+                let reg = app.state::<gateway::registry::GatewayRegistry>();
                 reg.set_on_pending(std::sync::Arc::new(move |sk, summary| {
                     let _ = h.emit("yamet:gateway-pending", (sk, summary));
                 }));

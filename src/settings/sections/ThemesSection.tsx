@@ -79,6 +79,13 @@ export function ThemesSection() {
   const handleThemeFiles = async (files: FileList | null) => {
     setImportError(null);
     if (!files || files.length === 0) return;
+    // Existing custom + builtin ids, so an imported theme whose id collides
+    // with any current theme (builtin or prior import) is given a suffix
+    // instead of silently overwriting.
+    const existingIds = new Set<string>([
+      ...builtinThemes.map((t) => t.id),
+      ...customThemes.map((t) => t.id),
+    ]);
     for (const file of Array.from(files)) {
       try {
         const text = await file.text();
@@ -88,8 +95,18 @@ export function ThemesSection() {
           setImportError(`${file.name}: ${result.error}`);
           return;
         }
-        await saveCustomTheme(result.theme);
-        setThemeId(result.theme.id);
+        let theme = result.theme;
+        // Dedupe a colliding id with a numeric suffix (e.g. "solarized" ->
+        // "solarized-2"), keeping the theme name intact.
+        if (existingIds.has(theme.id)) {
+          const base = theme.id;
+          let n = 2;
+          while (existingIds.has(`${base}-${n}`)) n++;
+          theme = { ...theme, id: `${base}-${n}` };
+        }
+        existingIds.add(theme.id);
+        await saveCustomTheme(theme);
+        setThemeId(theme.id);
       } catch (e) {
         setImportError(
           translate("settingsThemes.readFailed", { name: file.name }),
@@ -124,7 +141,11 @@ export function ThemesSection() {
       await setBackgroundKind("image");
       if (prev && prev !== id) await deleteBgImage(prev).catch(() => undefined);
     } catch (e) {
-      setBgError(e instanceof Error ? e.message : translate("settingsThemes.importFailed"));
+      setBgError(
+        e instanceof Error
+          ? e.message
+          : translate("settingsThemes.importFailed"),
+      );
     }
   };
 

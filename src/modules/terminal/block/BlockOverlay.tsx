@@ -40,6 +40,8 @@ void homeDir()
 type Props = {
   subscribe: (cb: () => void) => () => void;
   getVisible: () => VisibleBlocks;
+  /** Cheap change-detection key — skip getVisible when it's unchanged. */
+  getVersion: () => string;
   readOutput: (id: string) => string | null;
   searchBlock: (id: string, query: string) => BlockMatch[];
   revealMatch: (m: BlockMatch) => void;
@@ -95,22 +97,30 @@ function signature(v: VisibleBlocks): string {
 }
 
 export function BlockOverlay(props: Props) {
-  const { subscribe, getVisible } = props;
+  const { subscribe, getVisible, getVersion } = props;
   const [vis, setVis] = useState<VisibleBlocks>(EMPTY);
   const [searchId, setSearchId] = useState<string | null>(null);
   const lastSig = useRef("");
+  const lastVer = useRef("");
 
   useEffect(() => {
     const update = () => {
-      const v = getVisible();
-      const sig = signature(v);
-      if (sig === lastSig.current) return;
-      lastSig.current = sig;
-      setVis(v);
+      // Cheap short-circuit: if the DOM-independent version key is unchanged
+      // (same altScreen, buffer length, viewport, block ids), the layout hasn't
+      // moved — skip the expensive getBoundingClientRect pass entirely.
+      const ver = getVersion();
+      if (ver !== lastVer.current) {
+        lastVer.current = ver;
+        const v = getVisible();
+        const sig = signature(v);
+        if (sig === lastSig.current) return;
+        lastSig.current = sig;
+        setVis(v);
+      }
     };
     update();
     return subscribe(update);
-  }, [subscribe, getVisible]);
+  }, [subscribe, getVisible, getVersion]);
 
   const closeSearch = () => {
     props.clearSearch();
