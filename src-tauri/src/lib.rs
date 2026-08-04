@@ -216,12 +216,10 @@ pub fn run() {
             // adapter (configs are filled in from the settings UI at runtime).
             let gateway_registry = gateway::registry::GatewayRegistry::new();
             gateway::adapters::register_all(&gateway_registry);
-            // Restore credentials persisted in the OS keychain so configured
+            // Restore credentials persisted in the OS file store so configured
             // platforms survive app restarts.
             let app_handle = app.handle().clone();
-            tauri::async_runtime::block_on(async {
-                gateway::adapters::restore_from_keychain(&gateway_registry, &app_handle).await;
-            });
+            gateway::adapters::restore_from_keychain(&gateway_registry, &app_handle);
             // Restore the session-authorization whitelist from disk (approved
             // sessions survive restarts; everything else re-requests approval).
             if let Ok(data_dir) = app.path().app_local_data_dir() {

@@ -96,7 +96,7 @@ pub fn build_adapter(id: PlatformId, config_json: &str) -> Result<Box<dyn Platfo
 /// Re-register every platform from its persisted keychain credentials. Called
 /// at startup so configured platforms survive app restarts (credentials never
 /// touch disk unencrypted).
-pub async fn restore_from_keychain(registry: &GatewayRegistry, app: &tauri::AppHandle) {
+pub fn restore_from_keychain(registry: &GatewayRegistry, app: &tauri::AppHandle) {
     const PLATFORMS: [PlatformId; 6] = [
         PlatformId::DingTalk,
         PlatformId::Feishu,
@@ -106,20 +106,10 @@ pub async fn restore_from_keychain(registry: &GatewayRegistry, app: &tauri::AppH
         PlatformId::OfficialAccount,
     ];
     for id in PLATFORMS {
-        let secrets_state = app.state::<crate::modules::secrets::SecretsState>();
-        let account = format!("gateway:{}", id.as_str());
-        // Prefer the file store (reliable across restarts on every OS), then
-        // fall back to the OS keychain.
-        let cfg = read_creds_from_file(app, id).or_else(|| {
-            tauri::async_runtime::block_on(crate::modules::secrets::secrets_get(
-                app.clone(),
-                secrets_state,
-                "yamet-ai".to_string(),
-                account,
-            ))
-            .ok()
-            .flatten()
-        });
+        // Read from the file store (reliable across restarts on every OS).
+        // The OS keychain is skipped here to avoid a deadlock (block_on inside
+        // async fn) and because file-based persistence is more reliable.
+        let cfg = read_creds_from_file(app, id);
         if let Some(cfg) = cfg {
             if let Ok(adapter) = build_adapter(id, &cfg) {
                 registry.register(adapter);
