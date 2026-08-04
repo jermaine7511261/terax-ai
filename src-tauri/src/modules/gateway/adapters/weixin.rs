@@ -541,10 +541,22 @@ impl WeixinAdapter {
             log::error!("weixin: QR response missing qrcode");
             return None;
         }
+        // `qrcode_img_content` is the full scannable URL; `qrcode` is just the
+        // hex token.  WeChat needs the full URL to trigger bot-pairing.
+        let qrcode_url = qr_resp
+            .get("qrcode_img_content")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
+        let qr_scan_data = if !qrcode_url.is_empty() {
+            qrcode_url
+        } else {
+            // Fallback: wrap the raw token in a URL (shouldn't normally happen).
+            ilink_qr_url(&qrcode_value)
+        };
         // Surface the QR to the UI (background re-login) so the user knows a
         // scan is required instead of the session silently dying.
-        // The raw token must be wrapped in a URL that WeChat can recognize.
-        if let Ok(svg) = qr_svg_data_url(&ilink_qr_url(&qrcode_value)) {
+        if let Ok(svg) = qr_svg_data_url(&qr_scan_data) {
             self.emit(QrLoginFrame::Qr { svg_data_url: svg });
         }
 
@@ -601,15 +613,29 @@ impl WeixinAdapter {
                     )
                     .await
                     .ok()?;
-                    let new_qr = new_qr
+                    let new_token = new_qr
                         .get("qrcode")
                         .and_then(Value::as_str)
                         .unwrap_or("")
                         .to_string();
-                    if new_qr.is_empty() {
+                    if new_token.is_empty() {
                         return None;
                     }
-                    qrcode_value = new_qr;
+                    // Emit the refreshed QR with the full scannable URL.
+                    let new_url = new_qr
+                        .get("qrcode_img_content")
+                        .and_then(Value::as_str)
+                        .unwrap_or("")
+                        .to_string();
+                    let scan_data = if !new_url.is_empty() {
+                        new_url
+                    } else {
+                        ilink_qr_url(&new_token)
+                    };
+                    if let Ok(svg) = qr_svg_data_url(&scan_data) {
+                        self.emit(QrLoginFrame::Qr { svg_data_url: svg });
+                    }
+                    qrcode_value = new_token;
                     current_base_url = ILINK_BASE_URL.to_string();
                 }
                 "confirmed" => {
@@ -985,7 +1011,19 @@ async fn emit_fresh_qr(
     if qrcode_value.is_empty() {
         return Err("weixin: QR response missing qrcode".into());
     }
-    let svg = qr_svg_data_url(&ilink_qr_url(&qrcode_value))?;
+    // Use the full scannable URL if the API provides it; fall back to wrapping
+    // the raw token (hermes pattern: qrcode_img_content).
+    let qrcode_url = qr_resp
+        .get("qrcode_img_content")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string();
+    let qr_scan_data = if !qrcode_url.is_empty() {
+        qrcode_url
+    } else {
+        ilink_qr_url(&qrcode_value)
+    };
+    let svg = qr_svg_data_url(&qr_scan_data)?;
     emit(QrLoginFrame::Qr { svg_data_url: svg });
     Ok(qrcode_value)
 }
