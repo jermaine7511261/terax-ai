@@ -11,10 +11,12 @@ import {
   TerminalIcon,
   Tick02Icon,
   ToolsIcon,
+  ZapIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { ToolUIPart } from "ai";
 import { memo } from "react";
+import { setAutoApproveTools } from "@/modules/settings/store";
 import type { ApprovalOptions } from "../store/chatStore";
 import {
   DropdownMenu,
@@ -102,6 +104,16 @@ function AiToolApprovalImpl({ part, toolName, onRespond }: Props) {
               onSelect={() => onRespond(true, { rememberScope: "project" })}
             >
               {t("ai.rememberProject")}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onSelect={() => {
+                void setAutoApproveTools(true);
+                onRespond(true, { rememberScope: "session" });
+              }}
+            >
+              <HugeiconsIcon icon={ZapIcon} size={12} strokeWidth={2} />
+              {t("ai.autoApproveTool")}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem

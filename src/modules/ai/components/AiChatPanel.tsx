@@ -1,15 +1,6 @@
 import { useChat, type UIMessage } from "@ai-sdk/react";
 import { useCallback, useMemo } from "react";
-import { Switch } from "@/components/ui/switch";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { useI18n } from "@/lib/i18n";
-import { usePreferencesStore } from "@/modules/settings/preferences";
-import { setAutoApproveTools } from "@/modules/settings/store";
 import { handleApprovalDecision, useChatStore, type ApprovalOptions } from "../store/chatStore";
 import {
   getOrCreateChat,
@@ -66,7 +57,6 @@ function ChatBody({ sessionId }: { sessionId: string }) {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <PanelHeader />
       <div className="flex min-h-0 flex-1 flex-col [&_.text-sm]:text-[13px] [&_p]:leading-relaxed">
         {helpers.messages.length === 0 ? (
           <EmptyState onPick={focusInput} />
@@ -82,32 +72,6 @@ function ChatBody({ sessionId }: { sessionId: string }) {
           />
         )}
       </div>
-    </div>
-  );
-}
-
-function PanelHeader() {
-  const { t } = useI18n();
-  const autoApprove = usePreferencesStore((s) => s.autoApproveTools);
-  return (
-    <div className="flex shrink-0 items-center justify-end gap-2 border-b border-border/40 px-1 pb-2">
-      <TooltipProvider delayDuration={200}>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <label className="flex cursor-pointer items-center gap-1.5 text-[10.5px] text-muted-foreground transition-colors hover:text-foreground">
-              <Switch
-                checked={autoApprove}
-                onCheckedChange={(v) => void setAutoApproveTools(v)}
-                className="scale-75"
-              />
-              <span>{t("ai.autoApproveLabel")}</span>
-            </label>
-          </TooltipTrigger>
-          <TooltipContent side="top" className="max-w-64 text-[11px]">
-            {t("ai.autoApproveHint")}
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
     </div>
   );
 }
