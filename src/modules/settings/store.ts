@@ -186,6 +186,8 @@ export type Preferences = {
   autoApproveProjectArmed: boolean;
   /** True once the first-run onboarding has been shown/dismissed. */
   hasOnboarded: boolean;
+  /** User-chosen workspace root (absolute path). null = use OS home dir. */
+  workspaceRoot: string | null;
 };
 
 export type EditorFormatter =
@@ -274,6 +276,7 @@ const KEY_LSP_CUSTOM_SERVERS = "lspCustomServers";
 const KEY_AUTO_APPROVE_TOOLS = "autoApproveTools";
 const KEY_AUTO_APPROVE_PROJECT = "autoApproveProjectArmed";
 const KEY_HAS_ONBOARDED = "hasOnboarded";
+const KEY_WORKSPACE_ROOT = "workspaceRoot";
 
 export const TERMINAL_FONT_SIZE_DEFAULT = 14;
 export const TERMINAL_FONT_SIZE_MIN = 8;
@@ -356,6 +359,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   autoApproveTools: false,
   autoApproveProjectArmed: false,
   hasOnboarded: false,
+  workspaceRoot: null,
 };
 
 const store = new LazyStore(STORE_PATH, { defaults: {}, autoSave: 200 });
@@ -564,6 +568,8 @@ export async function loadPreferences(): Promise<Preferences> {
       DEFAULT_PREFERENCES.autoApproveProjectArmed,
     hasOnboarded:
       get<boolean>(KEY_HAS_ONBOARDED) ?? DEFAULT_PREFERENCES.hasOnboarded,
+    workspaceRoot:
+      get<string | null>(KEY_WORKSPACE_ROOT) ?? DEFAULT_PREFERENCES.workspaceRoot,
   };
 }
 
@@ -588,6 +594,11 @@ export async function setLspCustomServers(
   value: LspCustomServer[],
 ): Promise<void> {
   await writePref(KEY_LSP_CUSTOM_SERVERS, value);
+}
+
+/** Persist the user-chosen workspace root (absolute path, or null to reset to home). */
+export async function setWorkspaceRoot(value: string | null): Promise<void> {
+  await writePref(KEY_WORKSPACE_ROOT, value);
 }
 
 export async function setAutoApproveTools(value: boolean): Promise<void> {
@@ -961,6 +972,7 @@ export async function onPreferencesChange(
     [KEY_LSP_CUSTOM_SERVERS]: "lspCustomServers",
     [KEY_AUTO_APPROVE_TOOLS]: "autoApproveTools",
     [KEY_AUTO_APPROVE_PROJECT]: "autoApproveProjectArmed",
+    [KEY_WORKSPACE_ROOT]: "workspaceRoot",
   };
   // Same-process writes still fire onChange immediately; cross-window writes
   // arrive via the Tauri event emitted by writePref().

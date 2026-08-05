@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -34,10 +35,12 @@ import {
   setTerminalShell,
   setTerminalWebglEnabled,
   setZoomLevel,
+  setWorkspaceRoot,
   TERMINAL_FONT_SIZES,
   TERMINAL_SCROLLBACK_PRESETS,
 } from "@/modules/settings/store";
 import { useTheme } from "@/modules/theme";
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import {
   ComputerIcon,
   Moon02Icon,
@@ -93,6 +96,7 @@ export function GeneralSection() {
   const terminalScrollback = usePreferencesStore((s) => s.terminalScrollback);
   const zoomLevel = usePreferencesStore((s) => s.zoomLevel);
   const agentNotifications = usePreferencesStore((s) => s.agentNotifications);
+  const workspaceRoot = usePreferencesStore((s) => s.workspaceRoot);
 
   useEffect(() => {
     let alive = true;
@@ -383,6 +387,47 @@ export function GeneralSection() {
             </Select>
           </SettingRow>
         )}
+        <SettingRow
+          title={t("settingsGeneral.workspaceRoot")}
+          description={t("settingsGeneral.workspaceRootDescription")}
+        >
+          <div className="flex items-center gap-2">
+            <span className="max-w-[16rem] truncate rounded-md border border-border/60 bg-muted/30 px-2 py-1 text-[11px] text-muted-foreground">
+              {workspaceRoot ?? t("settingsGeneral.workspaceRootDefault")}
+            </span>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 gap-1.5 px-2 text-[11px]"
+              onClick={() => {
+                void (async () => {
+                  const dir = await openDialog({
+                    directory: true,
+                    multiple: false,
+                  });
+                  if (typeof dir === "string" && dir) {
+                    await setWorkspaceRoot(dir.replace(/\\/g, "/"));
+                  }
+                })();
+              }}
+            >
+              {t("settingsGeneral.chooseFolder")}
+            </Button>
+            {workspaceRoot && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 px-2 text-[11px] text-muted-foreground"
+                onClick={() => void setWorkspaceRoot(null)}
+              >
+                {t("settingsGeneral.resetWorkspaceRoot")}
+              </Button>
+            )}
+          </div>
+          <p className="text-[10.5px] text-muted-foreground/70">
+            {t("settingsGeneral.workspaceRootHint")}
+          </p>
+        </SettingRow>
         <SettingRow
           title={t("settingsGeneral.letterSpacing")}
           description={t("settingsGeneral.letterSpacingDescription")}

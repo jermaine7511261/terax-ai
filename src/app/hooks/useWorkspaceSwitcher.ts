@@ -2,15 +2,13 @@ import { type RefObject, useCallback, useEffect, useState } from "react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { homeDir } from "@tauri-apps/api/path";
 import { native } from "@/modules/ai/lib/native";
+import { loadPreferences, setWorkspaceRoot } from "@/modules/settings/store";
 import type { Tab } from "@/modules/tabs";
 import {
   getWslHome,
   LOCAL_WORKSPACE,
   type WorkspaceEnv,
 } from "@/modules/workspace";
-
-/** localStorage key for the user-chosen workspace root (persisted across restarts). */
-const WS_ROOT_KEY = "yamet.workspace.root";
 
 async function resolveEnvHome(env: WorkspaceEnv): Promise<string> {
   return env.kind === "wsl"
@@ -44,22 +42,25 @@ export function useWorkspaceSwitcher({
   const [launchCwdResolved, setLaunchCwdResolved] = useState(false);
 
   useEffect(() => {
-    // Restore a user-chosen workspace root from localStorage if one exists,
-    // so a workspace configured to another drive survives restarts. Falls
-    // back to the OS user home directory.
-    const saved = localStorage.getItem(WS_ROOT_KEY);
-    homeDir()
-      .then(async (p) => {
-        const osHome = p.replace(/\\/g, "/");
-        const normalized = saved ?? osHome;
-        setHome(normalized);
-        try {
-          await native.workspaceAuthorize(normalized);
-        } catch {
-          // Bootstrap already authorizes home from Rust; ignore.
-        }
-      })
-      .catch(() => setHome(null));
+    // Restore a user-chosen workspace root (persisted in settings) so a
+    // workspace configured to another drive survives restarts. Falls back to
+    // the OS user home directory.
+    void (async () => {
+      const prefs = await loadPreferences();
+      const saved = prefs.workspaceRoot;
+      homeDir()
+        .then(async (p) => {
+          const osHome = p.replace(/\\/g, "/");
+          const normalized = saved ?? osHome;
+          setHome(normalized);
+          try {
+            await native.workspaceAuthorize(normalized);
+          } catch {
+            // Bootstrap already authorizes home from Rust; ignore.
+          }
+        })
+        .catch(() => setHome(null));
+    })();
   }, []);
 
   useEffect(() => {
@@ -73,7 +74,7 @@ export function useWorkspaceSwitcher({
   const authorizeHome = useCallback(async (nextHome: string) => {
     setHome(nextHome);
     setLaunchCwd(nextHome);
-    localStorage.setItem(WS_ROOT_KEY, nextHome);
+    await setWorkspaceRoot(nextHome).catch(() => {});
     try {
       await native.workspaceAuthorize(nextHome);
     } catch {
