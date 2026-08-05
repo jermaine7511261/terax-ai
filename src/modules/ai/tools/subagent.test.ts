@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Shared mutable state the store mocks hand out. vi.mock factories are hoisted

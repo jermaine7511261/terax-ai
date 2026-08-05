@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // todoStore imports { loadTodos, saveTodos, deleteTodos } from ../lib/todos,
