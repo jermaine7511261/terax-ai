@@ -4,6 +4,7 @@ import react, { reactCompilerPreset } from "@vitejs/plugin-react";
 import path from "path";
 import { defineConfig, type PluginOption, type UserConfig } from "vite";
 import Inspect from "vite-plugin-inspect";
+/// <reference types="vitest/config" />
 
 const host = process.env.TAURI_DEV_HOST;
 
@@ -154,5 +155,12 @@ export default defineConfig(async ({ mode }): Promise<UserConfig> => ({
     watch: {
       ignored: ["**/src-tauri/**"],
     },
+  },
+  test: {
+    // Component tests (.tsx) declare `// @vitest-environment jsdom` at the
+    // top of the file (vitest 4 removed environmentMatchGlobs). Plain logic
+    // tests (.ts) stay in the fast node environment.
+    environment: "node",
+    setupFiles: ["./src/test/setup.ts"],
   },
 }));
