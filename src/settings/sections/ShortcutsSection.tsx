@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
-import { useI18n } from "@/lib/i18n";
+import { useI18n, tStatic, type TranslationKey } from "@/lib/i18n";
 import { usePreferencesStore } from "@/modules/settings/preferences";
 import { setShortcuts } from "@/modules/settings/store";
 import {
@@ -30,6 +30,18 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useEffect, useMemo, useState } from "react";
 import { SectionHeader } from "../components/SectionHeader";
+
+/** Localized label for a shortcut's group header (e.g. "Tabs" → "标签页"). */
+function shortcutGroupLabel(group: string): string {
+  const key = `settingsShortcuts.group_${group.toLowerCase().replace(/\s+/g, "")}` as TranslationKey;
+  return tStatic(key, {}) || group;
+}
+
+/** Localized label for a shortcut item (falls back to the English label). */
+function shortcutItemLabel(shortcut: Shortcut): string {
+  const key = `settingsShortcuts.${shortcut.id.replace(/\./g, "_")}` as TranslationKey;
+  return tStatic(key, {}) || shortcut.label;
+}
 
 export function ShortcutsSection() {
   const { t } = useI18n();
@@ -117,7 +129,7 @@ export function ShortcutsSection() {
           return (
             <div key={group} className="flex flex-col gap-3">
               <h3 className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
-                {group}
+                {shortcutGroupLabel(group)}
               </h3>
               <div className="flex flex-col divide-y divide-border/40 rounded-lg border border-border/60 bg-card/40 overflow-hidden">
                 {items.map((s) => (
@@ -190,7 +202,7 @@ function ShortcutRow({
   return (
     <div className="group flex items-center justify-between px-3 py-2.5 transition-colors hover:bg-muted/30">
       <div className="flex flex-col gap-0.5">
-        <span className="text-[12.5px] font-medium">{shortcut.label}</span>
+        <span className="text-[12.5px] font-medium">{shortcutItemLabel(shortcut)}</span>
       </div>
 
       <div className="flex items-center gap-2">
