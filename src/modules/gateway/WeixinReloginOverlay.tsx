@@ -69,7 +69,7 @@ export function WeixinReloginOverlay() {
     setFlow({ running: false, qrUrl: null, statusLabel: "", error: null });
   }, []);
 
-  if (!flow.running && !flow.qrUrl) return null;
+  if (!flow.running && !flow.qrUrl && flow.statusLabel !== "done") return null;
 
   return (
     <div className="fixed inset-x-0 top-4 z-50 flex justify-center pointer-events-none">
