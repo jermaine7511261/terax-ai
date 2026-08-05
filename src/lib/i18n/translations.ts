@@ -964,8 +964,6 @@ export const zhMessages = {
     qr: "二维码",
   },
   skillsMcp: {
-    title: "技能与 MCP",
-    description: "管理 MCP 服务器与可复用技能（片段 + 可选工具白名单）。",
     mcpServers: "MCP 服务器",
     mcpDescription:
       "连接外部 MCP server（stdio / HTTP），把远端工具注册进 AI 工具面。所有 MCP 工具默认需要审批。",
@@ -1002,6 +1000,10 @@ export const zhMessages = {
     allowlist: "工具白名单",
     allowlistHint: "留空 = 仅注入提示、不限制工具；选择后该技能回合仅暴露所选工具。",
     builtin: "内置",
+  },
+  skills: {
+    title: "技能",
+    description: "管理内置与自定义技能（Snippets / skills 目录）与定时任务。",
   },
   mcp: {
     title: "MCP 服务器",
@@ -2059,10 +2061,7 @@ export const enMessages = {
     reloginQR: "Re-login QR code",
   },
   skillsMcp: {
-    title: "Skills & MCP",
-    description:
-      "Manage MCP servers and reusable skills (snippets + optional tool allowlist).",
-    mcpServers: "MCP servers",
+    mcpServers: "MCP Servers",
     mcpDescription:
       "Connect external MCP servers (stdio / HTTP) to register remote tools into the AI toolset. Every MCP tool requires approval by default.",
     newServer: "Add server",
@@ -2101,6 +2100,10 @@ export const enMessages = {
     allowlistHint:
       "Leave empty = prompt only (no tool restriction); when set, only the selected tools are exposed for that skill's turn.",
     builtin: "Built-in",
+  },
+  skills: {
+    title: "Skills",
+    description: "Manage built-in & custom skills (Snippets / skills directory) and scheduled tasks.",
   },
   mcp: {
     title: "MCP Servers",

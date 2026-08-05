@@ -98,8 +98,8 @@ export function SkillsSection() {
   return (
     <div className="flex flex-col gap-7">
       <SectionHeader
-        title={t("skillsMcp.title")}
-        description={t("skillsMcp.description")}
+        title={t("skills.title")}
+        description={t("skills.description")}
       />
 
       {/* ---- Snippets / Skills ---- */}
