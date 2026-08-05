@@ -6,6 +6,11 @@ import {
   checkWritableCanonical,
 } from "../lib/security";
 import { newQueuedEditId, usePlanStore } from "../store/planStore";
+import {
+  captureBaseline,
+  newDiagnosticsAfterWrite,
+  withLspDiagnostics,
+} from "@/modules/lsp/lib/diagnose";
 import { resolvePath, type ToolContext } from "./context";
 
 const READ_BYTE_CAP = 25 * 1024;
@@ -171,12 +176,21 @@ export function buildFsTools(ctx: ToolContext) {
           };
         }
 
+        // Best-effort LSP semantic lint: baseline before, diff after. Any
+        // failure degrades to "no data" and never blocks the write.
+        const releaseBaseline = await captureBaseline(abs);
         try {
           await native.writeFile(abs, content);
           ctx.readCache.set(abs, { size: content.length, hash: djb2(content) });
-          return { path: abs, bytesWritten: content.length, ok: true };
+          const lsp = await newDiagnosticsAfterWrite(abs, content);
+          return withLspDiagnostics(
+            { path: abs, bytesWritten: content.length, ok: true },
+            lsp,
+          );
         } catch (e) {
           return { error: String(e), path: abs };
+        } finally {
+          releaseBaseline();
         }
       },
     }),

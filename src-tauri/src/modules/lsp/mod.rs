@@ -1,5 +1,5 @@
 mod env;
-mod framing;
+pub mod framing;
 mod rss;
 mod session;
 
@@ -71,20 +71,37 @@ pub async fn lsp_spawn(
     on_exit: Channel<session::LspExit>,
 ) -> Result<u32, String> {
     let workspace = WorkspaceEnv::from_option(workspace);
-    if workspace.is_wsl() {
-        return Err("lsp: WSL workspaces are not supported yet".into());
-    }
     let root = authorize_spawn_cwd(&registry, Some(root.as_str()), &workspace)?
         .ok_or("lsp: workspace root is required")?;
-
+    // WSL: `command` is a distro-internal path resolved inside the distro by
+    // wsl.exe; skip the Windows-side binary lookup.
+    let wsl_distro = match &workspace {
+        WorkspaceEnv::Wsl { distro } => Some(distro.clone()),
+        _ => None,
+    };
     let id = state.next_id.fetch_add(1, Ordering::Relaxed);
     let spawn_log = format!("cmd={command} root={}", root.display());
     let session = tauri::async_runtime::spawn_blocking(move || {
-        let binary = env::resolve_binary(&command)
-            .ok_or_else(|| format!("lsp: binary not found: {command}"))?;
+        let binary;
+        let binary_path: &std::path::Path = if wsl_distro.is_some() {
+            std::path::Path::new(&command)
+        } else {
+            binary = env::resolve_binary(&command)
+                .ok_or_else(|| format!("lsp: binary not found: {command}"))?;
+            std::path::Path::new(&binary)
+        };
         let extra_env = env.unwrap_or_default();
         session::spawn(
-            id, app, &binary, &args, &extra_env, &root, max_rss_mb, on_message, on_exit,
+            id,
+            app,
+            binary_path,
+            &args,
+            &extra_env,
+            &root,
+            max_rss_mb,
+            on_message,
+            on_exit,
+            wsl_distro,
         )
     })
     .await
@@ -107,11 +124,43 @@ pub async fn lsp_spawn(
 }
 
 #[tauri::command]
-pub async fn lsp_resolve_root(path: String, markers: Vec<String>) -> Option<String> {
-    tauri::async_runtime::spawn_blocking(move || resolve_root(&path, &markers))
-        .await
-        .ok()
-        .flatten()
+pub async fn lsp_resolve_root(
+    path: String,
+    markers: Vec<String>,
+    workspace: Option<WorkspaceEnv>,
+) -> Option<String> {
+    let workspace = WorkspaceEnv::from_option(workspace);
+    tauri::async_runtime::spawn_blocking(move || match &workspace {
+        WorkspaceEnv::Wsl { distro } => resolve_root_wsl(distro, &path, &markers),
+        _ => resolve_root(&path, &markers),
+    })
+    .await
+    .ok()
+    .flatten()
+}
+
+// WSL variant: each level is one `wsl test -e` call, so the distro path never
+// passes through a shell (no injection surface). Bounded to 10 levels so a
+// stray marker cannot make a server index the entire distro.
+fn resolve_root_wsl(distro: &str, path: &str, markers: &[String]) -> Option<String> {
+    let mut dir = std::path::PathBuf::from(path);
+    for _ in 0..10 {
+        let dir_str = dir.to_string_lossy();
+        for m in markers {
+            let ok = std::process::Command::new("wsl.exe")
+                .args(["-d", distro, "--", "test", "-e", &format!("{dir_str}/{m}")])
+                .status()
+                .map(|s| s.success())
+                .unwrap_or(false);
+            if ok {
+                return Some(dir_str.into_owned());
+            }
+        }
+        if !dir.pop() {
+            return None;
+        }
+    }
+    None
 }
 
 // Stops below the home directory: a stray ~/package.json must not make a

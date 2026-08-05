@@ -20,7 +20,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { native } from "@/modules/ai/lib/native";
-import { scanSkillsDir } from "@/modules/ai/lib/skills";
+import {
+  importSkillToWorkspace,
+  scanSkillsDir,
+  serializeSkill,
+} from "@/modules/ai/lib/skills";
 import {
   isValidHandle,
   normalizeHandle,
@@ -39,7 +43,9 @@ import {
 import { TOOL_REGISTRY } from "@/modules/ai/tools/registry";
 import {
   Add01Icon,
+  CheckmarkCircle02Icon,
   Delete02Icon,
+  Download04Icon,
   Edit02Icon,
   SparklesIcon,
 } from "@hugeicons/core-free-icons";
@@ -79,6 +85,28 @@ export function SkillsSection() {
 
   const [editingSnippet, setEditingSnippet] = useState<Snippet | null>(null);
   const [editingTask, setEditingTask] = useState<ScheduledTask | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importText, setImportText] = useState("");
+
+  const doImport = async () => {
+    const root = (await native.workspaceCurrentDir().catch(() => "")) || null;
+    const res = await importSkillToWorkspace(root, importText);
+    if (res.ok) {
+      toast.success(`${t("skills.importSkillDone")}: ${res.name}`);
+      setImportText("");
+      setImportOpen(false);
+      await rescan();
+    } else {
+      toast.error(t("skills.importSkillInvalid"), { description: res.error });
+    }
+  };
+
+  const exportSkill = (s: Snippet) => {
+    void navigator.clipboard
+      .writeText(serializeSkill(s))
+      .then(() => toast.success(`${t("skills.exportSkill")}: ${s.name}`))
+      .catch(() => {});
+  };
 
   useEffect(() => {
     void hydrateSnippets();
@@ -89,7 +117,7 @@ export function SkillsSection() {
     const root = (await native.workspaceCurrentDir().catch(() => "")) || null;
     const builtins = await scanSkillsDir(root);
     useSnippetsStore.getState().mergeBuiltin(builtins);
-    toast.success(t("skillsMcp.rescanDone"));
+    toast.success(t("skills.rescanDone"));
   };
 
   const userSnippets = snippets.filter((s) => !s.builtin);
@@ -106,9 +134,9 @@ export function SkillsSection() {
       <section className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
           <div className="flex flex-col">
-            <Label>{t("skillsMcp.snippets")}</Label>
+            <Label>{t("skills.snippets")}</Label>
             <span className="text-[10.5px] text-muted-foreground">
-              {t("skillsMcp.snippetsDescription")}
+              {t("skills.snippetsDescription")}
             </span>
           </div>
           <Button
@@ -127,9 +155,51 @@ export function SkillsSection() {
             }
           >
             <HugeiconsIcon icon={Add01Icon} size={12} strokeWidth={1.75} />
-            {t("skillsMcp.newSnippet")}
+            {t("skills.newSnippet")}
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 gap-1.5 px-2 text-[11px]"
+            onClick={() => setImportOpen((v) => !v)}
+          >
+            <HugeiconsIcon icon={Download04Icon} size={12} strokeWidth={1.75} />
+            {t("skills.importSkill")}
           </Button>
         </div>
+
+        {importOpen ? (
+          <div className="flex flex-col gap-2 rounded-lg border border-border/60 bg-card/40 p-3">
+            <Textarea
+              value={importText}
+              onChange={(e) => setImportText(e.target.value)}
+              placeholder={t("skills.importSkillPlaceholder")}
+              className="min-h-28 font-mono text-[11px]"
+            />
+            <div className="flex justify-end gap-2">
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 px-2 text-[11px]"
+                onClick={() => {
+                  setImportOpen(false);
+                  setImportText("");
+                }}
+              >
+                {t("common.cancel")}
+              </Button>
+              <Button
+                size="sm"
+                className="h-7 gap-1.5 px-2 text-[11px]"
+                onClick={() => void doImport()}
+                disabled={!importText.trim()}
+              >
+                <HugeiconsIcon icon={CheckmarkCircle02Icon} size={12} strokeWidth={1.75} />
+                {t("skills.importSkill")}
+              </Button>
+            </div>
+          </div>
+        ) : null}
 
         {userSnippets.length === 0 ? (
           <div className="rounded-lg border border-dashed border-border/60 bg-card/30 px-4 py-6 text-center text-[11px] text-muted-foreground">
@@ -154,7 +224,7 @@ export function SkillsSection() {
                   <span className="truncate text-[10.5px] text-muted-foreground">
                     {s.description ||
                       (s.toolAllowlist?.length
-                        ? `${t("skillsMcp.allowlist")}: ${s.toolAllowlist.join(", ")}`
+                        ? `${t("skills.allowlist")}: ${s.toolAllowlist.join(", ")}`
                         : "")}
                   </span>
                 </div>
@@ -166,6 +236,19 @@ export function SkillsSection() {
                     {s.toolAllowlist.length}
                   </Badge>
                 ) : null}
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="size-7"
+                  onClick={() => exportSkill(s)}
+                  title={t("skills.exportSkill")}
+                >
+                  <HugeiconsIcon
+                    icon={Download04Icon}
+                    size={12}
+                    strokeWidth={1.75}
+                  />
+                </Button>
                 <Button
                   size="icon"
                   variant="ghost"
@@ -202,9 +285,9 @@ export function SkillsSection() {
       <section className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
           <div className="flex flex-col">
-            <Label>{t("skillsMcp.builtinSkills")}</Label>
+            <Label>{t("skills.builtinSkills")}</Label>
             <span className="text-[10.5px] text-muted-foreground">
-              {t("skillsMcp.builtinSkillsHint")}
+              {t("skills.builtinSkillsHint")}
             </span>
           </div>
           <Button
@@ -214,7 +297,7 @@ export function SkillsSection() {
             onClick={() => void rescan()}
           >
             <HugeiconsIcon icon={SparklesIcon} size={12} strokeWidth={1.75} />
-            {t("skillsMcp.rescan")}
+            {t("skills.rescan")}
           </Button>
         </div>
 
@@ -237,7 +320,7 @@ export function SkillsSection() {
                   )}
                 >
                   <Badge className="shrink-0 bg-muted px-1.5 py-0 text-[9px] font-normal text-muted-foreground">
-                    {t("skillsMcp.builtin")}
+                    {t("skills.builtin")}
                   </Badge>
                   <code className="rounded bg-muted/50 px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
                     #{s.handle}
@@ -254,7 +337,7 @@ export function SkillsSection() {
                   </div>
                   <span className="shrink-0 text-[10px] text-muted-foreground">
                     {s.toolAllowlist?.length
-                      ? t("skillsMcp.toolCount", { count: s.toolAllowlist.length })
+                      ? t("skills.toolCount", { count: s.toolAllowlist.length })
                       : ""}
                   </span>
                   <Switch
@@ -473,9 +556,9 @@ function SnippetEditorDialog({
             />
           </div>
           <div className="flex flex-col gap-1">
-            <Label>{t("skillsMcp.allowlist")}</Label>
+            <Label>{t("skills.allowlist")}</Label>
             <span className="text-[10px] text-muted-foreground">
-              {t("skillsMcp.allowlistHint")}
+              {t("skills.allowlistHint")}
             </span>
             <div className="grid max-h-40 grid-cols-1 gap-0.5 overflow-y-auto rounded-md border border-border/60 bg-card/40 p-1.5 sm:grid-cols-2">
               {TOOL_REGISTRY.map((toolDef) => {
@@ -630,3 +713,4 @@ function Label({ children }: { children: React.ReactNode }) {
     </span>
   );
 }
+

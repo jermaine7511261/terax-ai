@@ -22,7 +22,13 @@ function ptyWriteCalls() {
 }
 
 async function openSession(): Promise<PtySession> {
-  invoke.mockResolvedValueOnce(1);
+  // Force the helper path to fail so the tests exercise the in-process
+  // fallback's write chunking (the same chunking lives in both paths).
+  invoke.mockImplementation(async (cmd: unknown) => {
+    if (cmd === "pty_helper_open") throw new Error("no helper");
+    if (cmd === "pty_open") return 1;
+    return undefined;
+  });
   return openPty(80, 24, { onData: vi.fn() }, "/repo");
 }
 

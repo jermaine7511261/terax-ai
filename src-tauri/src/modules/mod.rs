@@ -1,4 +1,5 @@
 pub mod agent;
+pub mod dap;
 pub mod fs;
 pub mod gateway;
 pub mod git;
@@ -9,8 +10,10 @@ pub mod mcp_server;
 pub mod net;
 pub mod proc;
 pub mod pty;
+pub mod pty_helper;
 pub mod scheduler;
 pub mod secrets;
 pub mod shell;
 pub mod ssh;
+pub mod window;
 pub mod workspace;

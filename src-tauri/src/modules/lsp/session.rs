@@ -76,13 +76,33 @@ pub fn spawn(
     max_rss_mb: Option<u64>,
     on_message: Channel<Response>,
     on_exit: Channel<LspExit>,
+    wsl_distro: Option<String>,
 ) -> Result<Arc<LspSession>, String> {
-    let mut cmd = Command::new(binary);
-    cmd.args(args)
-        .current_dir(root)
-        .envs(super::env::server_env_overlay())
-        .envs(extra_env)
-        .stdin(Stdio::piped())
+    let mut cmd = match &wsl_distro {
+        // WSL workspace: run the server inside the distro via the wsl.exe
+        // bridge. `binary` and `root` are distro-internal paths; wsl.exe
+        // resolves them. stdin/stdout/stderr pipes behave identically.
+        Some(distro) => {
+            let mut c = Command::new("wsl.exe");
+            c.arg("-d")
+                .arg(distro)
+                .arg("--cd")
+                .arg(root)
+                .arg("--")
+                .arg(binary)
+                .args(args);
+            c
+        }
+        None => {
+            let mut c = Command::new(binary);
+            c.args(args)
+                .current_dir(root)
+                .envs(super::env::server_env_overlay())
+                .envs(extra_env);
+            c
+        }
+    };
+    cmd.stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
     crate::modules::proc::hide_console(&mut cmd);
@@ -205,7 +225,9 @@ pub fn spawn(
         .map_err(|e| e.to_string())?;
 
     let kill_reason: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
-    {
+    // The RSS watchdog reads the Windows process; under WSL the server runs
+    // inside the distro where we cannot observe its memory, so skip policing.
+    if wsl_distro.is_none() {
         let cap_mb = max_rss_mb.unwrap_or(DEFAULT_MAX_RSS_MB);
         let pid = child.id();
         let session_w = session.clone();

@@ -3,6 +3,11 @@ import { z } from "zod";
 import { native } from "../lib/native";
 import { checkWritableCanonical } from "../lib/security";
 import { newQueuedEditId, usePlanStore } from "../store/planStore";
+import {
+  captureBaseline,
+  newDiagnosticsAfterWrite,
+  withLspDiagnostics,
+} from "@/modules/lsp/lib/diagnose";
 import { resolvePath, type ToolContext } from "./context";
 
 type EditResult =
@@ -253,17 +258,24 @@ async function applyEdits(
     };
   }
 
+  const releaseBaseline = await captureBaseline(abs);
   try {
     await native.writeFile(abs, content);
     readCache.set(abs, { size: content.length, hash: djb2(content) });
-    return {
-      ok: true,
-      replacements: totalReplacements,
-      bytesWritten: content.length,
-      path: abs,
-    };
+    const lsp = await newDiagnosticsAfterWrite(abs, content);
+    return withLspDiagnostics(
+      {
+        ok: true as const,
+        replacements: totalReplacements,
+        bytesWritten: content.length,
+        path: abs,
+      },
+      lsp,
+    );
   } catch (err) {
     return { error: String(err), path: abs };
+  } finally {
+    releaseBaseline();
   }
 }
 
@@ -414,14 +426,22 @@ export function buildEditTools(ctx: ToolContext) {
             results.push({ path: p.abs, ok: true, bytesWritten: p.proposed.length });
             continue;
           }
+          const releaseBaseline = await captureBaseline(p.abs);
           try {
             await native.writeFile(p.abs, p.proposed);
             ctx.readCache.set(p.abs, {
               size: p.proposed.length,
               hash: djb2(p.proposed),
             });
-            results.push({ path: p.abs, ok: true, bytesWritten: p.proposed.length });
+            const lsp = await newDiagnosticsAfterWrite(p.abs, p.proposed);
+            results.push(
+              withLspDiagnostics(
+                { path: p.abs, ok: true, bytesWritten: p.proposed.length },
+                lsp,
+              ),
+            );
           } catch (err) {
+            releaseBaseline();
             results.push({ path: p.abs, ok: false, error: String(err) });
           }
         }

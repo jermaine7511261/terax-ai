@@ -38,6 +38,8 @@ import {
   useEditorFileSync,
 } from "@/modules/editor";
 import { FileExplorer, type FileExplorerHandle } from "@/modules/explorer";
+import { SearchPanel } from "@/modules/search";
+import { DebugPanel } from "@/modules/debug";
 import type { GitHistorySearchHandle } from "@/modules/git-history";
 import {
   Header,
@@ -1369,6 +1371,10 @@ export default function App() {
                         onAttachToAgent={handleAttachFileToAgent}
                         pathDropTarget={terminalPathDropTarget}
                       />
+                    ) : sidebarView === "search" ? (
+                      <SearchPanel root={explorerRoot} onOpen={openContentHit} />
+                    ) : sidebarView === "debug" ? (
+                      <DebugPanel root={explorerRoot} onOpen={openContentHit} />
                     ) : (
                       <SourceControlPanel
                         open

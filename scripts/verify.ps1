@@ -15,6 +15,14 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 Push-Location $root
 try {
+  Write-Host "`n==> CHANGELOG gate ([未发布] section must be non-empty)" -ForegroundColor Cyan
+  $changelog = Get-Content "$root\CHANGELOG.md" -Raw -Encoding UTF8
+  $unreleased = ($changelog -split "## " | Where-Object { $_ -like "[未发布]*" }) -join ""
+  if (-not $unreleased) { throw "CHANGELOG gate failed: no [未发布] section" }
+  $changelogBody = ($unreleased -replace "\[未发布\]", "" -replace "^\s*[-*]\s*$", "" -replace "\s+", "").Trim()
+  if ([string]::IsNullOrEmpty($changelogBody)) { throw "CHANGELOG gate failed: [未发布] section is empty" }
+  Write-Host "    OK"
+
   Write-Host "`n==> pnpm check-types (tsc --noEmit)" -ForegroundColor Cyan
   pnpm check-types
   if ($LASTEXITCODE -ne 0) { throw "check-types failed" }

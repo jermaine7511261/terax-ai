@@ -28,6 +28,14 @@ import { openPty, type PtySession } from "./pty-bridge";
 import "../block/block.css";
 import { ensureAgentActivityListener, isAgentActivePty } from "./agentActivity";
 import {
+  clearBusyMarker,
+  clearTerminalSnapshot,
+  hasBusyMarker,
+  loadTerminalSnapshot,
+  saveBusyMarker,
+  saveTerminalSnapshot,
+} from "./sessionSnapshot";
+import {
   acquireSlot,
   applyBackgroundActive,
   applyCursorBlink,
@@ -710,8 +718,26 @@ function attachSession(
 
   if (!s.pty && !s.ptyOpening && !s.shellExited) {
     s.ptyOpening = true;
-    openPtyWithRetry(leafId, s, s.initialCwd)
-      .then((pty) => {
+    void (async () => {
+      // Replay a persisted snapshot from a previous session (I1c light path):
+      // the cold tab's grid is empty at this point, so write the buffer back
+      // before the fresh shell's output starts flowing.
+      const slot0 = getSlotForLeaf(leafId);
+      if (slot0 && !s.disposed) {
+        const [text, busy] = await Promise.all([
+          loadTerminalSnapshot(leafId),
+          hasBusyMarker(leafId),
+        ]);
+        if (text && !s.disposed) slot0.term.write(text);
+        if (busy && !s.disposed) {
+          slot0.term.write(
+            "\r\n\x1b[2m[yamet] previous foreground session not preserved; fresh shell started\x1b[0m\r\n",
+          );
+        }
+        void clearBusyMarker(leafId);
+      }
+      try {
+        const pty = await openPtyWithRetry(leafId, s, s.initialCwd);
         s.ptyOpening = false;
         if (s.disposed) {
           pty.close();
@@ -723,11 +749,11 @@ function attachSession(
           s.pendingInput = "";
         }
         if (s.cols > 0 && s.rows > 0) pty.resize(s.cols, s.rows);
-      })
-      .catch((e) => {
+      } catch (e) {
         s.ptyOpening = false;
         if (!s.disposed) surfaceSpawnFailure(leafId, s, e);
-      });
+      }
+    })();
   }
 }
 
@@ -812,10 +838,40 @@ export async function leafHasForegroundProcess(
   }
 }
 
+// Periodic snapshot persistence for idle, bound leaves only: a window close
+// that skips component unmount would otherwise lose the buffer. Skipping busy
+// (foreground job / running command) and alt-screen leaves keeps a mid-TUI
+// serialize from corrupting a session we can't faithfully replay.
+setInterval(() => {
+  for (const [leafId, s] of sessions) {
+    if (s.disposed || s.commandRunning || s.blocks) continue;
+    if (isLeafAltScreen(leafId)) continue;
+    const slot = getSlotForLeaf(leafId);
+    if (!slot || slot.currentLeafId !== leafId) continue;
+    void saveTerminalSnapshot(leafId, slot.serializeAddon.serialize());
+  }
+}, 20_000);
+
 export function disposeSession(leafId: number): void {
   const s = sessions.get(leafId);
   if (!s) return;
   s.disposed = true;
+  // Persist the last visible buffer (idle leaves only) so a later cold-tab
+  // activation can replay it before spawning the fresh shell. A busy leaf
+  // (foreground job / TUI) cannot be faithfully replayed; mark it so the
+  // restored tab can say so instead of looking like a clean shell.
+  const slot = getSlotForLeaf(leafId);
+  if (slot && !s.commandRunning && !isLeafAltScreen(leafId)) {
+    try {
+      void saveTerminalSnapshot(leafId, slot.serializeAddon.serialize());
+    } catch {
+      // serialize is infallible; ignore defensive failure.
+    }
+    void clearBusyMarker(leafId);
+  } else {
+    void clearTerminalSnapshot(leafId);
+    void saveBusyMarker(leafId);
+  }
   cancelHiddenRelease(s);
   disposeLeafSlot(leafId);
   s.hasSlot = false;

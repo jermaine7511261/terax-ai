@@ -25,6 +25,134 @@ export async function openPty(
   shell?: string,
   ssh?: SshTarget,
 ): Promise<PtySession> {
+  // SSH sessions and the helper path are mutually exclusive for now (the
+  // helper does not host ssh clients); keep ssh on the in-process path.
+  if (!ssh) {
+    try {
+      return await openPtyViaHelper(cols, rows, handlers, cwd, blocks, shell);
+    } catch (e) {
+      console.warn("[yamet] pty helper unavailable, falling back:", e);
+    }
+  }
+  return openPtyInProcess(cols, rows, handlers, cwd, blocks, shell, ssh);
+}
+
+/** Attach to an existing helper session (restored cold tab with a ptyId). */
+export async function attachPty(
+  id: number,
+  handlers: PtyHandlers,
+): Promise<PtySession> {
+  const onData = new Channel<ArrayBuffer>();
+  const onExit = new Channel<number>();
+  let released = false;
+  const noop = () => {};
+  const releaseHandlers = () => {
+    if (released) return;
+    released = true;
+    onData.onmessage = noop;
+    onExit.onmessage = noop;
+  };
+  onData.onmessage = (buf) => handlers.onData(new Uint8Array(buf));
+  onExit.onmessage = (code) => {
+    handlers.onExit?.(code);
+    releaseHandlers();
+  };
+  await invoke("pty_helper_attach", { id, onData, onExit });
+  let closed = false;
+  const headers = { "x-pty-id": String(id) };
+  return {
+    id,
+    write: async (data) => {
+      const bytes = textEncoder.encode(data);
+      await invoke("pty_helper_write", bytes, { headers });
+    },
+    resize: (c, r) => invoke("pty_helper_resize", { id, cols: c, rows: r }),
+    close: async () => {
+      if (closed) return;
+      closed = true;
+      try {
+        await invoke("pty_helper_close", { id });
+      } finally {
+        releaseHandlers();
+      }
+    },
+  };
+}
+
+// The helper hosts the PTY in a detached process, so a main-process crash no
+// longer kills the shell; the session survives for a later attach.
+async function openPtyViaHelper(
+  cols: number,
+  rows: number,
+  handlers: PtyHandlers,
+  cwd?: string,
+  blocks?: boolean,
+  shell?: string,
+): Promise<PtySession> {
+  const onData = new Channel<ArrayBuffer>();
+  const onExit = new Channel<number>();
+  let released = false;
+  const noop = () => {};
+  const releaseHandlers = () => {
+    if (released) return;
+    released = true;
+    onData.onmessage = noop;
+    onExit.onmessage = noop;
+  };
+  onData.onmessage = (buf) => handlers.onData(new Uint8Array(buf));
+  onExit.onmessage = (code) => {
+    handlers.onExit?.(code);
+    releaseHandlers();
+  };
+  const id = await invoke<number>("pty_helper_open", {
+    cols,
+    rows,
+    cwd: cwd ?? null,
+    workspace: currentWorkspaceEnv(),
+    blocks: blocks ?? false,
+    shell: shell ?? null,
+    onData,
+    onExit,
+  });
+  let closed = false;
+  const headers = { "x-pty-id": String(id) };
+  const WRITE_CHUNK_BYTES = 32 * 1024;
+  return {
+    id,
+    write: async (data) => {
+      const bytes = textEncoder.encode(data);
+      if (bytes.length <= WRITE_CHUNK_BYTES) {
+        await invoke("pty_helper_write", bytes, { headers });
+        return;
+      }
+      for (let i = 0; i < bytes.length; i += WRITE_CHUNK_BYTES) {
+        const chunk = bytes.subarray(i, i + WRITE_CHUNK_BYTES);
+        await invoke("pty_helper_write", chunk, { headers });
+        await new Promise<void>((r) => setTimeout(r, 0));
+      }
+    },
+    resize: (c, r) => invoke("pty_helper_resize", { id, cols: c, rows: r }),
+    close: async () => {
+      if (closed) return;
+      closed = true;
+      try {
+        await invoke("pty_helper_close", { id });
+      } finally {
+        releaseHandlers();
+      }
+    },
+  };
+}
+
+async function openPtyInProcess(
+  cols: number,
+  rows: number,
+  handlers: PtyHandlers,
+  cwd?: string,
+  blocks?: boolean,
+  shell?: string,
+  ssh?: SshTarget,
+): Promise<PtySession> {
   // Raw bytes — no base64/JSON round-trip; messages arrive as ArrayBuffer.
   const onData = new Channel<ArrayBuffer>();
   const onExit = new Channel<number>();

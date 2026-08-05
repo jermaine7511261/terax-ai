@@ -19,6 +19,56 @@ export type SkillFile = {
   toolAllowlist?: string[];
 };
 
+/** Serialize a snippet as a shareable skill.json payload (bundle export). */
+export function serializeSkill(s: Snippet): string {
+  const payload: SkillFile = {
+    name: s.name,
+    description: s.description,
+    prompt: s.content,
+    handle: s.handle || undefined,
+    toolAllowlist: s.toolAllowlist,
+  };
+  return JSON.stringify(payload, null, 2);
+}
+
+/**
+ * Import a skill.json payload into `<workspaceRoot>/skills/<name>.json`.
+ * Validates first; refuses to clobber an existing file (mirrors theme-import
+ * behavior — no silent overwrite).
+ */
+export async function importSkillToWorkspace(
+  workspaceRoot: string | null,
+  raw: string,
+): Promise<{ ok: true; name: string } | { ok: false; error: string }> {
+  const skill = parseSkillJson(raw);
+  if (!skill) {
+    return { ok: false, error: "invalid skill.json: name and prompt are required" };
+  }
+  if (!workspaceRoot) {
+    return { ok: false, error: "no workspace root selected" };
+  }
+  const root = workspaceRoot.replace(/\/$/, "");
+  const dir = `${root}/skills`;
+  try {
+    await native.createDir(dir);
+  } catch {
+    // Directory already exists — the common case.
+  }
+  const target = `${dir}/${skill.name}.json`;
+  try {
+    await native.readFile(target);
+    return { ok: false, error: `skill "${skill.name}" already exists in skills/` };
+  } catch {
+    // Target does not exist; proceed.
+  }
+  try {
+    await native.writeFile(target, JSON.stringify(skill, null, 2));
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+  return { ok: true, name: skill.name };
+}
+
 /** Parse + validate a skill.json payload; returns null when malformed. */
 export function parseSkillJson(raw: string): SkillFile | null {
   let v: unknown;

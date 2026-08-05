@@ -16,6 +16,14 @@ fn main() {
         std::process::exit(0);
     }
 
+    // Detached PTY helper mode: hosts portable-pty sessions so they survive a
+    // main-process restart (I1c). Spawned by pty_helper_start with the token
+    // in YAMET_PTY_HELPER_TOKEN; never reaches the Tauri runtime.
+    if args.get(1).map(String::as_str) == Some("--pty-helper") {
+        yamet_lib::pty_helper_run();
+        std::process::exit(0);
+    }
+
     #[cfg(target_os = "macos")]
     {
         // Disable macOS press-and-hold character popup, so key repeat works in terminal.

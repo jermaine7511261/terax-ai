@@ -76,11 +76,11 @@ export function McpSection() {
                   size={11}
                   strokeWidth={1.75}
                 />
-                {t("skillsMcp.mcpServers")}
+                {t("mcp.mcpServers")}
               </span>
             </Label>
             <span className="text-[10.5px] text-muted-foreground">
-              {t("skillsMcp.mcpDescription")}
+              {t("mcp.mcpDescription")}
             </span>
           </div>
           <Button
@@ -102,13 +102,13 @@ export function McpSection() {
             }
           >
             <HugeiconsIcon icon={Add01Icon} size={12} strokeWidth={1.75} />
-            {t("skillsMcp.newServer")}
+            {t("mcp.newServer")}
           </Button>
         </div>
 
         {mcpServers.length === 0 ? (
           <div className="rounded-lg border border-dashed border-border/60 bg-card/30 px-4 py-6 text-center text-[11px] text-muted-foreground">
-            {t("skillsMcp.emptyServers")}
+            {t("mcp.emptyServers")}
           </div>
         ) : (
           <ul className="flex flex-col gap-1.5">
@@ -146,8 +146,8 @@ export function McpSection() {
                   </div>
                   <span className="shrink-0 text-[10px] text-muted-foreground">
                     {status
-                      ? t("skillsMcp.toolCount", { count: status.tool_count })
-                      : t("skillsMcp.disconnected")}
+                      ? t("mcp.toolCount", { count: status.tool_count })
+                      : t("mcp.disconnected")}
                   </span>
                   <Button
                     size="sm"
@@ -166,10 +166,10 @@ export function McpSection() {
                           size={10}
                           strokeWidth={2}
                         />
-                        {t("skillsMcp.disconnect")}
+                        {t("mcp.disconnect")}
                       </>
                     ) : (
-                      t("skillsMcp.connect")
+                      t("mcp.connect")
                     )}
                   </Button>
                   <div className="flex gap-0.5">
@@ -248,22 +248,22 @@ function McpServerDialog({
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle className="text-[14px]">
-            {isNew ? t("skillsMcp.newServer") : t("skillsMcp.editServer")}
+            {isNew ? t("mcp.newServer") : t("mcp.editServer")}
           </DialogTitle>
         </DialogHeader>
         <div className="-mx-2 flex max-h-[calc(100vh-14rem)] flex-col gap-3 overflow-y-auto px-2">
           <div className="flex gap-2">
             <div className="flex flex-1 flex-col gap-1">
-              <Label>{t("skillsMcp.serverName")}</Label>
+              <Label>{t("mcp.serverName")}</Label>
               <Input
                 value={draft.name}
                 onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-                placeholder={t("skillsMcp.serverNamePlaceholder")}
+                placeholder={t("mcp.serverNamePlaceholder")}
                 className="h-8 text-[12px]"
               />
             </div>
             <div className="flex w-32 flex-col gap-1">
-              <Label>{t("skillsMcp.transport")}</Label>
+              <Label>{t("mcp.transport")}</Label>
               <Select
                 value={draft.transport}
                 onValueChange={(v) =>
@@ -284,18 +284,18 @@ function McpServerDialog({
           {draft.transport === "stdio" ? (
             <>
               <div className="flex flex-col gap-1">
-                <Label>{t("skillsMcp.command")}</Label>
+                <Label>{t("mcp.command")}</Label>
                 <Input
                   value={draft.command}
                   onChange={(e) =>
                     setDraft({ ...draft, command: e.target.value })
                   }
-                  placeholder={t("skillsMcp.commandPlaceholder")}
+                  placeholder={t("mcp.commandPlaceholder")}
                   className="h-8 font-mono text-[11.5px]"
                 />
               </div>
               <div className="flex flex-col gap-1">
-                <Label>{t("skillsMcp.args")}</Label>
+                <Label>{t("mcp.args")}</Label>
                 <Input
                   value={draft.args.join(", ")}
                   onChange={(e) =>
@@ -311,7 +311,7 @@ function McpServerDialog({
                 />
               </div>
               <div className="flex flex-col gap-1">
-                <Label>{t("skillsMcp.cwd")}</Label>
+                <Label>{t("mcp.cwd")}</Label>
                 <Input
                   value={draft.cwd}
                   onChange={(e) => setDraft({ ...draft, cwd: e.target.value })}
@@ -319,7 +319,7 @@ function McpServerDialog({
                 />
               </div>
               <div className="flex flex-col gap-1">
-                <Label>{t("skillsMcp.env")}</Label>
+                <Label>{t("mcp.env")}</Label>
                 <Textarea
                   value={kvToText(draft.env, "=")}
                   onChange={(e) =>
@@ -332,16 +332,16 @@ function McpServerDialog({
           ) : (
             <>
               <div className="flex flex-col gap-1">
-                <Label>{t("skillsMcp.url")}</Label>
+                <Label>{t("mcp.url")}</Label>
                 <Input
                   value={draft.url}
                   onChange={(e) => setDraft({ ...draft, url: e.target.value })}
-                  placeholder={t("skillsMcp.urlPlaceholder")}
+                  placeholder={t("mcp.urlPlaceholder")}
                   className="h-8 font-mono text-[11.5px]"
                 />
               </div>
               <div className="flex flex-col gap-1">
-                <Label>{t("skillsMcp.headers")}</Label>
+                <Label>{t("mcp.headers")}</Label>
                 <Textarea
                   value={kvToText(draft.headers, ": ")}
                   onChange={(e) =>
@@ -394,3 +394,4 @@ function Label({ children }: { children: React.ReactNode }) {
     </span>
   );
 }
+

@@ -12,6 +12,14 @@ import {
   PreviewAddressBar,
   type PreviewAddressBarHandle,
 } from "./PreviewAddressBar";
+import {
+  loadBookmarks,
+  navBack,
+  navForward,
+  pushNav,
+  toggleBookmark,
+  type NavHistory,
+} from "./lib/nav";
 
 export type PreviewPaneHandle = {
   reload: () => void;
@@ -49,6 +57,12 @@ export const PreviewPane = forwardRef<PreviewPaneHandle, Props>(
     const [nonce, setNonce] = useState(0);
     const [loaded, setLoaded] = useState(visible);
     const [zoom, setZoom] = useState(1);
+    const [nav, setNav] = useState<NavHistory>({
+      urls: [url],
+      index: 0,
+    });
+    const [effectiveUrl, setEffectiveUrl] = useState(url);
+    const [bookmarks, setBookmarks] = useState<string[]>(loadBookmarks);
     const addressRef = useRef<PreviewAddressBarHandle>(null);
 
     useEffect(() => {
@@ -64,6 +78,35 @@ export const PreviewPane = forwardRef<PreviewPaneHandle, Props>(
     useEffect(() => {
       setZoom(1);
     }, [url]);
+
+    // External url change (detected dev server, AI tool, tab restore): sync
+    // the effective URL and record it in the per-pane history.
+    useEffect(() => {
+      if (url === effectiveUrl) return;
+      setEffectiveUrl(url);
+      setNav((h) => pushNav(h, url));
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [url]);
+
+    const goBack = () => {
+      setNav((h) => {
+        const prev = navBack(h);
+        if (prev) setEffectiveUrl(prev.urls[prev.index]);
+        return prev ?? h;
+      });
+    };
+    const goForward = () => {
+      setNav((h) => {
+        const next = navForward(h);
+        if (next) setEffectiveUrl(next.urls[next.index]);
+        return next ?? h;
+      });
+    };
+    const submitUrl = (next: string) => {
+      setEffectiveUrl(next);
+      setNav((h) => pushNav(h, next));
+      onUrlChange(next);
+    };
 
     useImperativeHandle(
       ref,
@@ -92,9 +135,20 @@ export const PreviewPane = forwardRef<PreviewPaneHandle, Props>(
       >
         <PreviewAddressBar
           ref={addressRef}
-          url={url}
-          onSubmit={onUrlChange}
+          url={effectiveUrl}
+          onSubmit={submitUrl}
           onReload={() => setNonce((n) => n + 1)}
+          onBack={goBack}
+          onForward={goForward}
+          canBack={nav.index > 0}
+          canForward={nav.index < nav.urls.length - 1}
+          isBookmarked={bookmarks.includes(effectiveUrl)}
+          onToggleBookmark={() => {
+            if (!effectiveUrl) return;
+            setBookmarks((list) => toggleBookmark(list, effectiveUrl).list);
+          }}
+          bookmarks={bookmarks}
+          onPickBookmark={(u) => submitUrl(u)}
         />
         {showXfoHint ? (
           <div className="flex h-7 shrink-0 items-center gap-1.5 border-b border-border/60 bg-amber-500/8 px-3 text-[11px] text-amber-600 dark:text-amber-400">
@@ -147,8 +201,8 @@ export const PreviewPane = forwardRef<PreviewPaneHandle, Props>(
               </FilePreviewHeader>
             ) : loaded ? (
               <iframe
-                key={`${url}#${nonce}`}
-                src={url}
+                key={`${effectiveUrl}#${nonce}`}
+                src={effectiveUrl}
                 title={tStatic("preview.preview")}
                 className="h-full w-full border-0"
                 // sandbox grants the bare minimum for a dev preview: scripts,

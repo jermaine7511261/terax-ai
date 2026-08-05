@@ -48,6 +48,7 @@ Yamet 是一个快速、轻量的 AI 原生终端（ADE，agentic development en
 - [x] AI 编辑 diff
 - [x] Vim 模式
 - [x] 预置主题
+- [x] DAP 调试器（Debug Adapter Protocol）：断点、单步、变量/调用栈、Debug 输出；debugpy/node-inspect/lldb-dap/gdb/dlv 适配器（第十一轮）
 
 ### 文件浏览器
 
@@ -112,7 +113,7 @@ Yamet 是一个快速、轻量的 AI 原生终端（ADE，agentic development en
 - [x] 更多斜杠命令与片段（`/review` `/commit` `/test` `/fix` + `#handle` 片段）
 - [x] 审批流改进（会话/项目记住 + 按工具拒绝黑名单；自动批准已交付）
 - [x] 持久化终端会话与布局恢复（标签/面板/spaces 布局 + 重启后恢复每标签 cwd）
-- [ ] 完整 PTY 进程/历史恢复（重连实时 shell 状态、前台进程与 shell 历史回放）：刻意推迟（I1c）；布局 + cwd 恢复已交付，跨重启重连实时 PTY 状态暂不在范围
+- [x] PTY 会话恢复（第十轮 I1c）：前台进程级重连（helper 常驻进程持有 PTY，重启后 attach 既有会话；Windows ConPTY 在 helper 内）+ buffer 快照回放兜底
 - [x] 预览面扩展（图片 / PDF / Markdown 处理）
 - [x] 测试覆盖扩展（PTY 边界、安全函数、AI 工具守卫、IM 网关加密/状态机）
 - [x] IM 网关：各平台接入/二维码打磨、公众号/企微回调隧道指南、onebot 配置助手
@@ -121,7 +122,6 @@ Yamet 是一个快速、轻量的 AI 原生终端（ADE，agentic development en
 
 - [ ] 发布自动化（CHANGELOG、版本递增；tag 流程待办）
 - [ ] 打包体积优化（语言包懒加载、UI 原语按需导入、tree-shake）
-- [ ] 依据 profile 数据的选择性 TS → Rust 迁移
 - [ ] AI 工具 / 片段作为可安装 bundle（`skills/` 目录约定 + 工具白名单已交付子集；bundle 分享留后续）
 
 ## 欢迎贡献
@@ -141,13 +141,12 @@ Yamet 是一个快速、轻量的 AI 原生终端（ADE，agentic development en
 
 以下类别不会内置到 Yamet。此类功能请求将被关闭。
 
-- **超出 LSP 的重型 IDE 功能。** 语言服务器基础能力（跳转定义、引用、重命名、格式化、诊断，19 个内置预设）已交付。集成调试器、重构引擎、IDE 级全项目搜索仍不在范围内，这些请用真正的编辑器。
 - **Notebook 与文档工作区。** 任何让 Yamet 变成文档宿主而非终端的东西。
 - **包管理器与工具链 UI。** 直接在终端里用 `npm`、`pip`、`cargo` 等即可。
-- **完整浏览器功能。** 预览面板仅限本地开发服务器与轻量文档查看。无导航历史、无书签、无开发者工具。
-- **遥测、分析、账号。** Yamet 保持 BYOK 且尊重离线使用。
 - **IDE 规模的扩展市场。** 未来可能做窄范围的 AI 工具/片段 bundle。任意 UI 或行为扩展不会做。
 - **第三方订阅会话桥接。** 对第三方客户端而言，转发云端订阅认证（厂商管理的登录会话）在技术上不可行。
+
+曾列为范围外的三项（超出 LSP 的重型 IDE 功能、完整浏览器功能、遥测）经维护者决定纳入第十轮，见 `docs/iteration-10-requirements.md`。其中 DAP 调试器在第十一轮交付，见 `docs/yamet-需求迭代-第十一轮-LSP-PTY-DAP-2026-08-05.md`。
 
 ## 决策权
 

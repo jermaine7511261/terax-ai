@@ -5,6 +5,22 @@ Yamet 的所有重要变更都记录于此。版本遵循项目规则：**功能
 ## [未发布]
 
 ### 新增
+### 新增
+- **第十一轮（0.1.11）** DAP 调试器（Debug Adapter Protocol）：Rust 后端 modules/dap/（适配器注册表 debugpy/node-inspect/lldb-dap/gdb/dlv、复用 lsp/framing.rs 分帧、请求-响应 id 配对 + 30s 超时、reverse request 分发、孤儿响应转发现前端、fire-and-forget launch 适配 debugpy 延迟响应语义）+ 前端 modules/debug/ 调试面板（程序路径/适配器选择/启动停止/状态指示/单步/调用栈/变量树/Debug 输出），侧栏新增「调试」视图；debugpy 端到端验证通过（断点命中/调用栈/变量）。
+- **第十一轮（0.1.11）** PTY Windows ConPTY 健壮性：openpty 5s 超时线程兜底（ConPTY 未初始化不再挂死）；Windows child.wait() 改 try_wait() 轮询（防无限挂起）。
+- **第十一轮（0.1.11）** LSP 诊断行偏移（hermes range_shift）：diagnose.ts 新增 buildLineShift（LCS 行映射），写后诊断对比前先把基线行号按编辑 diff 平移，中部插行不再误报假新错误。
+- **第十一轮（0.1.11）** PTY helper 判活修正：修复 protocol.rs 缺失 #[test] 导致 roundtrips_output_with_binary_payload 永不运行；非 PID 判活（socket + Auth + Pong 形状校验）已确认。
+- **第十轮（0.1.11）** 发布自动化：`scripts/release.mjs` 一键发布（CHANGELOG 门禁 → 四文件版本递增 → `[未发布]` 固化 → commit → tag vX.Y.Z）；`verify.ps1` 增加 CHANGELOG `[未发布]` 段非空门禁。
+- **第十轮（0.1.11）** PTY helper 进程（进程级会话恢复 I1c）：detached 进程持有 portable-pty 会话，TCP 127.0.0.1 + 随机 token 认证，长度前缀帧协议；每会话环形输出缓冲 + 重连回放；主进程 helper 代理连接（`pty_helper_open/attach/write/resize/close/list`），前端新终端默认走 helper（失败自动降级进程内路径）；`attach` 经 Replay 帧回放既有会话；主进程退出发 Shutdown，helper 孤儿超时（10 分钟无客户端）自动退出。
+- **第十轮（0.1.11）** 终端 buffer 快照回放（I1c 轻量路径 / helper 降级层）：空闲终端定期 + 关闭时序列化 buffer 到 `~/.yamet/sessions/<leafId>.snap`，重启激活冷标签时先回放上次会话输出再以原 cwd 新起 shell；前台任务 / TUI（alt-screen）运行中不落快照。
+- **第十轮（0.1.11）** AI 工具 LSP 语义诊断反馈：`write_file` / `edit` / `multi_edit` 写后主动通知语言服务器（full-text didSave / didOpen）并拉取诊断，只报本次编辑新增项（编辑前基线 diff，freshness 门控），LSP 不可用时静默降级。
+- **第十轮（0.1.11）** LSP 跨文件 workspace edits：F2 重命名 / code action 返回的跨文件 edits 不再静默丢弃，实际写入目标文件并通知服务器。
+- **第十轮（0.1.11）** LSP WSL 工作区支持：移除 `lsp_spawn` 的 WSL 拒绝，服务器经 `wsl.exe -d <distro> --cd <root> --` 桥接在发行版内运行；`lsp_resolve_root` 增加 WSL 分支（每级一次 `wsl test -e` 参数化检查，无 shell 注入面）；前端 WSL 工作区可启用 LSP。
+- **第十轮（0.1.11）** skill bundle 分享：内置/自建 skill 导出为 skill.json（复制到剪贴板），粘贴导入经校验写入 `skills/<name>.json`（同名拒绝覆盖，导入后自动重扫）。
+- **第十轮（0.1.11）** mcp/skill i18n 键组彻底拆分：删除历史遗留 `skillsMcp` 混合键组，skill 键并入 `skills` 组、mcp 键并入 `mcp` 组，两个设置组件引用全部更新。
+- **第十轮（0.1.11）** SSH 后续（后端）：SFTP 远程浏览（`sftp` 批命令 `ls -la`/`get`,argv 传参无 shell 注入，`ls` 行解析纯函数已测）；`ssh -N -L/-R` 端口转发隧道（start/list/kill，组件清理校验同 target.rs）。前端浏览面板与隧道 UI 待接线。
+- **第十轮（0.1.11）** 终端快照回放标注：前台任务运行中退出时写入 busy 标记，恢复的标签显示「上次会话前台任务未保存」提示。
+- **第十轮（0.1.11）** IDE 全项目搜索面板（E1）：侧栏新增「搜索」视图，复用 `fs_grep_interactive` 跨文件全文搜索，按文件分组 + 命中高亮 + 点击跳行；替换输入框支持全部替换（逐文件大小写敏感替换，跳过不可读写文件）。
 - **第九轮（0.1.10）** 右下角 AgentSwitcher 合并 agent + model 选择器：输入框旁和底部状态栏的模型/agent 选项卡移除，右下角一个下拉同时切换 agent 和 model。
 - **第九轮（0.1.10）** 设置页"技能"与"MCP"拆分为独立标签（SkillsSection + McpSection）。
 - **第九轮（0.1.10）** 工作区配置持久化：用户选择的工作区根目录经 localStorage 持久化，配置到其它盘后重启不再回退到默认 C 盘用户目录。

@@ -6,6 +6,10 @@
 //! support natively with zero new heavy dependencies (no openssl/libssh2),
 //! matching how VS Code and Windows Terminal implement remote terminals.
 
+pub mod sftp;
 pub mod target;
+pub mod tunnels;
 
+pub use sftp::{sftp_list, sftp_read};
 pub use target::{build_command, SshTarget};
+pub use tunnels::{ssh_tunnel_kill, ssh_tunnel_list, ssh_tunnel_start, TunnelsState};

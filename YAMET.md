@@ -51,6 +51,7 @@ Yamet 从工作区根目录加载 `YAMET.md` 作为 agent 记忆（类似 AGENTS
 - `shell::shell_session_*`：跨调用保留状态的持久 agent shell。`shell::shell_bg_*`（`spawn`、`logs`、`kill`、`list`）：长运行后台进程（开发服务器等），带有限环形缓冲日志捕获。
 - `workspace::*`：`workspace_authorize` / `workspace_current_dir`（spawn/git/AI 的 cwd 授权注册表）以及 WSL 桥（`wsl_list_distros`、`wsl_default_distro`、`wsl_home`）。
 - `lsp::*`（`lsp_detect`、`lsp_host_pid`、`lsp_resolve_root`、`lsp_spawn`、`lsp_send`、`lsp_kill`）：语言服务器进程宿主。哑 JSON-RPC 管道：Rust 侧做 Content-Length 帧协议 + 进程生命周期（`lsp/framing.rs`，纯函数 + 已测试），协议智能在前端。spawn 的 cwd 经工作区注册表门控；二进制经捕获的登录 shell 环境解析（`lsp/env.rs`，macOS GUI 应用是裸 PATH）；根目录发现向上找标记，但绝不越过 `$HOME`。Unix 下服务器在自己进程组运行并组杀（cargo check / proc-macro 子进程随服务器死）；Windows 子进程用 `proc::job::ProcessJob`（kill-on-close，与 pty 共用）。`RunEvent::Exit` 时杀全部会话。
+- `dap::*`（`dap_launch`、`dap_attach`、`dap_send`、`dap_kill`、`dap_list`）：调试适配器进程宿主（Debug Adapter Protocol）。与 LSP 同构：复用 `lsp/framing.rs` 的 Content-Length 帧 + 子进程模式；`DapSession` 做请求-响应 id 配对（30s 超时）、reverse request 分发、孤儿响应转发现前端、stderr tail。适配器注册表 `dap/adapter.rs`（debugpy/node-inspect/lldb-dap/gdb/dlv，按扩展名 + root marker 选择）。`launch` 用 fire-and-forget（debugpy 等延迟到 `configurationDone` 才回响应，阻塞会死锁），前端在 `initialized` 事件后发 `configurationDone`。`RunEvent::Exit` 时杀全部调试会话。
 - `net::*`（`ai_http_request`、`ai_http_stream`、`lm_ping`）：带 SSRF 守卫的 AI HTTP 代理；把提供商调用与本地模型 ping 移出 webview。
 - `secrets::secrets_*`：经 `keyring` crate 访问系统钥匙串。服务常量 `yamet-ai`。Linux 用文件回退，以 `#[cfg(target_os = "linux")]` 门控。
 - `gateway::*`（`modules/gateway/`）：国内 IM 网关。适配器（`adapters/*.rs`）覆盖钉钉 / 飞书 / 企微 / QQ（OneBot v11 WebSocket / go-cqhttp）/ 微信个人（iLink Bot API，二维码登录 + 长轮询）/ 公众号（回调）。`registry.rs` 持有适配器并把入站分发给 agent；`session.rs` 实施认证门禁（默认拒绝 + 按会话批准白名单 + 自动批准）。凭据落系统钥匙串（`gateway:<platform>`）。`weixin.rs` 在会话过期时经二维码重登（`errcode -14` / 陈旧 `-2`）；`gateway_weixin_qr_login` 以 SVG data-URL 把二维码流式推给设置 UI。`agent_probe`（`shell/external_agent.rs`）检测已安装的外部 agent CLI 及版本。
@@ -70,6 +71,13 @@ Windows 上 ConPTY 需要 `SPAWN_LOCK`（Mutex）包住 `session.rs` 里的 `ope
 每个 ConPTY 子进程还挂到**作业对象**（`JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`，`pty/job.rs`）。当作业句柄释放（干净关闭、panic、甚至 Yamet 进程被 SIGKILL），内核会杀掉 shell 的所有后代（如从 pwsh 里启动的 `npm run dev`）。没有它，Windows 会因 `TerminateProcess` 只杀直接子进程而遗留整棵进程子树。macOS/Linux 依赖 `Drop for Session → killer.kill()`；`cargo run` 被 dev-`Ctrl-C` 时析构不触发，那里也可能有孤儿进程：目前可接受，仅限开发。
 
 `AiComposerProvider` 无条件挂在 App.tsx 根部：条件包装会在密钥加载时改变父元素类型，导致整树重挂载（并在 `getAllKeys()` 解析瞬间重spawn 全部 PTY）。生产环境碰巧躲过（钥匙串读取可能与首帧同帧）；开发环境躲不过。保持无条件包装。
+
+### 会话恢复
+
+- 布局与每标签 cwd 恢复已交付：terminal 标签以 cold tab 持久化，激活时按原 cwd 新起 shell（`useSpacesBoot`），不 spawn PTY 直到首次激活。
+- **前台进程级重连**（第十轮 I1c）：独立常驻 helper 进程持有全部 PTY 会话（`portable-pty`，Windows ConPTY 在 helper 内创建，不绑定主进程）；主进程经本地 IPC（unix socket / Windows 命名管道）控制并流式收发。启动时探测既有 helper，有则按会话 id attach，无则 spawn；主进程崩溃/被强杀后 helper 继续持有会话。参考 oh-my-pi `PtySession` 的 control/reader 双通道结构。不用 tmux：Windows 无原生 tmux，外部依赖违背跨平台对等原则。
+- **buffer 快照回放**（辅助/降级）：helper 不可用时，激活标签先回放 `~/.yamet/sessions/<tab-id>.snap` 快照（`@xterm/addon-serialize`）再新起 shell，标注「会话已重连，前台进程未保留」。
+- 不变量：**前台任务运行中不落快照**（OSC 133 C..D 或 `pty_has_foreground_job` 为真时不序列化；命令中途序列化会损坏 TUI，与 DormantRing 同一条不变量）。
 
 ### 前端（`src/`）
 
@@ -96,6 +104,7 @@ Windows 上 ConPTY 需要 `SPAWN_LOCK`（Mutex）包住 `session.rs` 里的 `ope
 - **settings/**：设置 store（`store.ts`，`tauri-plugin-store`）、偏好 hook、设置窗口打开器。
 - **sidebar/**：活动栏 + 可折叠侧面板（explorer、源码管理、git 历史）。
 - **source-control/**：git status / stage / commit 面板与 diff 工作流。
+- **debug/**：DAP 调试面板（侧栏「调试」视图）。`lib/client.ts` 桥到 Rust `dap_*` 命令并归一化入站帧（event / response / reverse_request），`initialized` 事件后自动发 `configurationDone`（debugpy 延迟响应语义）；`components/DebugPanel.tsx` 提供程序路径 + 适配器选择、启动/停止、状态指示、单步（continue/pause/stepOver/stepIn/stepOut）、调用栈/变量树、Debug 输出。
 - **git-history/**：提交图轨道、refs、按提交的文件 diff。
 - **lsp/**：可选的语言服务器支持，未启用时零开销（无进程、无 PATH 检查、eager bundle 里除 14.5 kB shell 外什么都没有）。状态栏徽标提供启用（发现二进制）或安装（可复制命令）入口，按语言；激活状态以 `lspActivation` 存设置 store（`enabled`/`dismissed`/未设）。`sessionManager.ts` 按（server，workspace root）建键、对打开的文档引用计数、3 分钟空闲杀掉、崩溃退避（冷却后重spawn；3 次/5 分钟 → 放弃 + 附 stderr 尾部的 toast）。资源不变量：**无根标记 → 无会话**（dirname 回退曾每目录起一个服务器、烧掉数 GB）、每服务器 4 会话硬顶、精简的按预设 `initializationOptions`（rust-analyzer：关 `cachePriming` + 有界 `lru`；tsls：`maxTsServerMemory`）。客户端是 `codemirror-languageserver` 懒加载 + 子类化（`lib/client.ts`）以补 didClose/didSave/shutdown、`textDocument/references`（Shift-F12；多结果定义与引用共用 `locationsPanel.ts` 选择器）以及该库漏掉的 publishDiagnostics 能力（没有它 tsls 不发诊断）；`lib/transport.ts` 桥到 Rust 管道并回答库忽略的 server-to-client 请求。`vscode-languageserver-protocol` 在 vite.config.ts 中别名到 4 枚举 shim（省约 117 kB）。预设：typescript、rust-analyzer、pyright、ruff、gopls 等；设置里支持自定义 stdio 服务器。多个预设可认领同一语言（pyright 与 ruff 都占 `py`）：`serverForLanguage` 优先已启用候选，启用 ruff 而 pyright 未设或被 dismiss 时，Python 路由到 ruff。WSL 工作区暂排除。
 - **markdown/**：Markdown 预览渲染器（支撑 `markdown` 标签类型）。

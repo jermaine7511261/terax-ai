@@ -1,6 +1,6 @@
 pub mod modules;
 
-use modules::{agent, fs, gateway, git, history, lsp, mcp, mcp_server, net, pty, scheduler, secrets, shell, workspace};
+use modules::{agent, dap, fs, gateway, git, history, lsp, mcp, mcp_server, net, pty, pty_helper, scheduler, secrets, shell, ssh, window, workspace};
 use std::path::PathBuf;
 use std::sync::Mutex;
 use tauri::{Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder};
@@ -16,6 +16,36 @@ struct LaunchDir(Mutex<Option<String>>);
 /// workspace tools to external agents over stdio JSON-RPC (★ L1 LangBot).
 pub fn mcp_server_run(cwd: &str) {
     mcp_server::run_server(std::path::Path::new(cwd))
+}
+
+/// Detached PTY helper entry (`yamet --pty-helper`): hosts portable-pty
+/// sessions outside the main process so they survive a restart (I1c).
+pub fn pty_helper_run() {
+    install_console_logger();
+    let token = std::env::var("YAMET_PTY_HELPER_TOKEN").unwrap_or_default();
+    let state_file = pty_helper::state_file_path();
+    if let Err(e) = pty_helper::run_helper(token, state_file) {
+        eprintln!("pty helper error: {e}");
+        std::process::exit(1);
+    }
+}
+
+// The helper runs outside Tauri (no tauri-plugin-log), so wire the `log`
+// facade to stderr so log::info!/warn! calls are visible.
+fn install_console_logger() {
+    struct ConsoleLogger;
+    impl log::Log for ConsoleLogger {
+        fn enabled(&self, _: &log::Metadata<'_>) -> bool {
+            true
+        }
+        fn log(&self, record: &log::Record<'_>) {
+            eprintln!("[{}] {}", record.level(), record.args());
+        }
+        fn flush(&self) {}
+    }
+    static LOGGER: ConsoleLogger = ConsoleLogger;
+    let _ = log::set_logger(&LOGGER);
+    log::set_max_level(log::LevelFilter::Info);
 }
 
 /// Drained on first read so HMR / re-mounts can't replay the launch files.
@@ -319,6 +349,9 @@ pub fn run() {
         .manage(history::HistoryState::default())
         .manage(mcp::McpState::default())
         .manage(lsp::LspState::default())
+        .manage(dap::DapState::default())
+        .manage(pty_helper::HelperClientState::default())
+        .manage(ssh::TunnelsState::default())
         .manage(fs::grep::ContentSearchState::default())
         .manage({
             let registry = workspace::WorkspaceRegistry::default();
@@ -331,6 +364,12 @@ pub fn run() {
         .manage(LaunchDir(Mutex::new(cli_dir)))
         .manage(LaunchFiles(Mutex::new(launch.files)))
         .invoke_handler(tauri::generate_handler![
+            pty_helper::client::pty_helper_open,
+            pty_helper::client::pty_helper_attach,
+            pty_helper::client::pty_helper_write,
+            pty_helper::client::pty_helper_resize,
+            pty_helper::client::pty_helper_close,
+            pty_helper::client::pty_helper_list,
             pty::pty_open,
             pty::pty_write,
             pty::pty_resize,
@@ -340,6 +379,12 @@ pub fn run() {
             pty::pty_has_foreground_job,
             pty::pty_shell_name,
             pty::pty_list_shells,
+            pty_helper::pty_helper_start,
+            ssh::sftp::sftp_list,
+            ssh::sftp::sftp_read,
+            ssh::tunnels::ssh_tunnel_start,
+            ssh::tunnels::ssh_tunnel_list,
+            ssh::tunnels::ssh_tunnel_kill,
             fs::tree::list_subdirs,
             fs::tree::fs_read_dir,
             fs::file::fs_read_file,
@@ -359,6 +404,11 @@ pub fn run() {
             lsp::lsp_spawn,
             lsp::lsp_send,
             lsp::lsp_kill,
+            dap::dap_launch,
+            dap::dap_attach,
+            dap::dap_send,
+            dap::dap_kill,
+            dap::dap_list,
             fs::search::fs_search,
             fs::search::fs_list_files,
             fs::grep::fs_grep,
@@ -446,6 +496,7 @@ pub fn run() {
             mcp::mcp_call,
             mcp::mcp_disconnect,
             mcp::mcp_status,
+            window::toggle_devtools,
             scheduler::scheduler_list,
             scheduler::scheduler_upsert,
             scheduler::scheduler_delete,
@@ -459,6 +510,9 @@ pub fn run() {
                 // on process exit; kill explicitly.
                 tauri::RunEvent::Exit => {
                     if let Some(state) = app.try_state::<lsp::LspState>() {
+                        state.kill_all();
+                    }
+                    if let Some(state) = app.try_state::<dap::DapState>() {
                         state.kill_all();
                     }
                 }

@@ -7,11 +7,17 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import {
+  ArrowLeft01Icon,
   ArrowReloadHorizontalIcon,
+  ArrowRight01Icon,
+  Bookmark01Icon,
+  CodeSquareIcon,
   Globe02Icon,
   LinkSquare02Icon,
+  StarIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { cn } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
@@ -56,10 +62,33 @@ type Props = {
   url: string;
   onSubmit: (url: string) => void;
   onReload: () => void;
+  onBack: () => void;
+  onForward: () => void;
+  canBack: boolean;
+  canForward: boolean;
+  isBookmarked: boolean;
+  onToggleBookmark: () => void;
+  bookmarks: string[];
+  onPickBookmark: (url: string) => void;
 };
 
 export const PreviewAddressBar = forwardRef<PreviewAddressBarHandle, Props>(
-  function PreviewAddressBar({ url, onSubmit, onReload }, ref) {
+  function PreviewAddressBar(
+    {
+      url,
+      onSubmit,
+      onReload,
+      onBack,
+      onForward,
+      canBack,
+      canForward,
+      isBookmarked,
+      onToggleBookmark,
+      bookmarks,
+      onPickBookmark,
+    },
+    ref,
+  ) {
     const { t } = useI18n();
     const [draft, setDraft] = useState(url);
     const inputRef = useRef<HTMLInputElement>(null);
@@ -118,6 +147,28 @@ export const PreviewAddressBar = forwardRef<PreviewAddressBarHandle, Props>(
           type="button"
           variant="ghost"
           size="icon"
+          onClick={onBack}
+          disabled={!canBack}
+          title={t("preview.back")}
+          className="size-7 shrink-0 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+        >
+          <HugeiconsIcon icon={ArrowLeft01Icon} size={14} strokeWidth={1.75} />
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={onForward}
+          disabled={!canForward}
+          title={t("preview.forward")}
+          className="size-7 shrink-0 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+        >
+          <HugeiconsIcon icon={ArrowRight01Icon} size={14} strokeWidth={1.75} />
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
           onClick={onReload}
           title={t("preview.reload")}
           className="size-7 shrink-0 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
@@ -128,6 +179,57 @@ export const PreviewAddressBar = forwardRef<PreviewAddressBarHandle, Props>(
             strokeWidth={1.75}
           />
         </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={onToggleBookmark}
+          disabled={!url}
+          title={t("preview.bookmark")}
+          className={cn(
+            "size-7 shrink-0 rounded-md hover:bg-accent",
+            isBookmarked
+              ? "text-amber-500"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          <HugeiconsIcon
+            icon={isBookmarked ? StarIcon : Bookmark01Icon}
+            size={14}
+            strokeWidth={isBookmarked ? 2 : 1.75}
+          />
+        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              title={t("preview.bookmarks")}
+              className="h-7 shrink-0 gap-1 rounded-md px-1.5 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground"
+            >
+              <HugeiconsIcon icon={Bookmark01Icon} size={13} strokeWidth={1.75} />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="max-h-80 min-w-60 overflow-y-auto">
+            {bookmarks.length === 0 ? (
+              <DropdownMenuItem disabled>{t("preview.noBookmarks")}</DropdownMenuItem>
+            ) : (
+              bookmarks.map((u) => (
+                <DropdownMenuItem
+                  key={u}
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    onPickBookmark(u);
+                  }}
+                  className="max-w-72 truncate"
+                >
+                  {u}
+                </DropdownMenuItem>
+              ))
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
@@ -199,6 +301,20 @@ export const PreviewAddressBar = forwardRef<PreviewAddressBarHandle, Props>(
         >
           <HugeiconsIcon
             icon={LinkSquare02Icon}
+            size={14}
+            strokeWidth={1.75}
+          />
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={() => void import("@tauri-apps/api/core").then((m) => m.invoke("toggle_devtools"))}
+          title="Toggle DevTools"
+          className="size-7 shrink-0 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+        >
+          <HugeiconsIcon
+            icon={CodeSquareIcon}
             size={14}
             strokeWidth={1.75}
           />

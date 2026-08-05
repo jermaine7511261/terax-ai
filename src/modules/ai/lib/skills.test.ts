@@ -1,5 +1,41 @@
 import { describe, expect, it } from "vitest";
-import { parseSkillJson } from "./skills";
+import { parseSkillJson, serializeSkill } from "./skills";
+
+describe("serializeSkill", () => {
+  it("round-trips through parseSkillJson", () => {
+    const snippet = {
+      id: "builtin-review",
+      handle: "review",
+      name: "review",
+      description: "只读审查",
+      content: "Review read-only.",
+      toolAllowlist: ["read_file", "grep", "glob"],
+      builtin: true,
+    };
+    const parsed = parseSkillJson(serializeSkill(snippet));
+    expect(parsed).not.toBeNull();
+    expect(parsed?.name).toBe("review");
+    expect(parsed?.description).toBe("只读审查");
+    expect(parsed?.prompt).toBe("Review read-only.");
+    expect(parsed?.handle).toBe("review");
+    expect(parsed?.toolAllowlist).toEqual(["read_file", "grep", "glob"]);
+  });
+
+  it("omits optional fields when absent", () => {
+    const raw = serializeSkill({
+      id: "x",
+      handle: "",
+      name: "x",
+      description: "",
+      content: "do it",
+      builtin: false,
+    });
+    const parsed = parseSkillJson(raw);
+    expect(parsed).not.toBeNull();
+    expect(parsed?.handle).toBeUndefined();
+    expect(parsed?.toolAllowlist).toBeUndefined();
+  });
+});
 
 describe("parseSkillJson", () => {
   it("parses a valid skill.json", () => {

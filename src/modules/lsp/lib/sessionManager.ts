@@ -4,7 +4,7 @@ import type { Extension } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
 import { invoke } from "@tauri-apps/api/core";
 import { toast } from "sonner";
-import type { YametLspClient } from "./client";
+import type { LspRangeEdit, YametLspClient } from "./client";
 import { detectBinary } from "./detect";
 import { getLspNavigator } from "./navigator";
 import { type LspPreset, serverForLanguage } from "./presets";
@@ -64,7 +64,6 @@ export async function acquireDocExtension(
   path: string,
   langId: string,
 ): Promise<LspDocHandle | null> {
-  if (currentWorkspaceEnv().kind !== "local") return null;
   const prefs = usePreferencesStore.getState();
   const preset = serverForLanguage(
     langId,
@@ -81,6 +80,7 @@ export async function acquireDocExtension(
   const root = await invoke<string | null>("lsp_resolve_root", {
     path,
     markers,
+    workspace: currentWorkspaceEnv(),
   }).catch(() => null);
   if (!root) return null;
   const key = `${preset.id}\u0000${root}`;
@@ -127,6 +127,9 @@ export async function acquireDocExtension(
       onExternal: (extUri, line) => {
         const target = fileUriToPath(extUri);
         if (target) getLspNavigator()?.openFile(target, line);
+      },
+      onExternalEdit: (extUri, edits) => {
+        void applyExternalEdits(extUri, edits);
       },
     }),
     mod.languageServerWithTransport({
@@ -344,6 +347,61 @@ async function closeSession(managed: Managed): Promise<void> {
   useLspRuntimeStore.getState().removeSession(managed.key, managed.preset.id);
   await managed.client.shutdownGracefully(SHUTDOWN_TIMEOUT_MS);
   managed.transport.close();
+}
+
+// Live sessions whose root covers `path`. Used by the AI tool diagnostics
+// bridge; a session only exists inside a project root (marker/git), which
+// doubles as the git-repo gate.
+export function sessionsForPath(path: string): Managed[] {
+  const norm = path.replace(/\\/g, "/");
+  return [...sessions.values()].filter(
+    (m) =>
+      !m.closing &&
+      (norm.startsWith(m.root.replace(/\\/g, "/") + "/") ||
+        norm === m.root.replace(/\\/g, "/")),
+  );
+}
+
+// Apply workspace edits that target a document other than the one hosting
+// the interaction. The target may be open in another tab (whose buffer will
+// be stale until its own mtime check) or unopened; either way we write disk
+// and notify the server so a rename lands everywhere.
+async function applyExternalEdits(
+  uri: string,
+  edits: LspRangeEdit[],
+): Promise<void> {
+  const target = fileUriToPath(uri);
+  if (!target) return;
+  const [{ native }, { Text }] = await Promise.all([
+    import("@/modules/ai/lib/native"),
+    import("@codemirror/state"),
+  ]);
+  try {
+    const r = await native.readFile(target);
+    if (r.kind !== "text") return;
+    const doc = Text.of(r.content.split("\n"));
+    const offsetOf = (pos: { line: number; character: number }): number => {
+      if (pos.line >= doc.lines) return doc.length;
+      const line = doc.line(pos.line + 1);
+      return Math.min(line.from + pos.character, line.to);
+    };
+    // Bottom-up so earlier offsets stay valid against the original content.
+    const ordered = [...edits].sort(
+      (a, b) => offsetOf(b.range.end) - offsetOf(a.range.end),
+    );
+    let content = r.content;
+    for (const e of ordered) {
+      content =
+        content.slice(0, offsetOf(e.range.start)) +
+        e.newText +
+        content.slice(offsetOf(e.range.end));
+    }
+    await native.writeFile(target, content);
+    notifyDocumentSaved(target);
+    getLspNavigator()?.openFile(target, 0);
+  } catch {
+    // Best-effort: never throw into the CodeMirror extension.
+  }
 }
 
 export function notifyDocumentSaved(path: string): void {

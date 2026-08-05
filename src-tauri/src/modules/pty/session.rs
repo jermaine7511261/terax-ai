@@ -16,6 +16,47 @@ use crate::modules::workspace::WorkspaceEnv;
 
 const AGENT_EVENT: &str = "yamet:agent-signal";
 
+// Output/exit/agent-signal destination for a PTY session. The in-process path
+// uses `ChannelSink` (Tauri IPC to the webview); the helper process uses a
+// socket-backed sink so sessions can outlive the main process.
+pub trait PtySink: Send + Sync + 'static {
+    /// Push a chunk of terminal output. Returns false when the sink is gone,
+    /// which tells the flusher to stop flushing (mirrors Channel send error).
+    fn output(&self, bytes: &[u8]) -> bool;
+    /// The child exited; `code` is the exit status (-1 on wait error).
+    fn exit(&self, code: i32);
+    fn agent_signal(&self, kind: &'static str, agent: Option<String>);
+}
+
+struct ChannelSink {
+    id: u32,
+    app: AppHandle,
+    on_data: Channel<Response>,
+    on_exit: Channel<i32>,
+}
+
+impl PtySink for ChannelSink {
+    fn output(&self, bytes: &[u8]) -> bool {
+        self.on_data.send(Response::new(bytes.to_vec())).is_ok()
+    }
+    fn exit(&self, code: i32) {
+        // Reap the session map entry here (was done in the waiter thread) so
+        // lifecycle bookkeeping lives with the sink; the helper path skips it.
+        if let Some(state) = self.app.try_state::<super::PtyState>() {
+            if let Some(s) = state.take(self.id) {
+                drop_session(s);
+            }
+        }
+        let _ = self.on_exit.send(code);
+    }
+    fn agent_signal(&self, kind: &'static str, agent: Option<String>) {
+        let _ = self.app.emit(
+            AGENT_EVENT,
+            super::agent_detect::AgentSignal { id: self.id, kind, agent },
+        );
+    }
+}
+
 // Flusher coalesces a short window after first-byte arrival so we send chunks,
 // not single bytes. MAX_IDLE is only a safety net for missed signals.
 const FLUSH_COALESCE: Duration = Duration::from_millis(4);
@@ -52,7 +93,7 @@ pub struct Session {
     pub master: Mutex<Box<dyn MasterPty + Send>>,
     // Set by the waiter once the child exits, so pty_open can reap a shell
     // that died before it was registered.
-    pub(super) exited: Arc<AtomicBool>,
+    pub(crate) exited: Arc<AtomicBool>,
 }
 
 impl Drop for Session {
@@ -113,6 +154,22 @@ pub fn spawn(
     on_data: Channel<Response>,
     on_exit: Channel<i32>,
 ) -> Result<(Arc<Session>, PtySize), String> {
+    let sink = Arc::new(ChannelSink { id, app, on_data, on_exit });
+    spawn_with_sink(id, cols, rows, cwd, workspace, blocks, shell, ssh, sink)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn spawn_with_sink(
+    id: u32,
+    cols: u16,
+    rows: u16,
+    cwd: Option<String>,
+    workspace: WorkspaceEnv,
+    blocks: bool,
+    shell: Option<String>,
+    ssh: Option<SshTarget>,
+    sink: Arc<dyn PtySink>,
+) -> Result<(Arc<Session>, PtySize), String> {
     #[cfg(windows)]
     let _spawn_guard = CONPTY_LIFECYCLE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
 
@@ -123,6 +180,24 @@ pub fn spawn(
         pixel_width: 0,
         pixel_height: 0,
     };
+    // Windows ConPTY `openpty` can hang indefinitely (console subsystem not
+    // initialized). Run it on a thread and bound it so a stalled ConPTY
+    // returns a clear error instead of freezing the worker. Unix is
+    // synchronous (openpty never blocks).
+    #[cfg(windows)]
+    let pair = {
+        use std::sync::mpsc;
+        let (tx, rx) = mpsc::channel::<Result<portable_pty::PtyPair, String>>();
+        std::thread::Builder::new()
+            .name("yamet-pty-openpty".into())
+            .spawn(move || {
+                let _ = tx.send(pty_system.openpty(size).map_err(|e| e.to_string()));
+            })
+            .expect("spawn openpty thread");
+        rx.recv_timeout(Duration::from_secs(5))
+            .map_err(|_| "pty: openpty timed out after 5s (ConPTY may be unavailable)".to_string())??
+    };
+    #[cfg(not(windows))]
     let pair = pty_system.openpty(size).map_err(|e| e.to_string())?;
 
     let cmd = match ssh {
@@ -182,7 +257,7 @@ pub fn spawn(
 
     let pending_r = pending.clone();
     let writer_for_da = writer.clone();
-    let app_reader = app.clone();
+    let sink_r = sink.clone();
     let first_byte_r = first_byte;
     let reader_thread = thread::Builder::new()
         .name("yamet-pty-reader".into())
@@ -201,7 +276,8 @@ pub fn spawn(
                             log::debug!("pty first byte after {}ms", spawn_at.elapsed().as_millis());
                         }
                         agent_detect.process(&buf[..n], |t| {
-                            let _ = app_reader.emit(AGENT_EVENT, t.into_signal(id));
+                            let sig = t.into_signal(id);
+                            sink_r.agent_signal(sig.kind, sig.agent);
                         });
                         filtered.clear();
                         da_filter.process(&buf[..n], &mut filtered, |reply| {
@@ -229,7 +305,8 @@ pub fn spawn(
                 }
             }
             agent_detect.finish(|t| {
-                let _ = app_reader.emit(AGENT_EVENT, t.into_signal(id));
+                let sig = t.into_signal(id);
+                sink_r.agent_signal(sig.kind, sig.agent);
             });
             pending_r.1.notify_one();
             if dropped_bytes > 0 {
@@ -238,7 +315,7 @@ pub fn spawn(
         })
         .expect("spawn pty reader thread");
 
-    let on_data_flush = on_data.clone();
+    let sink_f = sink.clone();
     let pending_f = pending.clone();
     let done_f = done.clone();
     thread::Builder::new()
@@ -262,22 +339,37 @@ pub fn spawn(
                 if chunk.is_empty() {
                     continue;
                 }
-                if let Err(e) = on_data_flush.send(Response::new(chunk)) {
-                    log::debug!("pty flusher exiting, channel closed: {e}");
+                if !sink_f.output(&chunk) {
+                    log::debug!("pty flusher exiting, sink gone");
                     break;
                 }
             }
         })
         .expect("spawn pty flusher thread");
 
-    let on_data_exit = on_data;
     let pending_e = pending;
     let done_e = done;
-    let app_waiter = app;
     let exited_w = exited;
+    let sink_w = sink;
     thread::Builder::new()
         .name("yamet-pty-waiter".into())
         .spawn(move || {
+            // Windows ConPTY `child.wait()` can hang even after the child has
+            // exited; poll `try_wait()` instead so the waiter thread always
+            // makes progress and the exit event fires. Unix keeps the cheap
+            // blocking wait.
+            #[cfg(windows)]
+            let code = loop {
+                match child.try_wait() {
+                    Ok(Some(status)) => break status.exit_code() as i32,
+                    Ok(None) => thread::sleep(Duration::from_millis(50)),
+                    Err(e) => {
+                        log::warn!("pty child wait failed: {e}");
+                        break -1;
+                    }
+                }
+            };
+            #[cfg(not(windows))]
             let code = match child.wait() {
                 Ok(status) => status.exit_code() as i32,
                 Err(e) => {
@@ -302,20 +394,11 @@ pub fn spawn(
             let (lock, cv) = &*pending_e;
             let tail = std::mem::take(&mut *lock.lock().unwrap_or_else(|e| e.into_inner()));
             if !tail.is_empty() {
-                if let Err(e) = on_data_exit.send(Response::new(tail)) {
-                    log::debug!("pty final-data send failed (channel closed): {e}");
-                }
+                sink_w.output(&tail);
             }
             done_e.store(true, Ordering::Release);
             cv.notify_all();
-            if let Err(e) = on_exit.send(code) {
-                log::debug!("pty exit send failed (channel closed): {e}");
-            }
-            if let Some(state) = app_waiter.try_state::<super::PtyState>() {
-                if let Some(s) = state.take(id) {
-                    drop_session(s);
-                }
-            }
+            sink_w.exit(code);
         })
         .expect("spawn pty waiter thread");
 

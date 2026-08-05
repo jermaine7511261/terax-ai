@@ -1,0 +1,187 @@
+//! SFTP remote file browsing via the system `sftp` client in batch mode.
+//!
+//! The remote path is passed as a single argv argument to `sftp` (never
+//! through a shell), so hostile values cannot inject commands. Directory
+//! listing parses the `ls -la` line format; reading downloads to a temp file
+//! and returns its content (bounded).
+
+use std::io::Write;
+use std::process::{Command, Stdio};
+
+use super::target::SshTarget;
+
+const READ_BYTE_CAP: usize = 4 * 1024 * 1024;
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct SftpEntry {
+    pub name: String,
+    pub kind: String, // "dir" | "file" | "link" | "other"
+    pub size: u64,
+}
+
+fn sanitize_path(path: &str) -> Result<String, String> {
+    let p = path.trim();
+    if p.is_empty() {
+        return Err("sftp: empty remote path".into());
+    }
+    if p.chars().any(char::is_control) {
+        return Err("sftp: remote path contains control characters".into());
+    }
+    Ok(p.to_string())
+}
+
+fn build_base(target: &SshTarget) -> Result<Command, String> {
+    let mut cmd = Command::new("sftp");
+    cmd.args(["-o", "StrictHostKeyChecking=ask"]);
+    if let Some(port) = target.port {
+        if !(1..=65535).contains(&port) {
+            return Err(format!("sftp: port out of range: {port}"));
+        }
+        cmd.args(["-P", &port.to_string()]);
+    }
+    if let Some(id) = &target.identity_file {
+        let id = id.trim();
+        if id.is_empty() || id.chars().any(char::is_whitespace) {
+            return Err("sftp: invalid identity file".into());
+        }
+        cmd.args(["-i", id]);
+    }
+    let dest = match &target.user {
+        Some(u) if !u.trim().is_empty() => format!("{}@{}", u.trim(), target.host),
+        _ => target.host.clone(),
+    };
+    cmd.arg(dest);
+    Ok(cmd)
+}
+
+/// Run an sftp batch script; returns stdout on success.
+fn run_batch(target: &SshTarget, script: &str) -> Result<String, String> {
+    let mut cmd = build_base(target)?;
+    cmd.arg("-b")
+        .arg("-")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    let mut child = cmd.spawn().map_err(|e| format!("sftp spawn: {e}"))?;
+    let mut stdin = child.stdin.take().ok_or("sftp: no stdin")?;
+    // Script terminates with `quit`; stdin closes after writing.
+    let script_owned = script.to_string();
+    std::thread::spawn(move || {
+        let _ = stdin.write_all(script_owned.as_bytes());
+    });
+    let out = child
+        .wait_with_output()
+        .map_err(|e| format!("sftp wait: {e}"))?;
+    if !out.status.success() {
+        let err = String::from_utf8_lossy(&out.stderr);
+        return Err(format!("sftp: {}", err.trim().lines().last().unwrap_or("failed")));
+    }
+    Ok(String::from_utf8_lossy(&out.stdout).into_owned())
+}
+
+/// Parse a single `ls -la` line into an entry. Format (OpenSSH sftp):
+///   drwxr-xr-x    5 user group     4096 Aug  1 12:00 dirname
+/// Returns None for non-matching lines (total, blank, errors).
+pub fn parse_ls_line(line: &str) -> Option<SftpEntry> {
+    let line = line.trim_end_matches('\r');
+    if line.is_empty() || line.starts_with("total ") || line.starts_with("Couldn't") {
+        return None;
+    }
+    let mut parts = line.split_whitespace();
+    let perms = parts.next()?;
+    if perms.len() != 10 || !perms.starts_with('-') && !perms.starts_with('d') && !perms.starts_with('l') {
+        return None;
+    }
+    let _links = parts.next()?;
+    let _user = parts.next()?;
+    let _group = parts.next()?;
+    let size: u64 = parts.next()?.parse().ok()?;
+    // Month day [time|year] name...
+    let _m = parts.next()?;
+    let _d = parts.next()?;
+    let _t = parts.next()?;
+    let name = parts.collect::<Vec<_>>().join(" ");
+    if name.is_empty() || name == "." || name == ".." {
+        return None;
+    }
+    let kind = if perms.starts_with('d') {
+        "dir"
+    } else if perms.starts_with('l') {
+        "link"
+    } else if perms.starts_with('-') {
+        "file"
+    } else {
+        "other"
+    };
+    Some(SftpEntry { name, kind: kind.to_string(), size })
+}
+
+/// List a remote directory.
+#[tauri::command]
+pub async fn sftp_list(target: SshTarget, path: String) -> Result<Vec<SftpEntry>, String> {
+    let path = sanitize_path(&path)?;
+    let script = format!("ls -la {path}\nquit\n");
+    let out = tokio::task::spawn_blocking(move || run_batch(&target, &script))
+        .await
+        .map_err(|e| e.to_string())??;
+    Ok(out.lines().filter_map(parse_ls_line).collect())
+}
+
+/// Read a remote file's content (bounded). Downloads into a temp file via
+/// `sftp get`, reads it back, then removes it.
+#[tauri::command]
+pub async fn sftp_read(target: SshTarget, path: String) -> Result<String, String> {
+    let path = sanitize_path(&path)?;
+    let dir = tempfile::tempdir().map_err(|e| format!("sftp tempdir: {e}"))?;
+    let local = dir.path().join("yamet-remote");
+    let script = format!("get {path} {}\nquit\n", local.display());
+    tokio::task::spawn_blocking(move || run_batch(&target, &script))
+        .await
+        .map_err(|e| e.to_string())??;
+    let content = std::fs::read_to_string(&local).map_err(|e| format!("sftp read: {e}"))?;
+    if content.len() > READ_BYTE_CAP {
+        return Err("sftp: remote file exceeds 4 MiB read cap".into());
+    }
+    Ok(content)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_directory_line() {
+        let e = parse_ls_line("drwxr-xr-x    5 user group     4096 Aug  1 12:00 src").unwrap();
+        assert_eq!(e.name, "src");
+        assert_eq!(e.kind, "dir");
+        assert_eq!(e.size, 4096);
+    }
+
+    #[test]
+    fn parses_file_line_with_year() {
+        let e = parse_ls_line("-rw-r--r--   1 user group   1234 Jul 15  2024 Cargo.toml").unwrap();
+        assert_eq!(e.name, "Cargo.toml");
+        assert_eq!(e.kind, "file");
+        assert_eq!(e.size, 1234);
+    }
+
+    #[test]
+    fn parses_link_and_spaced_name() {
+        let e = parse_ls_line("lrwxrwxrwx   1 user group      7 Jan  1 00:00 my link").unwrap();
+        assert_eq!(e.name, "my link");
+        assert_eq!(e.kind, "link");
+    }
+
+    #[test]
+    fn ignores_total_and_errors() {
+        assert!(parse_ls_line("total 12").is_none());
+        assert!(parse_ls_line("Couldn't stat remote file").is_none());
+        assert!(parse_ls_line("").is_none());
+    }
+
+    #[test]
+    fn rejects_non_ls_lines() {
+        assert!(parse_ls_line("sftp> ls -la").is_none());
+        assert!(parse_ls_line("random garbage").is_none());
+    }
+}

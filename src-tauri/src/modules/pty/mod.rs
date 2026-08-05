@@ -1,6 +1,6 @@
 mod agent_detect;
 mod da_filter;
-mod session;
+pub(crate) mod session;
 pub(crate) mod shell_init;
 
 use std::collections::HashMap;

@@ -34,6 +34,8 @@ type LspPos = { line: number; character: number };
 type LspRange = { start: LspPos };
 type LspRangeFull = { start: LspPos; end: LspPos };
 
+export type LspRangeEdit = { range: LspRangeFull; newText: string };
+
 type LspWorkspaceEdit = {
   changes?: Record<string, { range: LspRangeFull; newText: string }[]>;
   documentChanges?: {
@@ -296,6 +298,8 @@ export function lspInteractions(opts: {
   documentUri: string;
   rootPath: string;
   onExternal: (uri: string, line: number) => void;
+  /** Apply workspace edits that target a document other than `documentUri`. */
+  onExternalEdit: (uri: string, edits: LspRangeEdit[]) => void;
 }): Extension {
   const navigate = (view: EditorView, loc: LspLocation): void => {
     if (loc.uri === opts.documentUri) {
@@ -453,9 +457,11 @@ export function lspInteractions(opts: {
     edit: LspWorkspaceEdit,
   ): void => {
     const doc = view.state.doc;
-    const collect = (uri: string, edits: { range: LspRangeFull; newText: string }[]) => {
+    const collect = (uri: string, edits: LspRangeEdit[]) => {
       if (uri !== opts.documentUri) {
-        // Cross-file edits require opening the target; defer to external open.
+        // Cross-file edits: hand off to the host (open the target, apply to
+        // disk, notify) instead of silently dropping the rename refactor.
+        opts.onExternalEdit(uri, edits);
         return;
       }
       for (const e of edits) {
@@ -642,6 +648,32 @@ export class YametLspClient extends LanguageServerClient {
 
   textDocumentDidSave(uri: string): void {
     void this.raw.notify("textDocument/didSave", { textDocument: { uri } });
+  }
+
+  // Full-text didSave: servers re-analyze the document content instead of
+  // trusting their (stale) memory. Used after AI tools write files directly.
+  textDocumentDidSaveWithText(uri: string, text: string): void {
+    void this.raw.notify("textDocument/didSave", {
+      textDocument: { uri },
+      text,
+    });
+  }
+
+  // Full-text didOpen for a file the server never saw (AI tool writes land
+  // outside the editor). version 1 + the whole buffer is the safest shape.
+  textDocumentDidOpenFull(uri: string, text: string, languageId: string): void {
+    void this.raw.notify("textDocument/didOpen", {
+      textDocument: { uri, languageId, version: 1, text },
+    });
+  }
+
+  // LSP 3.17 pull diagnostics. Servers without a diagnosticProvider answer
+  // MethodNotFound, which the caller treats as "no data".
+  textDocumentDiagnostic(params: {
+    textDocument: { uri: string };
+    previousResultId?: string | null;
+  }): Promise<unknown> {
+    return this.raw.request("textDocument/diagnostic", params, 8_000);
   }
 
   async shutdownGracefully(timeoutMs = 2000): Promise<void> {
