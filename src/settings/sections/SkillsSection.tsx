@@ -27,15 +27,9 @@ import {
   type Snippet,
 } from "@/modules/ai/lib/snippets";
 import {
-  newMcpServerId,
-  type McpServerConfig,
-  type McpTransport,
-} from "@/modules/ai/lib/mcp";
-import {
   newSnippetId,
   useSnippetsStore,
 } from "@/modules/ai/store/snippetsStore";
-import { useMcpStore } from "@/modules/ai/store/mcpStore";
 import { useSchedulerStore } from "@/modules/ai/store/schedulerStore";
 import {
   newSchedulerTaskId,
@@ -45,10 +39,8 @@ import {
 import { TOOL_REGISTRY } from "@/modules/ai/tools/registry";
 import {
   Add01Icon,
-  CheckmarkCircle02Icon,
   Delete02Icon,
   Edit02Icon,
-  ServerStack02Icon,
   SparklesIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -57,18 +49,15 @@ import { toast } from "sonner";
 import { SectionHeader } from "../components/SectionHeader";
 
 /**
- * Unified Skills / MCP settings area (★ X2 Xora: one place to configure
- * skills and MCP; ★ L4 LangBot: `skills/` directory as the single source for
- * built-in skills).
- *
- *  - MCP servers: add / edit / connect / disconnect / delete; tool counts and
- *    connection state come from the backend `mcp_status`.
- *  - Snippets / Skills: the snippet editor (moved here from AgentsSection)
- *    gains a tool-allowlist multi-select; built-in skills from `<workspace>/skills/`
- *    are listed with an enable/disable switch + a rescan button.
+ * Skills settings area (split out of the former SkillsMcpSection into its own
+ * settings tab):
+ *  - Snippets / Skills: the snippet editor with a tool-allowlist multi-select.
+ *  - Built-in skills: from `<workspace>/skills/`, listed with an enable/disable
+ *    switch + a rescan button.
+ *  - Scheduled tasks (cron): cron-triggered agent tasks.
  */
 
-export function SkillsMcpSection() {
+export function SkillsSection() {
   const { t } = useI18n();
 
   // Snippets / skills
@@ -81,21 +70,6 @@ export function SkillsMcpSection() {
   );
   const toggleBuiltin = useSnippetsStore((s) => s.toggleBuiltin);
 
-  // MCP servers
-  const mcpServers = useMcpStore((s) => s.servers);
-  const statusByServer = useMcpStore((s) => s.statusByServer);
-  const hydrateMcp = useMcpStore((s) => s.hydrate);
-  const upsertServer = useMcpStore((s) => s.upsert);
-  const removeServer = useMcpStore((s) => s.remove);
-  const connectServer = useMcpStore((s) => s.connect);
-  const disconnectServer = useMcpStore((s) => s.disconnect);
-
-  const [editingSnippet, setEditingSnippet] = useState<Snippet | null>(null);
-  const [editingServer, setEditingServer] = useState<McpServerConfig | null>(
-    null,
-  );
-  const [editingTask, setEditingTask] = useState<ScheduledTask | null>(null);
-
   // Scheduled tasks (★ H3 Hermes cron)
   const tasks = useSchedulerStore((s) => s.tasks);
   const hydrateScheduler = useSchedulerStore((s) => s.hydrate);
@@ -103,11 +77,13 @@ export function SkillsMcpSection() {
   const removeTask = useSchedulerStore((s) => s.remove);
   const toggleTask = useSchedulerStore((s) => s.toggle);
 
+  const [editingSnippet, setEditingSnippet] = useState<Snippet | null>(null);
+  const [editingTask, setEditingTask] = useState<ScheduledTask | null>(null);
+
   useEffect(() => {
     void hydrateSnippets();
-    void hydrateMcp();
     void hydrateScheduler();
-  }, [hydrateSnippets, hydrateMcp, hydrateScheduler]);
+  }, [hydrateSnippets, hydrateScheduler]);
 
   const rescan = async () => {
     const root = (await native.workspaceCurrentDir().catch(() => "")) || null;
@@ -125,148 +101,6 @@ export function SkillsMcpSection() {
         title={t("skillsMcp.title")}
         description={t("skillsMcp.description")}
       />
-
-      {/* ---- MCP servers ---- */}
-      <section className="flex flex-col gap-2">
-        <div className="flex items-center justify-between">
-          <div className="flex flex-col">
-            <Label>
-              <span className="inline-flex items-center gap-1">
-                <HugeiconsIcon
-                  icon={ServerStack02Icon}
-                  size={11}
-                  strokeWidth={1.75}
-                />
-                {t("skillsMcp.mcpServers")}
-              </span>
-            </Label>
-            <span className="text-[10.5px] text-muted-foreground">
-              {t("skillsMcp.mcpDescription")}
-            </span>
-          </div>
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-7 gap-1.5 px-2 text-[11px]"
-            onClick={() =>
-              setEditingServer({
-                id: newMcpServerId(),
-                name: "",
-                transport: "stdio",
-                command: "",
-                args: [],
-                cwd: "",
-                env: {},
-                url: "",
-                headers: {},
-              })
-            }
-          >
-            <HugeiconsIcon icon={Add01Icon} size={12} strokeWidth={1.75} />
-            {t("skillsMcp.newServer")}
-          </Button>
-        </div>
-
-        {mcpServers.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-border/60 bg-card/30 px-4 py-6 text-center text-[11px] text-muted-foreground">
-            {t("skillsMcp.emptyServers")}
-          </div>
-        ) : (
-          <ul className="flex flex-col gap-1.5">
-            {mcpServers.map((s) => {
-              const status = statusByServer[s.id];
-              const connected = status?.connected ?? false;
-              return (
-                <li
-                  key={s.id}
-                  className="flex items-center gap-2 rounded-lg border border-border/60 bg-card/60 px-3 py-2"
-                >
-                  <span
-                    className={cn(
-                      "size-1.5 shrink-0 rounded-full",
-                      connected ? "bg-emerald-500" : "bg-muted-foreground/40",
-                    )}
-                  />
-                  <div className="flex min-w-0 flex-1 flex-col">
-                    <div className="flex items-center gap-1.5">
-                      <span className="truncate text-[12px] font-medium">
-                        {s.name}
-                      </span>
-                      <Badge
-                        variant="outline"
-                        className="px-1 py-0 text-[9px] font-normal"
-                      >
-                        {s.transport}
-                      </Badge>
-                    </div>
-                    <span className="truncate text-[10.5px] text-muted-foreground">
-                      {s.transport === "stdio"
-                        ? `${s.command}${s.args.length ? ` ${s.args.join(" ")}` : ""}`
-                        : s.url}
-                    </span>
-                  </div>
-                  <span className="shrink-0 text-[10px] text-muted-foreground">
-                    {status
-                      ? t("skillsMcp.toolCount", { count: status.tool_count })
-                      : t("skillsMcp.disconnected")}
-                  </span>
-                  <Button
-                    size="sm"
-                    variant={connected ? "outline" : "default"}
-                    className="h-6 gap-1 px-2 text-[10.5px]"
-                    onClick={() =>
-                      connected
-                        ? void disconnectServer(s.id)
-                        : void connectServer(s.id)
-                    }
-                  >
-                    {connected ? (
-                      <>
-                        <HugeiconsIcon
-                          icon={CheckmarkCircle02Icon}
-                          size={10}
-                          strokeWidth={2}
-                        />
-                        {t("skillsMcp.disconnect")}
-                      </>
-                    ) : (
-                      t("skillsMcp.connect")
-                    )}
-                  </Button>
-                  <div className="flex gap-0.5">
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="size-6"
-                      onClick={() => setEditingServer(s)}
-                      title={t("common.edit")}
-                    >
-                      <HugeiconsIcon
-                        icon={Edit02Icon}
-                        size={11}
-                        strokeWidth={1.75}
-                      />
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="size-6 text-muted-foreground hover:text-destructive"
-                      onClick={() => void removeServer(s.id)}
-                      title={t("common.delete")}
-                    >
-                      <HugeiconsIcon
-                        icon={Delete02Icon}
-                        size={11}
-                        strokeWidth={1.75}
-                      />
-                    </Button>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
 
       {/* ---- Snippets / Skills ---- */}
       <section className="flex flex-col gap-2">
@@ -521,15 +355,6 @@ export function SkillsMcpSection() {
         )}
       </section>
 
-      <McpServerDialog
-        server={editingServer}
-        existing={mcpServers}
-        onClose={() => setEditingServer(null)}
-        onSave={(s) => {
-          void upsertServer(s);
-          setEditingServer(null);
-        }}
-      />
       <SchedulerTaskDialog
         task={editingTask}
         existing={tasks}
@@ -549,155 +374,6 @@ export function SkillsMcpSection() {
         }}
       />
     </div>
-  );
-}
-
-function McpServerDialog({
-  server,
-  existing,
-  onClose,
-  onSave,
-}: {
-  server: McpServerConfig | null;
-  existing: McpServerConfig[];
-  onClose: () => void;
-  onSave: (s: McpServerConfig) => void;
-}) {
-  const { t } = useI18n();
-  const [draft, setDraft] = useState<McpServerConfig | null>(server);
-  useEffect(() => setDraft(server), [server]);
-  if (!draft) return null;
-
-  const isNew = !existing.some((s) => s.id === draft.id);
-  const canSave =
-    draft.name.trim().length > 0 &&
-    (draft.transport === "stdio"
-      ? draft.command.trim().length > 0
-      : draft.url.trim().length > 0);
-
-  return (
-    <Dialog open={!!server} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle className="text-[14px]">
-            {isNew ? t("skillsMcp.newServer") : t("skillsMcp.editServer")}
-          </DialogTitle>
-        </DialogHeader>
-        <div className="-mx-2 flex max-h-[calc(100vh-14rem)] flex-col gap-3 overflow-y-auto px-2">
-          <div className="flex gap-2">
-            <div className="flex flex-1 flex-col gap-1">
-              <Label>{t("skillsMcp.serverName")}</Label>
-              <Input
-                value={draft.name}
-                onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-                placeholder={t("skillsMcp.serverNamePlaceholder")}
-                className="h-8 text-[12px]"
-              />
-            </div>
-            <div className="flex w-32 flex-col gap-1">
-              <Label>{t("skillsMcp.transport")}</Label>
-              <Select
-                value={draft.transport}
-                onValueChange={(v) =>
-                  setDraft({ ...draft, transport: v as McpTransport })
-                }
-              >
-                <SelectTrigger className="h-8 text-[11.5px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="stdio">stdio</SelectItem>
-                  <SelectItem value="http">http</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {draft.transport === "stdio" ? (
-            <>
-              <div className="flex flex-col gap-1">
-                <Label>{t("skillsMcp.command")}</Label>
-                <Input
-                  value={draft.command}
-                  onChange={(e) =>
-                    setDraft({ ...draft, command: e.target.value })
-                  }
-                  placeholder={t("skillsMcp.commandPlaceholder")}
-                  className="h-8 font-mono text-[11.5px]"
-                />
-              </div>
-              <div className="flex flex-col gap-1">
-                <Label>{t("skillsMcp.args")}</Label>
-                <Input
-                  value={draft.args.join(", ")}
-                  onChange={(e) =>
-                    setDraft({
-                      ...draft,
-                      args: e.target.value
-                        .split(",")
-                        .map((s) => s.trim())
-                        .filter(Boolean),
-                    })
-                  }
-                  className="h-8 font-mono text-[11.5px]"
-                />
-              </div>
-              <div className="flex flex-col gap-1">
-                <Label>{t("skillsMcp.cwd")}</Label>
-                <Input
-                  value={draft.cwd}
-                  onChange={(e) => setDraft({ ...draft, cwd: e.target.value })}
-                  className="h-8 font-mono text-[11.5px]"
-                />
-              </div>
-              <div className="flex flex-col gap-1">
-                <Label>{t("skillsMcp.env")}</Label>
-                <Textarea
-                  value={kvToText(draft.env, "=")}
-                  onChange={(e) =>
-                    setDraft({ ...draft, env: textToKV(e.target.value, "=") })
-                  }
-                  className="min-h-16 resize-y font-mono text-[11px] leading-relaxed"
-                />
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="flex flex-col gap-1">
-                <Label>{t("skillsMcp.url")}</Label>
-                <Input
-                  value={draft.url}
-                  onChange={(e) => setDraft({ ...draft, url: e.target.value })}
-                  placeholder={t("skillsMcp.urlPlaceholder")}
-                  className="h-8 font-mono text-[11.5px]"
-                />
-              </div>
-              <div className="flex flex-col gap-1">
-                <Label>{t("skillsMcp.headers")}</Label>
-                <Textarea
-                  value={kvToText(draft.headers, ": ")}
-                  onChange={(e) =>
-                    setDraft({
-                      ...draft,
-                      headers: textToKV(e.target.value, ": "),
-                    })
-                  }
-                  className="min-h-16 resize-y font-mono text-[11px] leading-relaxed"
-                />
-              </div>
-            </>
-          )}
-        </div>
-        <DialogFooter>
-          <Button variant="ghost" size="sm" onClick={onClose}>
-            {t("common.cancel")}
-          </Button>
-          <Button size="sm" disabled={!canSave} onClick={() => onSave(draft)}>
-            {t("common.save")}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }
 
@@ -852,24 +528,6 @@ function SnippetEditorDialog({
       </DialogContent>
     </Dialog>
   );
-}
-
-function kvToText(kv: Record<string, string>, sep: string): string {
-  return Object.entries(kv)
-    .map(([k, v]) => `${k}${sep}${v}`)
-    .join("\n");
-}
-
-function textToKV(text: string, sep: string): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (const line of text.split("\n")) {
-    const idx = line.indexOf(sep);
-    if (idx <= 0) continue;
-    const k = line.slice(0, idx).trim();
-    const v = line.slice(idx + sep.length).trim();
-    if (k) out[k] = v;
-  }
-  return out;
 }
 
 function SchedulerTaskDialog({

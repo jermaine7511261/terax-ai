@@ -7,6 +7,7 @@ export type SettingsTab =
   | "shortcuts"
   | "models"
   | "skills"
+  | "mcp"
   | "agents"
   | "gateway"
   | "about";

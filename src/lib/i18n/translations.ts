@@ -574,7 +574,8 @@ export const zhMessages = {
     about: "关于",
     agents: "智能体",
     models: "模型",
-    skills: "技能与 MCP",
+    skills: "技能",
+    mcp: "MCP",
     gateway: "IM 网关",
     shortcuts: "快捷键",
     saved: "设置已保存",
@@ -999,6 +1000,10 @@ export const zhMessages = {
     allowlist: "工具白名单",
     allowlistHint: "留空 = 仅注入提示、不限制工具；选择后该技能回合仅暴露所选工具。",
     builtin: "内置",
+  },
+  mcp: {
+    title: "MCP 服务器",
+    description: "连接外部 MCP server（stdio / HTTP），把远端工具注册进 AI 工具面。",
   },
   scheduler: {
     title: "定时任务",
@@ -1701,7 +1706,8 @@ export const enMessages = {
     about: "About",
     agents: "Agents",
     models: "Models",
-    skills: "Skills & MCP",
+    skills: "Skills",
+    mcp: "MCP",
     gateway: "IM Gateway",
     shortcuts: "Shortcuts",
     saved: "Settings saved",
@@ -2091,6 +2097,11 @@ export const enMessages = {
     allowlistHint:
       "Leave empty = prompt only (no tool restriction); when set, only the selected tools are exposed for that skill's turn.",
     builtin: "Built-in",
+  },
+  mcp: {
+    title: "MCP Servers",
+    description:
+      "Connect external MCP servers (stdio / HTTP) to register remote tools into the AI toolset.",
   },
   scheduler: {
     title: "Scheduled tasks",

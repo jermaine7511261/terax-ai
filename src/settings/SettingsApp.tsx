@@ -10,6 +10,7 @@ import {
   InformationCircleIcon,
   KeyboardIcon,
   PaintBoardIcon,
+  ServerStack02Icon,
   Settings01Icon,
   SourceCodeIcon,
   ToolsIcon,
@@ -23,9 +24,10 @@ import { AgentsSection } from "./sections/AgentsSection";
 import { EditorSection } from "./sections/EditorSection";
 import { GatewaySection } from "./sections/GatewaySection";
 import { GeneralSection } from "./sections/GeneralSection";
+import { McpSection } from "./sections/McpSection";
 import { ModelsSection } from "./sections/ModelsSection";
 import { ShortcutsSection } from "./sections/ShortcutsSection";
-import { SkillsMcpSection } from "./sections/SkillsMcpSection";
+import { SkillsSection } from "./sections/SkillsSection";
 import { ThemesSection } from "./sections/ThemesSection";
 
 const TABS: {
@@ -38,7 +40,8 @@ const TABS: {
   { id: "themes", icon: PaintBoardIcon, component: ThemesSection },
   { id: "shortcuts", icon: KeyboardIcon, component: ShortcutsSection },
   { id: "models", icon: AiScanIcon, component: ModelsSection },
-  { id: "skills", icon: ToolsIcon, component: SkillsMcpSection },
+  { id: "skills", icon: ToolsIcon, component: SkillsSection },
+  { id: "mcp", icon: ServerStack02Icon, component: McpSection },
   { id: "agents", icon: UserMultiple02Icon, component: AgentsSection },
   { id: "gateway", icon: CloudIcon, component: GatewaySection },
   { id: "about", icon: InformationCircleIcon, component: AboutSection },
@@ -51,6 +54,7 @@ const VALID_TABS: SettingsTab[] = [
   "shortcuts",
   "models",
   "skills",
+  "mcp",
   "agents",
   "gateway",
   "about",
