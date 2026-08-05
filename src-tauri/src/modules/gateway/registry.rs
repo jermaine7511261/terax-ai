@@ -260,19 +260,6 @@ impl GatewayRegistry {
                         continue;
                     }
                 }
-                // Inbound rate limit (per platform): bursts are allowed, floods
-                // are dropped so a misbehaving peer can't hammer the agent.
-                {
-                    let mut rates = this.inner.rates.lock().unwrap();
-                    let bucket = rates.entry(ev.platform).or_default();
-                    if !bucket.allow() {
-                        log::warn!(
-                            "gateway: dropping inbound from {} (rate limited)",
-                            ev.platform.as_str()
-                        );
-                        continue;
-                    }
-                }
                 let sk = ev.session_key();
                 let (p, ct, cid) = (
                     ev.platform.as_str().to_string(),
@@ -302,6 +289,23 @@ impl GatewayRegistry {
                     "[gateway] inbound platform={} sk={sk} authorized={authorized} auto_trust={auto_trust}",
                     ev.platform.as_str()
                 );
+                // Inbound rate limit (per platform): bursts are allowed, floods
+                // are dropped so a misbehaving peer can't hammer the approval
+                // queue. Runs AFTER the auth gate so already-authorized sessions
+                // (incl. WeChat DM auto-trust) are never dropped by rate
+                // limiting — only unauthourised traffic is throttled. Dedup
+                // still runs before this so replays don't consume burst tokens.
+                if !authorized {
+                    let mut rates = this.inner.rates.lock().unwrap();
+                    let bucket = rates.entry(ev.platform).or_default();
+                    if !bucket.allow() {
+                        log::warn!(
+                            "gateway: dropping inbound from {} (rate limited)",
+                            ev.platform.as_str()
+                        );
+                        continue;
+                    }
+                }
                 if authorized {
                     if let Some(h) = &handler {
                         h(ev);
