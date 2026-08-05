@@ -855,10 +855,13 @@ impl WeixinAdapter {
         let (chat_type, chat_id) = guess_chat_type(message, account_id);
         let item_list = &message.get("item_list").cloned().unwrap_or(Value::Null);
         let text = extract_text(item_list);
-        let media = extract_media(item_list);
+        let mut media = extract_media(item_list);
         if text.is_empty() && media.is_empty() {
             return;
         }
+
+        // Resolve media downloads: fill local_path for each item.
+        super::media::download_media_items(&self.inner.client, &mut media, "weixin").await;
 
         let event = MessageEvent {
             platform: PlatformId::Weixin,

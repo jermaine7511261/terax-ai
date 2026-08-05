@@ -88,6 +88,8 @@ struct QqInner {
     /// echo id -> oneshot for the send receipt, so `send_text` can await the
     /// real `message_id` returned by OneBot instead of a generic empty receipt.
     pending_sends: Mutex<HashMap<String, tokio::sync::oneshot::Sender<SendReceipt>>>,
+    /// Shared HTTP client for media downloads.
+    client: reqwest::Client,
 }
 
 impl QqAdapter {
@@ -99,6 +101,7 @@ impl QqAdapter {
                 task: Mutex::new(None),
                 sender: Mutex::new(None),
                 pending_sends: Mutex::new(HashMap::new()),
+                client: reqwest::Client::new(),
             }),
         }
     }
@@ -338,7 +341,9 @@ async fn run_onebot_loop(inner: &Arc<QqInner>, tx: EventTx) -> Result<(), String
             let text = extract_text(v.get("message").unwrap_or(&serde_json::Value::Null));
             let message_id = v.get("message_id").map(|x| x.to_string());
             let message = v.get("message").unwrap_or(&serde_json::Value::Null);
-            let media = extract_media(message);
+            let mut media = extract_media(message);
+            // Resolve media downloads: fill local_path for each item.
+            super::media::download_media_items(&inner.client, &mut media, "qq").await;
             let ev = MessageEvent {
                 platform: PlatformId::Qq,
                 chat_type,

@@ -268,6 +268,7 @@ async fn run_oa_callback_server(inner: &Arc<OaInner>, tx: EventTx) -> Result<(),
         let token_c = token.clone();
         let aes_key_c = aes_key.clone();
         let tx_c = tx.clone();
+        let client_c = inner.client.clone();
         tokio::spawn(async move {
             use tokio::io::{AsyncReadExt, AsyncWriteExt};
             let mut buf = Vec::new();
@@ -289,7 +290,13 @@ async fn run_oa_callback_server(inner: &Arc<OaInner>, tx: EventTx) -> Result<(),
                 let encrypt = extract_encrypt(&req);
                 if let Some(enc) = encrypt {
                     if let Ok(plain) = decrypt_msg(&aes_key_c, &enc) {
-                        if let Ok(ev) = parse_oa_message(&plain) {
+                        if let Ok(mut ev) = parse_oa_message(&plain) {
+                            // Resolve PicUrl media downloads (skip MediaId which needs API).
+                            super::media::download_media_items(
+                                &client_c,
+                                &mut ev.media,
+                                "official_account",
+                            ).await;
                             let _ = tx_c.try_send(ev);
                         }
                     }

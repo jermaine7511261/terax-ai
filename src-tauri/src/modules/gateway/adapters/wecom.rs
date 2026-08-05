@@ -236,6 +236,7 @@ async fn run_callback_server(inner: &Arc<WeComInner>, tx: EventTx) -> Result<(),
         let token_c = token.clone();
         let aes_key_c = aes_key.clone();
         let tx_c = tx.clone();
+        let client_c = inner.client.clone();
         tokio::spawn(async move {
             use tokio::io::{AsyncReadExt, AsyncWriteExt};
             let mut buf = Vec::new();
@@ -254,7 +255,13 @@ async fn run_callback_server(inner: &Arc<WeComInner>, tx: EventTx) -> Result<(),
                     let (ts, nonce, sig) = extract_cb_meta(&req);
                     if verify_cb_signature(&token_c, &ts, &nonce, &enc, &sig) {
                         if let Ok(plain) = decrypt_cb_msg(&aes_key_c, &enc) {
-                            if let Ok(msg) = parse_cb_message(&plain) {
+                            if let Ok(mut msg) = parse_cb_message(&plain) {
+                                // Resolve PicUrl media downloads (skip MediaId which needs API).
+                                super::media::download_media_items(
+                                    &client_c,
+                                    &mut msg.media,
+                                    "wecom",
+                                ).await;
                                 let _ = tx_c.try_send(msg);
                             }
                         }

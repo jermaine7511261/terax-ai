@@ -9,6 +9,7 @@
 
 pub mod dingtalk;
 pub mod feishu;
+pub mod media;
 pub mod official_account;
 pub mod qq;
 pub mod wecom;
