@@ -297,7 +297,7 @@ function ToolInput({ toolName, input }: { toolName: string; input: unknown }) {
   }
   return (
     <div className="space-y-1">
-      <div className="text-[10px] font-medium text-muted-foreground"{tStatic("ai.input")}/div>
+      <div className="text-[10px] font-medium text-muted-foreground">{tStatic("ai.input")}</div>
       <CodeBlockMini
         code={
           typeof input === "string" ? input : JSON.stringify(input, null, 2)
@@ -372,7 +372,7 @@ function ToolOutput({
   if (errorText) {
     return (
       <div className="space-y-1">
-        <div className="text-[10px] font-medium text-destructive"{tStatic("common.error")}/div>
+        <div className="text-[10px] font-medium text-destructive">{tStatic("common.error")}</div>
         <div className="rounded bg-destructive/10 px-2 py-1.5 font-mono text-[11px] text-destructive whitespace-pre-wrap">
           {errorText}
         </div>
@@ -417,7 +417,7 @@ function renderToolOutput(toolName: string, output: unknown): ReactNode | null {
     return (
       <div className="flex items-center gap-1.5 font-mono text-[11px]">
         <span className="text-emerald-600 dark:text-emerald-400">✓</span>
-        <span className="text-foreground"{tStatic("ai.read")}/span>
+        <span className="text-foreground">{tStatic("ai.read")}</span>
         {path ? <span className="text-muted-foreground">· {path}</span> : null}
         {lines != null ? (
           <span className="text-muted-foreground">
@@ -435,7 +435,7 @@ function renderToolOutput(toolName: string, output: unknown): ReactNode | null {
       : [];
     if (entries.length === 0) {
       return (
-        <div className="text-[11px] italic text-muted-foreground"{tStatic("ai.emptyOutput")}/div>
+        <div className="text-[11px] italic text-muted-foreground">{tStatic("ai.emptyOutput")}</div>
       );
     }
     const dirs = entries.filter(
@@ -615,7 +615,7 @@ function renderToolOutput(toolName: string, output: unknown): ReactNode | null {
         <div className="flex items-center gap-1.5">
           <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
           {handle ? <span className="text-foreground">{handle}</span> : null}
-          <span className="text-muted-foreground"{tStatic("agents.running")}/span>
+          <span className="text-muted-foreground">{tStatic("agents.running")}</span>
         </div>
         {cmd ? (
           <div className="truncate text-muted-foreground">{cmd}</div>

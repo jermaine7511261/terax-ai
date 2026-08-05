@@ -274,7 +274,7 @@ export function SpaceSwitcher({
       </PopoverTrigger>
       <PopoverContent align="start" sideOffset={6} className="w-[20rem] p-1.5">
         <div className="flex items-center justify-between px-1.5 pb-1.5 pt-0.5">
-          <span className="text-xs font-semibold text-foreground"{t("sidebar.spaces")}/span>
+          <span className="text-xs font-semibold text-foreground">{t("sidebar.spaces")}</span>
           {shortcut && (
             <Kbd className="h-5 bg-muted/70 text-[10px]">{shortcut}</Kbd>
           )}
@@ -559,6 +559,7 @@ function TabRow({
   onJump: () => void;
   onClose: () => void;
 }) {
+  const { t } = useI18n();
   const subtitle = subtitleFor(tab);
   const isDragging = dragging?.kind === "tab" && dragging.id === tab.id;
   const reorderEdge =

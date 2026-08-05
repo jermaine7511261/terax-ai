@@ -396,7 +396,7 @@ export function GatewaySection(): JSX.Element {
                         <>
                           <img
                             src={reloginFlow.qrUrl}
-                            alt={tStatic("gateway.relogin")}
+                            alt={t("gateway.relogin")}
                             className="size-48 rounded-lg border border-border/50 bg-white p-2"
                           />
                           <p className="text-xs text-muted-foreground">

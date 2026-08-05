@@ -591,6 +591,7 @@ export const SourceControlPanel = memo(function SourceControlPanel({
   onOpenFile,
   onNavigateToPath,
 }: Props) {
+  const { t } = useI18n();
   const scm = useSourceControlPanel(open, sourceControl, onOpenDiff);
   const refreshAnimationRef = useRef<number | null>(null);
   const [refreshAnimating, setRefreshAnimating] = useState(false);
@@ -1490,6 +1491,7 @@ function ListHeader({
 }: RowRendererProps & {
   row: Extract<RowDescriptor, { kind: "list-header" }>;
 }) {
+  const { t } = useI18n();
   return (
     <div className="flex h-7 items-center gap-2 px-3">
       <span className="text-[10.5px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/85">
@@ -1499,7 +1501,7 @@ function ListHeader({
         {row.count}
       </span>
       <label className="ml-auto flex shrink-0 cursor-pointer select-none items-center gap-1.5 text-[10.5px] font-medium text-muted-foreground hover:text-foreground">
-        <span{t("ai.all")}/span>
+        <span>{t("ai.all")}</span>
         <Checkbox
           aria-label={t("git.stageAllChanges")}
           checked={checkboxValue(headerCheckState)}

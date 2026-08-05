@@ -192,6 +192,7 @@ export function AiChatView({
   error,
   clearError,
   addToolApprovalResponse,
+  onEditAndResend,
 }: Props) {
   const { t } = useI18n();
   const isBusy = status === "submitted" || status === "streaming";
@@ -579,6 +580,7 @@ function basename(p: string): string {
 }
 
 const ReadGroup = memo(function ReadGroup({ parts }: { parts: AnyPart[] }) {
+  const { t } = useI18n();
   const paths = useMemo(() => {
     const seen = new Set<string>();
     const out: string[] = [];
@@ -618,7 +620,7 @@ const ReadGroup = memo(function ReadGroup({ parts }: { parts: AnyPart[] }) {
           strokeWidth={1.75}
           className="shrink-0 text-muted-foreground"
         />
-        <span className="shrink-0 font-medium text-foreground"{t("ai.read")}/span>
+        <span className="shrink-0 font-medium text-foreground">{t("ai.read")}</span>
         <span className="shrink-0 text-[11px] text-muted-foreground">
           {count} file{count === 1 ? "" : "s"}
         </span>
@@ -666,6 +668,7 @@ const PartAppear = memo(function PartAppear({
 });
 
 const ReadRow = memo(function ReadRow({ part }: { part: AnyPart }) {
+  const { t } = useI18n();
   const path = readPathFromPart(part);
   const state = (part as { state?: string }).state ?? "";
   const isError = state === "output-error";
@@ -685,7 +688,7 @@ const ReadRow = memo(function ReadRow({ part }: { part: AnyPart }) {
         strokeWidth={1.75}
         className="shrink-0 text-muted-foreground"
       />
-      <span className="shrink-0 font-medium text-foreground"{t("ai.read")}/span>
+      <span className="shrink-0 font-medium text-foreground">{t("ai.read")}</span>
       <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-muted-foreground">
         {path ?? ""}
       </span>

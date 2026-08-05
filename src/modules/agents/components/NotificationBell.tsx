@@ -16,6 +16,7 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import { invoke } from "@tauri-apps/api/core";
 import { useMemo, useState } from "react";
+import { useI18n } from "@/lib/i18n";
 import { AgentIcon } from "../lib/agentIcon";
 import { displayAgent } from "../lib/format";
 import type { AgentNotification, AgentStatus } from "../lib/types";
@@ -173,6 +174,7 @@ function NotificationRow({
 }
 
 export function NotificationBell({ onActivate, onActivateLocal }: Props) {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [hooks, setHooks] = useState<Record<string, boolean>>({});
   const [installing, setInstalling] = useState<string | null>(null);
@@ -248,7 +250,7 @@ export function NotificationBell({ onActivate, onActivateLocal }: Props) {
           variant="ghost"
           size="icon"
           className="relative size-7 shrink-0 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
-          title={tStatic("agents.notifications")}
+          title={t("agents.notifications")}
         >
           <HugeiconsIcon
             icon={Notification01Icon}

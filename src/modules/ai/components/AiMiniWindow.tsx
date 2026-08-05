@@ -418,6 +418,7 @@ function formatTokens(n: number): string {
 }
 
 function ContextIndicator({ messages }: { messages: UIMessage[] }) {
+  const { t } = useI18n();
   const modelId = useChatStore((s) => s.selectedModelId);
   const tokens = useChatStore((s) => s.agentMeta.tokens);
   const lastInput = useChatStore((s) => s.agentMeta.lastInputTokens);
@@ -449,7 +450,7 @@ function ContextIndicator({ messages }: { messages: UIMessage[] }) {
         <ContextContentHeader />
         <ContextContentBody>
           <div className="flex items-center justify-between text-muted-foreground">
-            <span{t("common.model")}/span>
+            <span>{t("common.model")}</span>
             <span className="font-mono text-foreground">{modelLabel}</span>
           </div>
           <div className="mt-1 flex items-center justify-between text-muted-foreground">
@@ -499,7 +500,7 @@ function ContextIndicator({ messages }: { messages: UIMessage[] }) {
             </>
           )}
           <div className="flex items-center justify-between text-muted-foreground">
-            <span{t("common.window")}/span>
+            <span>{t("common.window")}</span>
             <span className="font-mono text-foreground">
               {formatTokens(max)}
             </span>

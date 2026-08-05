@@ -921,6 +921,7 @@ function CommitFiles({
   ) => Promise<void> | void;
   onRetry: () => void;
 }) {
+  const { t } = useI18n();
   if (!filesEntry || filesEntry.state === "loading") {
     return (
       <div className="flex items-center gap-2 px-3 py-3 text-[11px] text-muted-foreground">
@@ -982,6 +983,7 @@ const FileRow = memo(function FileRow({
   file: GitCommitFileChange;
   onOpen: () => void;
 }) {
+  const { t } = useI18n();
   const fileName = basename(file.path);
   const dir = dirname(file.path);
   const iconUrl = fileIconUrl(fileName);

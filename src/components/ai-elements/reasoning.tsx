@@ -152,10 +152,10 @@ export type ReasoningTriggerProps = ComponentProps<
 
 const defaultGetThinkingMessage = (isStreaming: boolean, duration?: number) => {
   if (isStreaming || duration === 0) {
-    return <Shimmer duration={1}{tStatic("ai.thinking")}/Shimmer>;
+    return <Shimmer duration={1}>{tStatic("ai.thinking")}</Shimmer>;
   }
   if (duration === undefined) {
-    return <span{tStatic("ai.reasoned")}/span>;
+    return <span>{tStatic("ai.reasoned")}</span>;
   }
   return <span>Reasoned for {duration}s</span>;
 };
