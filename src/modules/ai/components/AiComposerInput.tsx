@@ -9,8 +9,6 @@ import { useComposer } from "../lib/composer";
 import { SLASH_COMMANDS } from "../lib/slashCommands";
 import { useChatStore } from "../store/chatStore";
 import { useSnippetsStore } from "../store/snippetsStore";
-import { AgentSwitcher } from "./AgentSwitcher";
-import { ModelDropdown } from "./AiStatusBarControls";
 import { FilePickerContent } from "./FilePicker";
 import { SnippetPickerContent, type PickerItem } from "./SnippetPicker";
 
@@ -267,10 +265,6 @@ export function AiComposerInput() {
                 "placeholder:text-muted-foreground/60",
               )}
             />
-            <div className="flex shrink-0 items-center gap-1 pb-0.5">
-              <ModelDropdown />
-              <AgentSwitcher />
-            </div>
           </div>
         </PopoverAnchor>
         {fileTrigger ? (
