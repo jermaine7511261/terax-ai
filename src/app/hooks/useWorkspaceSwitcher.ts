@@ -9,6 +9,9 @@ import {
   type WorkspaceEnv,
 } from "@/modules/workspace";
 
+/** localStorage key for the user-chosen workspace root (persisted across restarts). */
+const WS_ROOT_KEY = "yamet.workspace.root";
+
 async function resolveEnvHome(env: WorkspaceEnv): Promise<string> {
   return env.kind === "wsl"
     ? getWslHome(env.distro)
@@ -41,9 +44,14 @@ export function useWorkspaceSwitcher({
   const [launchCwdResolved, setLaunchCwdResolved] = useState(false);
 
   useEffect(() => {
+    // Restore a user-chosen workspace root from localStorage if one exists,
+    // so a workspace configured to another drive survives restarts. Falls
+    // back to the OS user home directory.
+    const saved = localStorage.getItem(WS_ROOT_KEY);
     homeDir()
       .then(async (p) => {
-        const normalized = p.replace(/\\/g, "/");
+        const osHome = p.replace(/\\/g, "/");
+        const normalized = saved ?? osHome;
         setHome(normalized);
         try {
           await native.workspaceAuthorize(normalized);
@@ -65,6 +73,7 @@ export function useWorkspaceSwitcher({
   const authorizeHome = useCallback(async (nextHome: string) => {
     setHome(nextHome);
     setLaunchCwd(nextHome);
+    localStorage.setItem(WS_ROOT_KEY, nextHome);
     try {
       await native.workspaceAuthorize(nextHome);
     } catch {
