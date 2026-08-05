@@ -24,6 +24,8 @@ export type DebugHandle = {
   /** Send an arbitrary DAP message to the adapter. */
   send: (message: unknown) => Promise<void>;
   kill: () => Promise<void>;
+  /** Sync the full breakpoint set for one source file (bidirectional). */
+  setBreakpoints: (path: string, lines: number[]) => Promise<void>;
   /** Request a thread list. */
   threads: () => Promise<void>;
   /** Request the call stack for a stopped thread. */
@@ -133,6 +135,18 @@ export async function debugLaunch(
     kill: async () => {
       await invoke("dap_kill", { id });
     },
+    setBreakpoints: async (path, lines) => {
+      await send({
+        type: "request",
+        seq: Date.now() % 100000,
+        command: "setBreakpoints",
+        arguments: {
+          source: { path },
+          breakpoints: lines.map((line) => ({ line })),
+          lines,
+        },
+      });
+    },
     threads: async () => {
       await send({ type: "request", seq: Date.now() % 100000, command: "threads" });
     },
@@ -223,3 +237,30 @@ export type VariablesBody = {
     variablesReference?: number;
   }[];
 };
+
+/** A single `launch.json` configuration entry. */
+export type DebugConfiguration = {
+  name?: string;
+  type?: string;
+  request?: "launch" | "attach";
+  program?: string;
+  cwd?: string;
+  args?: Record<string, unknown>;
+  [k: string]: unknown;
+};
+
+/**
+ * Parse a VSCode-style `.yamet/launch.json` (or `launch.json`) into launch
+ * configs. Best-effort: ignores unknown keys, tolerates missing/invalid JSON.
+ */
+export function parseLaunchConfigs(text: string): DebugConfiguration[] {
+  try {
+    const root = JSON.parse(text) as { configurations?: DebugConfiguration[] };
+    if (!Array.isArray(root.configurations)) return [];
+    return root.configurations.filter(
+      (c) => c && typeof c === "object" && (c.request === "launch" || c.request === "attach"),
+    );
+  } catch {
+    return [];
+  }
+}

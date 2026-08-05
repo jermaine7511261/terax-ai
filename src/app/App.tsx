@@ -5,12 +5,24 @@ import {
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
 import { Toaster } from "@/components/ui/sonner";
+import { toast } from "sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { consumeLaunchFiles, getLaunchDir } from "@/lib/launchDir";
 import { quoteShellArg } from "@/lib/shellQuote";
 import { usePresence } from "@/lib/usePresence";
 import { useZoom } from "@/lib/useZoom";
 import { isMarkdownPath, isPreviewableFilePath } from "@/lib/utils";
+import { lazy, Suspense } from "react";
+import type { SshTarget } from "@/modules/tabs/lib/useTabs";
+
+// Lazy: the debug & remote sidebar panels are only needed when their view is
+// opened; keep them out of the eager startup graph (bundle budget).
+const DebugPanel = lazy(() =>
+  import("@/modules/debug").then((m) => ({ default: m.DebugPanel })),
+);
+const RemotePanel = lazy(() =>
+  import("@/modules/remote").then((m) => ({ default: m.RemotePanel })),
+);
 import {
   type AgentLaunchRequest,
   AgentNotificationsBridge,
@@ -39,7 +51,6 @@ import {
 } from "@/modules/editor";
 import { FileExplorer, type FileExplorerHandle } from "@/modules/explorer";
 import { SearchPanel } from "@/modules/search";
-import { DebugPanel } from "@/modules/debug";
 import type { GitHistorySearchHandle } from "@/modules/git-history";
 import {
   Header,
@@ -81,7 +92,6 @@ import {
   useWindowTitle,
   useWorkspaceCwd,
 } from "@/modules/tabs";
-import type { SshTarget } from "@/modules/tabs/lib/useTabs";
 import { DEFAULT_SPACE_ID } from "@/modules/tabs/lib/useTabs";
 import { SshConnectDialog } from "@/modules/tabs/SshConnectDialog";
 import {
@@ -1273,6 +1283,21 @@ export default function App() {
     return () => setLspNavigator(null);
   }, [openContentHit]);
 
+  const openRemoteFile = useCallback(
+    async (target: SshTarget, path: string) => {
+      try {
+        const content = await invoke<string>("sftp_read", { target, path });
+        // Remote files aren't on disk, so render them through the preview pane
+        // via a data URL. Markdown renders; other text shows raw.
+        const url = `data:text/plain;charset=utf-8,${encodeURIComponent(content)}`;
+        newPreviewTab(url);
+      } catch (e) {
+        toast.error("Failed to open remote file", { description: String(e) });
+      }
+    },
+    [newPreviewTab],
+  );
+
   const insertHistoryCommand = useMemo(
     () =>
       isTerminalTab && activeLeafId !== null
@@ -1374,7 +1399,13 @@ export default function App() {
                     ) : sidebarView === "search" ? (
                       <SearchPanel root={explorerRoot} onOpen={openContentHit} />
                     ) : sidebarView === "debug" ? (
-                      <DebugPanel root={explorerRoot} onOpen={openContentHit} />
+                      <Suspense fallback={null}>
+                        <DebugPanel root={explorerRoot} onOpen={openContentHit} />
+                      </Suspense>
+                    ) : sidebarView === "remote" ? (
+                      <Suspense fallback={null}>
+                        <RemotePanel onOpenRemoteFile={openRemoteFile} />
+                      </Suspense>
                     ) : (
                       <SourceControlPanel
                         open

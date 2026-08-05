@@ -7,13 +7,22 @@ import {
   StopIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
   debugLaunch,
   type DebugHandle,
   type DebugLaunchConfig,
 } from "../lib/client";
+import {
+  subscribeBreakpoints,
+  useBreakpointStore,
+} from "../lib/breakpoints";
+import {
+  parseLaunchConfigs,
+  type DebugConfiguration,
+} from "../lib/client";
+import { native } from "@/modules/ai/lib/native";
 
 type Props = {
   root: string | null;
@@ -54,6 +63,37 @@ export function DebugPanel({ root, onOpen }: Props) {
   const [adapter, setAdapter] = useState("auto");
   const [session, setSession] = useState<Session | null>(null);
   const [busy, setBusy] = useState(false);
+  const [launchConfigs, setLaunchConfigs] = useState<DebugConfiguration[]>([]);
+
+  // Auto-load `.yamet/launch.json` / `launch.json` from the workspace root.
+  useEffect(() => {
+    if (!root) {
+      setLaunchConfigs([]);
+      return;
+    }
+    const candidates = [
+      root.replace(/[\\/]+$/, "") + "/.yamet/launch.json",
+      root.replace(/[\\/]+$/, "") + "/launch.json",
+      root.replace(/[\\/]+$/, "") + "/.vscode/launch.json",
+    ];
+    void (async () => {
+      for (const f of candidates) {
+        try {
+          const r = await native.readFile(f);
+          if (r.kind === "text") {
+            const cfgs = parseLaunchConfigs(r.content);
+            if (cfgs.length) {
+              setLaunchConfigs(cfgs);
+              return;
+            }
+          }
+        } catch {
+          // Not present; try next candidate.
+        }
+      }
+      setLaunchConfigs([]);
+    })();
+  }, [root]);
 
   const apply = (s: Session, fn: (draft: Session) => void): Session => {
     const clone: Session = {
@@ -88,6 +128,11 @@ export function DebugPanel({ root, onOpen }: Props) {
           const frames = (body.stackFrames ?? []) as { id: number; name: string; source?: { path?: string; name?: string }; line: number; column: number }[];
           return apply(prev, (d) => {
             d.frames = frames;
+            // Highlight the paused frame in the editor gutter.
+            const top = frames[0];
+            if (top?.source?.path) {
+              useBreakpointStore.getState().setStoppedAt({ path: top.source.path, line: top.line });
+            }
             // Auto-fetch scopes for the top frame.
             if (frames[0]) void prev.handle.scopes(frames[0].id);
           });
@@ -125,9 +170,11 @@ export function DebugPanel({ root, onOpen }: Props) {
         });
       }
       if (method === "continued") {
+        useBreakpointStore.getState().setStoppedAt(null);
         return apply(prev, (d) => { d.state = "running"; });
       }
       if (method === "terminated" || method === "exited") {
+        useBreakpointStore.getState().setStoppedAt(null);
         return apply(prev, (d) => { d.state = "exited"; });
       }
       if (method === "output") {
@@ -189,10 +236,44 @@ export function DebugPanel({ root, onOpen }: Props) {
     if (after) setSession((prev) => (prev ? apply(prev, after) : prev));
   };
 
+  // Bidirectional breakpoint sync: on launch, push every stored breakpoint to
+  // the adapter; while a session is live, editor toggles flow to setBreakpoints.
+  useEffect(() => {
+    if (!session || session.state === "exited") return;
+    const pushAll = () => {
+      const byPath = useBreakpointStore.getState().byPath;
+      for (const [path, lines] of Object.entries(byPath)) {
+        if (lines.length) void session.handle.setBreakpoints(path, lines);
+      }
+    };
+    pushAll();
+    const unsub = subscribeBreakpoints(() => pushAll());
+    return () => unsub();
+  }, [session]);
+
   return (
     <div className="flex h-full min-h-0 flex-col gap-2 p-2.5">
       {/* Launch config */}
       <div className="flex flex-col gap-1.5 rounded-lg border border-border/60 bg-card/70 p-2">
+        {launchConfigs.length > 0 ? (
+          <select
+            value=""
+            onChange={(e) => {
+              const c = launchConfigs[Number(e.target.value)];
+              if (!c) return;
+              if (typeof c.program === "string") setProgram(c.program);
+              if (typeof c.type === "string" && c.type !== "python") {
+                setAdapter(c.type);
+              }
+            }}
+            className="w-full rounded-md border border-border/60 bg-card/60 px-1.5 py-1 text-[11px] text-foreground outline-none"
+          >
+            <option value="">{t("debug.chooseConfig")}</option>
+            {launchConfigs.map((c, i) => (
+              <option key={i} value={i}>{c.name ?? c.type ?? `#${i + 1}`}</option>
+            ))}
+          </select>
+        ) : null}
         <div className="flex items-center gap-1.5">
           <HugeiconsIcon icon={Bug01Icon} size={14} strokeWidth={1.75} className="shrink-0 text-muted-foreground" />
           <input

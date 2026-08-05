@@ -9,6 +9,7 @@ import { useI18n } from "@/lib/i18n";
 import type { SshTarget } from "@/modules/tabs";
 import { useTheme } from "@/modules/theme";
 import type { SearchAddon } from "@xterm/addon-search";
+import "@xterm/xterm/css/xterm.css";
 import {
   forwardRef,
   memo,
