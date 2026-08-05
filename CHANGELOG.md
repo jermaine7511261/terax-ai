@@ -5,6 +5,21 @@ Yamet 的所有重要变更都记录于此。版本遵循项目规则：**功能
 ## [未发布]
 
 ### 新增
+- **第八轮（0.1.9）** 微信会话自动重连：会话过期后自动推送重登 QR 到前端（不再暂停 10 分钟），扫码确认后自动更新 token 恢复 poll。
+- **第八轮（0.1.9）** 网关限流后置：已授权会话消息不再被限流丢弃（DM auto-trust + 手动批准会话突发消息全送达）。
+- **第八轮（0.1.9）** 微信/QQ/Wecom 媒体下载：adapter 轮询循环自动下载图片/文件到 `~/.yamet/media/`，填充 `local_path` 给 agent 使用。
+- **第八轮（0.1.9）** 主界面重登 QR 浮层：`WeixinReloginOverlay` 全局监听 `gateway-platform-event`，会话过期自动弹非阻塞浮层。
+- **第八轮（0.1.9）** 模型选择器默认过滤无 key 模型：「全部」tab 默认只显示有 API key 的模型，provider 侧栏加"显示未配置"切换。
+- **第八轮（0.1.9）** 汉化补全：33 个中文翻译键（ai/explorer/editor/source-control/preview 等）。
+- **第八轮（0.1.9）** 自动更新端点配置：`tauri.conf.json` updater.endpoints 填入 GitHub Releases 模板（用户配仓库后替换）。
+
+### 修复
+- **第八轮（0.1.9）** P3 授权恢复核查：确认 `set_persist_path` 已内含 `load_from` 恢复，无需改动（审查修正）。
+
+### 文档
+- **第八轮（0.1.9）** ROADMAP 测试覆盖扩展已勾选。
+
+### 新增
 - **第七轮（0.1.8）** 反向 MCP server：`src-tauri/src/modules/mcp_server/`（JSON-RPC 2.0 stdio + 6 只读工具 read_file/list_directory/grep/glob/git_status/git_diff + 路径沙箱 + 1MiB 读取上限 + grep 排除 .git），CLI 入口 `yamet __mcp_server`，外部 agent（Claude Code / OpenCode）经 mcpServers 接入。
 - **第七轮（0.1.8）** 跨会话语义检索：`search_memories(query)` 工具（★ H1），匹配历史会话 + 项目记忆，摘要注入上下文，纯函数已测。
 - **第七轮（0.1.8）** cron 定时自动化：`src-tauri/src/modules/scheduler/`（★ H3，自实现 5 字段 cron + 30s tick + 持久化），前端 `yamet:scheduler-fire` 监听 spawn agent，设置页定时任务区（增删改/启停/下次触发预览）。
