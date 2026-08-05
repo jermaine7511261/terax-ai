@@ -1,8 +1,18 @@
-import { type RefObject, useCallback, useEffect, useState } from "react";
+import {
+  type RefObject,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { homeDir } from "@tauri-apps/api/path";
 import { native } from "@/modules/ai/lib/native";
-import { loadPreferences, setWorkspaceRoot } from "@/modules/settings/store";
+import {
+  loadPreferences,
+  onPreferencesChange,
+  setWorkspaceRoot,
+} from "@/modules/settings/store";
 import type { Tab } from "@/modules/tabs";
 import {
   getWslHome,
@@ -40,6 +50,8 @@ export function useWorkspaceSwitcher({
   const [home, setHome] = useState<string | null>(null);
   const [launchCwd, setLaunchCwd] = useState<string | null>(null);
   const [launchCwdResolved, setLaunchCwdResolved] = useState(false);
+  const resetWorkspaceRef = useRef(resetWorkspace);
+  resetWorkspaceRef.current = resetWorkspace;
 
   useEffect(() => {
     // Restore a user-chosen workspace root (persisted in settings) so a
@@ -69,6 +81,36 @@ export function useWorkspaceSwitcher({
       .then(setLaunchCwd)
       .catch(() => setLaunchCwd(null))
       .finally(() => setLaunchCwdResolved(true));
+  }, []);
+
+  // React to a workspace-root change made in the settings window so it takes
+  // effect within the current session (no restart required). Reset the active
+  // terminal to the new root and persist the selection.
+  useEffect(() => {
+    const apply = async (root: string) => {
+      const normalized = root.replace(/\\/g, "/");
+      setHome(normalized);
+      setLaunchCwd(normalized);
+      try {
+        await native.workspaceAuthorize(normalized);
+      } catch {
+        // Non-fatal.
+      }
+      resetWorkspaceRef.current?.(normalized);
+    };
+    let unlisten: (() => void) | null = null;
+    void onPreferencesChange((key, value) => {
+      if (key === "workspaceRoot") {
+        if (typeof value === "string" && value) void apply(value);
+        // null resets to OS home — handled at next restart (home is derived
+        // from homeDir() fallback on mount).
+      }
+    }).then((u) => {
+      unlisten = u;
+    });
+    return () => {
+      unlisten?.();
+    };
   }, []);
 
   const authorizeHome = useCallback(async (nextHome: string) => {
