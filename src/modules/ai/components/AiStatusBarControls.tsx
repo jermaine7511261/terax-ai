@@ -214,6 +214,7 @@ export function ModelDropdown() {
   const [search, setSearch] = useState("");
   const [activeProvider, setActiveProvider] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("all");
+  const [showUnconfigured, setShowUnconfigured] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const currentProviderHasKey = isCompatModelId(selected)
     ? true
@@ -260,6 +261,16 @@ export function ModelDropdown() {
         .slice()
         .sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
     }
+    // Default: hide models whose provider has no key configured (unless
+    // showUnconfigured is on, or the user is on a specific provider tab,
+    // or it's a free model / compat endpoint).
+    if (tab === "all" && activeProvider === null && !showUnconfigured) {
+      pool = pool.filter(
+        (m) =>
+          isCompatModelId(m.id) ||
+          hasKeyFor(m.provider),
+      );
+    }
     if (activeProvider === COMPAT_PROVIDER_ID) {
       pool = pool.filter((m) => isCompatModelId(m.id));
     } else if (activeProvider !== null) {
@@ -276,7 +287,7 @@ export function ModelDropdown() {
       );
     }
     return pool;
-  }, [activeProvider, allModels, favoriteIds, recentIds, search, tab]);
+  }, [activeProvider, allModels, favoriteIds, recentIds, search, tab, showUnconfigured]);
 
   return (
     <DropdownMenu>
@@ -388,6 +399,17 @@ export function ModelDropdown() {
                 active={activeProvider === COMPAT_PROVIDER_ID}
                 onClick={() => setActiveProvider(COMPAT_PROVIDER_ID)}
               />
+            )}
+            {sortedProviders.unconfigured.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowUnconfigured((v) => !v)}
+                className="mt-1 border-t border-border/40 pt-1 text-[9px] text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+              >
+                {showUnconfigured
+                  ? t("ai.hideUnconfigured")
+                  : t("ai.showUnconfigured")}
+              </button>
             )}
           </div>
 
