@@ -5,6 +5,17 @@ Yamet 的所有重要变更都记录于此。版本遵循项目规则：**功能
 ## [未发布]
 
 ### 新增
+- **第九轮（0.1.10）** 右下角 AgentSwitcher 合并 agent + model 选择器：输入框旁和底部状态栏的模型/agent 选项卡移除，右下角一个下拉同时切换 agent 和 model。
+- **第九轮（0.1.10）** 设置页"技能"与"MCP"拆分为独立标签（SkillsSection + McpSection）。
+- **第九轮（0.1.10）** 工作区配置持久化：用户选择的工作区根目录经 localStorage 持久化，配置到其它盘后重启不再回退到默认 C 盘用户目录。
+- **第九轮（0.1.10）** 自动批准移到批准弹窗：批准框"记住"下拉新增"自动批准此工具"选项，移除对话页顶部的自动批准开关。
+
+### 修复
+- **第九轮（0.1.10）** 工作区换盘无效（home 用 useState 不持久化，重启回 C 盘）。
+
+
+
+### 新增
 - **第九轮（0.1.10）** 汉化收官：34 处显示文本 + 57 处属性硬编码英文全部走 i18n（仅剩白名单：shadcn 原语 / 品牌名 / 示例值 / 协议名）；新增 common.block / gateway.relogin / ai.emptyOutput / ai.resumeTurn / ai.editMessage / git.binary 等键（zh/en 双语）。
 - **第九轮（0.1.10）** 锁中毒自愈：152 处 Mutex/RwLock `.unwrap()/.expect()`（含 read/write 与多行形态）改为 `.unwrap_or_else(|e| e.into_inner())`；新增 `src-tauri/tests/lock_poison.rs` 自愈单测；`scripts/verify.ps1` 加 lock poison 门禁。
 - **第九轮（0.1.10）** 后台进程树杀：`bash_bg_*` kill 杀整棵进程树（Windows Job Object + Unix 进程组 `process_group(0)`）；补 Unix 组杀测试与 `tests/shell_background_windows.rs`。
