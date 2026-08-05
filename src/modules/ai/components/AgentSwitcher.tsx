@@ -28,7 +28,7 @@ import {
   Tick02Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import type { AgentIconId } from "../lib/agents";
+import { agentDisplayDescription, agentDisplayName, type AgentIconId } from "../lib/agents";
 import { useAgentsStore } from "../store/agentsStore";
 import { useChatStore } from "../store/chatStore";
 import { usePreferencesStore } from "@/modules/settings/preferences";
@@ -210,10 +210,10 @@ export function AgentSwitcher({ isMiniWindow }: { isMiniWindow?: boolean }) {
               ? "flex h-6 items-center gap-1 rounded-md border border-border/60 bg-card px-1.5 text-[10.5px] text-muted-foreground transition-colors hover:border-border hover:bg-accent hover:text-foreground"
               : "text-xs mr-1",
           )}
-          title={`${active.name} · ${currentModel.label}`}
+          title={`${agentDisplayName(active)} · ${currentModel.label}`}
         >
           <HugeiconsIcon icon={ActiveIcon} size={11} strokeWidth={1.75} />
-          <span className="max-w-[7rem] truncate">{active.name}</span>
+          <span className="max-w-[7rem] truncate">{agentDisplayName(active)}</span>
           <span className="max-w-[5rem] truncate text-[10px] text-muted-foreground/70">
             · {currentModel.label}
           </span>
@@ -252,9 +252,9 @@ export function AgentSwitcher({ isMiniWindow }: { isMiniWindow?: boolean }) {
                 )}
               />
               <span className="flex min-w-0 flex-1 flex-col">
-                <span>{a.name}</span>
+                <span>{agentDisplayName(a)}</span>
                 <span className="line-clamp-1 text-[10.5px] text-muted-foreground">
-                  {a.description}
+                  {agentDisplayDescription(a)}
                 </span>
               </span>
               {a.id === activeId ? (

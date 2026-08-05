@@ -1,4 +1,5 @@
 import { LazyStore } from "@tauri-apps/plugin-store";
+import { tStatic } from "@/lib/i18n";
 
 export type AgentIconId =
   | "coder"
@@ -78,6 +79,34 @@ export const BUILTIN_AGENTS: readonly Agent[] = [
 - Avoid generic "make it pop" advice. Be specific about what's wrong and why.`,
   },
 ] as const;
+
+/** Localized display name for a built-in agent (custom agents use their stored name). */
+export function agentDisplayName(agent: Agent): string {
+  if (!agent.builtIn) return agent.name;
+  const map: Record<string, string> = {
+    "builtin:coder": tStatic("agents.coderName"),
+    "builtin:architect": tStatic("agents.architectName"),
+    "builtin:reviewer": tStatic("agents.reviewerName"),
+    "builtin:security": tStatic("agents.securityName"),
+    "builtin:designer": tStatic("agents.designerName"),
+    "builtin:spark": agent.name,
+  };
+  return map[agent.id] ?? agent.name;
+}
+
+/** Localized description for a built-in agent (custom agents use their stored description). */
+export function agentDisplayDescription(agent: Agent): string {
+  if (!agent.builtIn) return agent.description;
+  const map: Record<string, string> = {
+    "builtin:coder": tStatic("agents.coderDesc"),
+    "builtin:architect": tStatic("agents.architectDesc"),
+    "builtin:reviewer": tStatic("agents.reviewerDesc"),
+    "builtin:security": tStatic("agents.securityDesc"),
+    "builtin:designer": tStatic("agents.designerDesc"),
+    "builtin:spark": agent.description,
+  };
+  return map[agent.id] ?? agent.description;
+}
 
 const STORE_PATH = "yamet-ai-agents.json";
 const KEY_CUSTOM = "customAgents";
