@@ -31,7 +31,7 @@ use serde_json::{json, Value};
 use tokio::task::JoinHandle;
 
 use crate::modules::gateway::adapter::{
-    ChatTarget, EventTx, PlatformAdapter, SendReceipt, SendResult,
+    ChatTarget, EventTx, PlatformAdapter, PlatformEventSink, SendReceipt, SendResult,
 };
 use crate::modules::gateway::message::{ChatType, MediaItem, MediaKind, MessageEvent};
 use crate::modules::gateway::platform::PlatformId;
@@ -511,6 +511,8 @@ struct Inner {
     /// Persisted across reconnects so a fresh poll continues from the last sync point.
     sync_buf: Mutex<String>,
     client: reqwest::Client,
+    /// Out-of-band event sink (QR frames, status) — set via `set_event_sink` before poll starts.
+    event_sink: Mutex<Option<PlatformEventSink>>,
 }
 
 pub struct WeixinAdapter {
@@ -532,6 +534,7 @@ impl WeixinAdapter {
                 context_tokens: Mutex::new(HashMap::new()),
                 sync_buf: Mutex::new(String::new()),
                 client,
+                event_sink: Mutex::new(None),
             }),
         }
     }
@@ -547,6 +550,16 @@ impl WeixinAdapter {
     async fn poll_loop(&self, tx: EventTx) {
         let mut machine = PollFailureMachine::default();
         let mut timeout_ms = LONG_POLL_TIMEOUT_MS;
+        let event_sink = self.inner.event_sink.lock().unwrap().clone();
+
+        // Helper to emit QrLoginFrame through the event sink.
+        let emit_frame = |frame: QrLoginFrame| {
+            if let Some(ref sink) = event_sink {
+                if let Ok(val) = serde_json::to_value(frame) {
+                    sink(val);
+                }
+            }
+        };
 
         while !self.inner.stop.load(Ordering::SeqCst) {
             let base_url = self.base_url();
@@ -569,15 +582,211 @@ impl WeixinAdapter {
                     if class != PollClass::Ok {
                         let delay = machine.step(class);
                         if delay.relogin {
-                            // Mirrors Hermes' weixin.py `_poll_loop`: iLink bot
-                            // tokens cannot be refreshed, so on session expiry
-                            // we pause and retry instead of auto-starting a QR
-                            // scan. Re-login is a manual action in Settings.
+                            // Session expired: automatically push a fresh QR to
+                            // the frontend so the user can re-scan without opening
+                            // Settings. Polling continues on a short cadence while
+                            // waiting for confirmation.
                             log::error!(
-                                "weixin: session expired (ret={ret:?} errcode={errcode:?}); pausing for {SESSION_EXPIRED_PAUSE_SECONDS}s (manual QR re-login required)"
+                                "weixin: session expired (ret={ret:?} errcode={errcode:?}); auto-pushing relogin QR"
                             );
-                            tokio::time::sleep(Duration::from_secs(SESSION_EXPIRED_PAUSE_SECONDS))
+                            let qr_resp = match api_get(
+                                &self.inner.client,
+                                &self.base_url(),
+                                &format!("{EP_GET_BOT_QR}?bot_type=3"),
+                                QR_TIMEOUT_MS,
+                            )
+                            .await
+                            {
+                                Ok(v) => v,
+                                Err(e) => {
+                                    log::error!("weixin: relogin QR fetch failed: {e}");
+                                    tokio::time::sleep(Duration::from_secs(
+                                        RETRY_DELAY_SECONDS,
+                                    ))
+                                    .await;
+                                    continue;
+                                }
+                            };
+                            let qrcode_value = qr_resp
+                                .get("qrcode")
+                                .and_then(Value::as_str)
+                                .unwrap_or("")
+                                .to_string();
+                            if qrcode_value.is_empty() {
+                                log::error!("weixin: relogin QR response missing qrcode");
+                                tokio::time::sleep(Duration::from_secs(
+                                    RETRY_DELAY_SECONDS,
+                                ))
                                 .await;
+                                continue;
+                            }
+                            let qr_url = qr_resp
+                                .get("qrcode_img_content")
+                                .and_then(Value::as_str)
+                                .unwrap_or("")
+                                .to_string();
+                            let qr_scan_data = if !qr_url.is_empty() {
+                                qr_url
+                            } else {
+                                ilink_qr_url(&qrcode_value)
+                            };
+                            let svg = qr_svg_data_url(&qr_scan_data)
+                                .unwrap_or_default();
+                            if event_sink.is_some() {
+                                emit_frame(QrLoginFrame::Qr {
+                                    svg_data_url: svg,
+                                });
+                            }
+                            // Wait up to 480s for scan confirmation
+                            let qr_deadline =
+                                tokio::time::Instant::now() + Duration::from_secs(480);
+                            let mut mut_url = self.base_url();
+                            let mut refresh_count: u32 = 0;
+                            loop {
+                                if tokio::time::Instant::now() >= qr_deadline {
+                                    log::error!("weixin: relogin QR timed out");
+                                    break;
+                                }
+                                let status_resp = match api_get(
+                                    &self.inner.client,
+                                    &mut_url,
+                                    &format!(
+                                        "{EP_GET_QR_STATUS}?qrcode={qrcode_value}"
+                                    ),
+                                    QR_TIMEOUT_MS,
+                                )
+                                .await
+                                {
+                                    Ok(v) => v,
+                                    Err(e) => {
+                                        log::warn!("weixin: relogin QR poll error: {e}");
+                                        tokio::time::sleep(Duration::from_secs(2))
+                                            .await;
+                                        continue;
+                                    }
+                                };
+                                let status = status_resp
+                                    .get("status")
+                                    .and_then(Value::as_str)
+                                    .unwrap_or("wait");
+                                match classify_qr_status(status) {
+                                    QrStatus::ScannedRedirect => {
+                                        if event_sink.is_some() {
+                                            emit_frame(QrLoginFrame::Status {
+                                                status: "scanned".into(),
+                                            });
+                                        }
+                                        if let Some(host) =
+                                            status_resp.get("redirect_host")
+                                                .and_then(Value::as_str)
+                                        {
+                                            if !host.is_empty() {
+                                                mut_url =
+                                                    format!("https://{host}");
+                                            }
+                                        }
+                                    }
+                                    QrStatus::Expired => {
+                                        refresh_count += 1;
+                                        if refresh_count > 3 {
+                                            log::error!(
+                                                "weixin: relogin QR expired too many times"
+                                            );
+                                            break;
+                                        }
+                                        log::info!(
+                                            "weixin: relogin QR expired, refreshing ({refresh_count}/3)"
+                                        );
+                                        match api_get(
+                                            &self.inner.client,
+                                            &self.base_url(),
+                                            &format!("{EP_GET_BOT_QR}?bot_type=3"),
+                                            QR_TIMEOUT_MS,
+                                        )
+                                        .await
+                                        {
+                                            Ok(v) => {
+                                                let new_url = v.get("qrcode_img_content")
+                                                    .and_then(Value::as_str)
+                                                    .unwrap_or("")
+                                                    .to_string();
+                                                let new_svg = qr_svg_data_url(
+                                                    &if !new_url.is_empty() {
+                                                        new_url
+                                                    } else {
+                                                        v.get("qrcode")
+                                                            .and_then(Value::as_str)
+                                                            .map(|q|
+                                                                ilink_qr_url(q))
+                                                            .unwrap_or_default()
+                                                    },
+                                                )
+                                                .unwrap_or_default();
+                                                if event_sink.is_some() {
+                                                    emit_frame(QrLoginFrame::Qr {
+                                                        svg_data_url: new_svg,
+                                                    });
+                                                }
+                                            }
+                                            Err(e) => {
+                                                log::warn!("weixin: relogin QR refresh failed: {e}");
+                                            }
+                                        }
+                                    }
+                                    QrStatus::Confirmed => {
+                                        let new_account_id = status_resp
+                                            .get("ilink_bot_id")
+                                            .and_then(Value::as_str)
+                                            .unwrap_or("")
+                                            .to_string();
+                                        let new_token = status_resp
+                                            .get("bot_token")
+                                            .and_then(Value::as_str)
+                                            .unwrap_or("")
+                                            .to_string();
+                                        let new_base_url = status_resp
+                                            .get("baseurl")
+                                            .and_then(Value::as_str)
+                                            .filter(|s| !s.is_empty())
+                                            .unwrap_or(ILINK_BASE_URL)
+                                            .to_string();
+                                        if new_account_id.is_empty()
+                                            || new_token.is_empty()
+                                        {
+                                            log::error!("weixin: relogin confirmed but credential payload incomplete");
+                                            break;
+                                        }
+                                        // Update live credentials
+                                        *self.inner.token.lock().unwrap() =
+                                            new_token;
+                                        *self.inner.base_url.lock().unwrap() =
+                                            new_base_url;
+                                        // Notify frontend
+                                        if event_sink.is_some() {
+                                            emit_frame(QrLoginFrame::Confirmed {
+                                                account_id: new_account_id,
+                                                token: self.token(),
+                                                base_url: self.base_url(),
+                                            });
+                                        }
+                                        log::info!(
+                                            "weixin: relogin confirmed, resuming poll with new credentials"
+                                        );
+                                        machine = PollFailureMachine::default();
+                                        break;
+                                    }
+                                    QrStatus::Scanned => {
+                                        if event_sink.is_some() {
+                                            emit_frame(QrLoginFrame::Status {
+                                                status: "scanned".into(),
+                                            });
+                                        }
+                                    }
+                                    _ => {}
+                                }
+                                tokio::time::sleep(Duration::from_secs(2))
+                                    .await;
+                            }
                             continue;
                         }
                         log::warn!(
@@ -678,6 +887,10 @@ impl PlatformAdapter for WeixinAdapter {
 
     fn is_configured(&self) -> bool {
         !self.token().is_empty()
+    }
+
+    fn set_event_sink(&self, sink: PlatformEventSink) {
+        *self.inner.event_sink.lock().unwrap() = Some(sink);
     }
 
     fn connect(&self, tx: EventTx) -> BoxFuture<'static, Result<(), String>> {
