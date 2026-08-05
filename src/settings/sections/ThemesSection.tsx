@@ -8,7 +8,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
-import { useI18n } from "@/lib/i18n";
+import { useI18n, tStatic, type TranslationKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { usePreferencesStore } from "@/modules/settings/preferences";
 import {
@@ -41,6 +41,12 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useMemo, useRef, useState } from "react";
 import { SectionHeader } from "../components/SectionHeader";
+
+/** Localized display name for a theme (custom themes use their stored name). */
+function themeDisplayName(id: string, name: string): string {
+  const key = `settingsThemes.name_${id.replace(/-/g, "_")}` as TranslationKey;
+  return tStatic(key, {}) || name;
+}
 
 export function ThemesSection() {
   const { t: translate } = useI18n();
@@ -255,7 +261,7 @@ export function ThemesSection() {
                 </div>
                 <div className="flex min-w-0 flex-1 flex-col">
                   <span className="truncate text-[12.5px] font-medium">
-                    {t.name}
+                    {themeDisplayName(t.id, t.name)}
                   </span>
                   {t.description ? (
                     <span className="truncate text-[11px] text-muted-foreground">
