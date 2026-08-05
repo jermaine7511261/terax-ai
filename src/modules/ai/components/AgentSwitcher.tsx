@@ -179,7 +179,7 @@ function ModelSection() {
   );
 }
 
-export function AgentSwitcher({ isMiniWindow }: { isMiniWindow?: boolean }) {
+export function AgentSwitcher() {
   const { t } = useI18n();
   const customAgents = useAgentsStore((s) => s.customAgents);
   const activeId = useAgentsStore((s) => s.activeId);
@@ -205,11 +205,7 @@ export function AgentSwitcher({ isMiniWindow }: { isMiniWindow?: boolean }) {
         <Button
           size="xs"
           variant="outline"
-          className={cn(
-            !isMiniWindow
-              ? "flex h-6 items-center gap-1 rounded-md border border-border/60 bg-card px-1.5 text-[10.5px] text-muted-foreground transition-colors hover:border-border hover:bg-accent hover:text-foreground"
-              : "flex items-center gap-1 rounded-md px-1 text-xs",
-          )}
+          className="flex h-6 items-center gap-1 rounded-md border border-border/60 bg-card px-1.5 text-[10.5px] text-muted-foreground transition-colors hover:border-border hover:bg-accent hover:text-foreground"
           title={`${agentDisplayName(active)} · ${currentModel.label}`}
         >
           <HugeiconsIcon icon={ActiveIcon} size={11} strokeWidth={1.75} />
