@@ -7,6 +7,7 @@ import {
   sendMessage,
 } from "../store/chatRuntime";
 import { AiChatView } from "./AiChat";
+import { AgentSwitcher } from "./AgentSwitcher";
 
 /**
  * Full-screen chat view, rendered as the default home tab. Conversation and
@@ -57,6 +58,9 @@ function ChatBody({ sessionId }: { sessionId: string }) {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
+      <div className="flex shrink-0 items-center gap-1.5 border-b border-border/40 px-3 py-1.5">
+        <AgentSwitcher />
+      </div>
       <div className="flex min-h-0 flex-1 flex-col [&_.text-sm]:text-[13px] [&_p]:leading-relaxed">
         {helpers.messages.length === 0 ? (
           <EmptyState onPick={focusInput} />
