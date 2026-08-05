@@ -98,6 +98,7 @@ import {
 } from "@/modules/terminal";
 import { ThemeProvider, useThemeFileEditing } from "@/modules/theme";
 import { UpdaterDialog } from "@/modules/updater";
+import { WeixinReloginOverlay } from "@/modules/gateway/WeixinReloginOverlay";
 import { useWorkspaceEnvStore, type WorkspaceEnv } from "@/modules/workspace";
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -1503,6 +1504,8 @@ export default function App() {
             onOpenChange={setSshDialogOpen}
             onConnect={openSshTab}
           />
+
+          <WeixinReloginOverlay />
 
           <OnboardingDialog
             open={onboardingOpen}
