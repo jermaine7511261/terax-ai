@@ -45,4 +45,61 @@ describe("parseSkillJson", () => {
     expect(parseSkillJson(JSON.stringify({ prompt: "y" }))).toBeNull();
     expect(parseSkillJson(JSON.stringify({ name: " ", prompt: "y" }))).toBeNull();
   });
+
+  it("rejects JSON that parses to a non-object primitive", () => {
+    expect(parseSkillJson("null")).toBeNull();
+    expect(parseSkillJson("42")).toBeNull();
+    expect(parseSkillJson("true")).toBeNull();
+    expect(parseSkillJson('"a string"')).toBeNull();
+    expect(parseSkillJson("[]")).toBeNull();
+  });
+
+  it("rejects whitespace-only name or prompt", () => {
+    expect(parseSkillJson(JSON.stringify({ name: "  ", prompt: "do it" }))).toBeNull();
+    expect(parseSkillJson(JSON.stringify({ name: "x", prompt: "   " }))).toBeNull();
+  });
+
+  it("coerces description to an empty string when it is not a string", () => {
+    const skill = parseSkillJson(
+      JSON.stringify({ name: "x", prompt: "do it", description: 42 }),
+    );
+    expect(skill?.description).toBe("");
+  });
+
+  it("returns undefined allowlist when toolAllowlist is absent or not an array", () => {
+    expect(
+      parseSkillJson(JSON.stringify({ name: "x", prompt: "do it" }))?.toolAllowlist,
+    ).toBeUndefined();
+    expect(
+      parseSkillJson(
+        JSON.stringify({ name: "x", prompt: "do it", toolAllowlist: "read_file" }),
+      )?.toolAllowlist,
+    ).toBeUndefined();
+  });
+
+  it("keeps an empty allowlist array as-is", () => {
+    expect(
+      parseSkillJson(
+        JSON.stringify({ name: "x", prompt: "do it", toolAllowlist: [] }),
+      )?.toolAllowlist,
+    ).toEqual([]);
+  });
+
+  it("filters non-string entries from the allowlist, preserving order", () => {
+    const skill = parseSkillJson(
+      JSON.stringify({
+        name: "x",
+        prompt: "do it",
+        toolAllowlist: ["read_file", 42, null, "grep", {}],
+      }),
+    );
+    expect(skill?.toolAllowlist).toEqual(["read_file", "grep"]);
+  });
+
+  it("returns an empty handle when handle normalizes to nothing", () => {
+    const skill = parseSkillJson(
+      JSON.stringify({ name: "x", prompt: "do it", handle: "!!!  " }),
+    );
+    expect(skill?.handle).toBe("");
+  });
 });
