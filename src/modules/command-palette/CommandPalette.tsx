@@ -8,7 +8,7 @@ import {
   CommandShortcut,
 } from "@/components/ui/command";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useI18n } from "@/lib/i18n";
+import { useI18n, tStatic, type TranslationKey } from "@/lib/i18n";
 import { fileIconUrl } from "@/modules/explorer/lib/iconResolver";
 import { usePreferencesStore } from "@/modules/settings/preferences";
 import {
@@ -37,6 +37,18 @@ import { fuzzyBest } from "./lib/fuzzy";
 import { MODE_HINTS, parseQuery } from "./lib/mode";
 import { mruRank, mruSnapshot, recordUse } from "./lib/mru";
 import type { PaletteItem } from "./types";
+
+/** Localized title for a command-palette item (falls back to the English title). */
+function localizeItemTitle(id: string, title: string): string {
+  const key = `commandPalette.item_${id.replace(/\./g, "_")}` as TranslationKey;
+  return tStatic(key, {}) || title;
+}
+
+/** Localized group heading for a command-palette item (falls back to English). */
+function localizeGroup(group: string): string {
+  const key = `commandPalette.group_${group.toLowerCase().replace(/\s+/g, "")}` as TranslationKey;
+  return tStatic(key, {}) || group;
+}
 
 type Props = {
   open: boolean;
@@ -278,7 +290,7 @@ export function CommandPalette({
                   const rows = rankedCommands.filter((a) => a.group === group);
                   if (rows.length === 0) return null;
                   return (
-                    <CommandGroup key={group} heading={group}>
+                    <CommandGroup key={group} heading={localizeGroup(group)}>
                       {rows.map((item) => (
                         <ActionItem
                           key={item.id}
@@ -432,7 +444,7 @@ function ActionItem({
           className="text-muted-foreground"
         />
       ) : null}
-      <span className="truncate">{item.title}</span>
+      <span className="truncate">{localizeItemTitle(item.id, item.title)}</span>
       {rightLabel ? (
         <CommandShortcut
           className={item.disabledReason ? "normal-case tracking-normal" : ""}
