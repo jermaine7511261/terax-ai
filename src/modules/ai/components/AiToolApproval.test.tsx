@@ -10,6 +10,11 @@ vi.mock("@/lib/i18n", () => ({
   getLanguage: () => "en",
 }));
 
+const setAutoApproveTools = vi.fn();
+vi.mock("@/modules/settings/store", () => ({
+  setAutoApproveTools: (...args: unknown[]) => setAutoApproveTools(...args),
+}));
+
 function makePart(
   input: Record<string, unknown>,
 ): Extract<ToolUIPart, { state: "approval-requested" }> {
@@ -94,6 +99,19 @@ describe("AiToolApproval", () => {
     const sessionItem = await screen.findByText("ai.rememberSession");
     fireEvent.click(sessionItem);
 
+    expect(onRespond).toHaveBeenCalledTimes(1);
+    expect(onRespond).toHaveBeenCalledWith(true, { rememberScope: "session" });
+  });
+
+  it("auto-approves: sets autoApproveTools + approves on click", () => {
+    const onRespond = vi.fn();
+    const part = makePart({ path: "/src/a.ts" });
+    render(
+      <AiToolApproval part={part} toolName="write_file" onRespond={onRespond} />,
+    );
+
+    fireEvent.click(screen.getByText("ai.autoApproveTool"));
+    expect(setAutoApproveTools).toHaveBeenCalledWith(true);
     expect(onRespond).toHaveBeenCalledTimes(1);
     expect(onRespond).toHaveBeenCalledWith(true, { rememberScope: "session" });
   });

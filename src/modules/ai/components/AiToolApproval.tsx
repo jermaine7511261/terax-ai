@@ -107,22 +107,26 @@ function AiToolApprovalImpl({ part, toolName, onRespond }: Props) {
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
-              onSelect={() => {
-                void setAutoApproveTools(true);
-                onRespond(true, { rememberScope: "session" });
-              }}
-            >
-              <HugeiconsIcon icon={ZapIcon} size={12} strokeWidth={2} />
-              {t("ai.autoApproveTool")}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
               onSelect={() => onRespond(false, { rememberDeniedTool: true })}
             >
               {t("ai.denyRememberTool")}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-7 gap-1.5 text-[11px]"
+          onClick={() => {
+            void setAutoApproveTools(true);
+            onRespond(true, { rememberScope: "session" });
+          }}
+          title={t("ai.autoApproveTool")}
+        >
+          <HugeiconsIcon icon={ZapIcon} size={12} strokeWidth={2} />
+          {t("ai.autoApproveTool")}
+        </Button>
 
         <Button
           size="sm"
