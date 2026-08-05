@@ -54,8 +54,7 @@ pub fn ensure_git_available(workspace: &WorkspaceEnv) -> Result<()> {
     let cache_key = workspace_cache_key(workspace);
     let cached = {
         let mut guard = availability_cell()
-            .lock()
-            .expect("git availability poisoned");
+            .lock().unwrap_or_else(|e| e.into_inner());
         prune_expired_availability_entries(&mut guard);
         guard
             .get(&cache_key)
@@ -67,8 +66,7 @@ pub fn ensure_git_available(workspace: &WorkspaceEnv) -> Result<()> {
         None => {
             let fresh = check_git_availability(workspace);
             let mut guard = availability_cell()
-                .lock()
-                .expect("git availability poisoned");
+                .lock().unwrap_or_else(|e| e.into_inner());
             prune_expired_availability_entries(&mut guard);
             guard.insert(
                 cache_key,

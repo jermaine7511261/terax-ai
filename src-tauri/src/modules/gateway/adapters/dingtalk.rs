@@ -598,7 +598,7 @@ impl PlatformAdapter for DingTalkAdapter {
         let robot_code = self.cfg.robot_code.clone().unwrap_or_else(|| app_key.clone());
         let stop = Arc::clone(&self.stop);
 
-        let mut guard = self.task.lock().unwrap();
+        let mut guard = self.task.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(handle) = guard.take() {
             handle.abort();
         }
@@ -631,7 +631,7 @@ impl PlatformAdapter for DingTalkAdapter {
 
     fn disconnect(&self) {
         self.stop.store(true, Ordering::SeqCst);
-        if let Some(handle) = self.task.lock().unwrap().take() {
+        if let Some(handle) = self.task.lock().unwrap_or_else(|e| e.into_inner()).take() {
             handle.abort();
         }
     }

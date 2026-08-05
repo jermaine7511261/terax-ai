@@ -612,7 +612,7 @@ impl PlatformAdapter for FeishuAdapter {
             let handle = tokio::spawn(async move {
                 feishu_event_loop(cfg, tx, stop).await;
             });
-            let mut guard = task.lock().unwrap();
+            let mut guard = task.lock().unwrap_or_else(|e| e.into_inner());
             if let Some(prev) = guard.take() {
                 prev.abort();
             }
@@ -623,7 +623,7 @@ impl PlatformAdapter for FeishuAdapter {
 
     fn disconnect(&self) {
         self.stop.store(true, Ordering::SeqCst);
-        if let Some(handle) = self.task.lock().unwrap().take() {
+        if let Some(handle) = self.task.lock().unwrap_or_else(|e| e.into_inner()).take() {
             handle.abort();
         }
     }

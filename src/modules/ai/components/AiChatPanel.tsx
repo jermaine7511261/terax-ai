@@ -11,7 +11,10 @@ import { useI18n } from "@/lib/i18n";
 import { usePreferencesStore } from "@/modules/settings/preferences";
 import { setAutoApproveTools } from "@/modules/settings/store";
 import { handleApprovalDecision, useChatStore, type ApprovalOptions } from "../store/chatStore";
-import { getOrCreateChat } from "../store/chatRuntime";
+import {
+  getOrCreateChat,
+  sendMessage,
+} from "../store/chatRuntime";
 import { AiChatView } from "./AiChat";
 
 /**
@@ -44,6 +47,23 @@ function ChatBody({ sessionId }: { sessionId: string }) {
     [helpers.addToolApprovalResponse],
   );
 
+  const onEditAndResend = useCallback(
+    (newText: string) => {
+      const msgs = helpers.messages;
+      let cut = -1;
+      for (let i = msgs.length - 1; i >= 0; i--) {
+        if (msgs[i].role === "user") {
+          cut = i;
+          break;
+        }
+      }
+      if (cut < 0) return;
+      helpers.setMessages(msgs.slice(0, cut));
+      void sendMessage(newText);
+    },
+    [helpers],
+  );
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       <PanelHeader />
@@ -58,6 +78,7 @@ function ChatBody({ sessionId }: { sessionId: string }) {
             clearError={helpers.clearError}
             addToolApprovalResponse={addToolApprovalResponse}
             stop={helpers.stop}
+            onEditAndResend={onEditAndResend}
           />
         )}
       </div>

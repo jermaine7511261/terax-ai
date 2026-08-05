@@ -195,14 +195,14 @@ impl PlatformAdapter for QqAdapter {
                     tokio::time::sleep(std::time::Duration::from_secs(3)).await;
                 }
             });
-            *this.task.lock().unwrap() = Some(task);
+            *this.task.lock().unwrap_or_else(|e| e.into_inner()) = Some(task);
             Ok(())
         })
     }
 
     fn disconnect(&self) {
         self.inner.stop.store(true, Ordering::Relaxed);
-        if let Some(t) = self.inner.task.lock().unwrap().take() {
+        if let Some(t) = self.inner.task.lock().unwrap_or_else(|e| e.into_inner()).take() {
             t.abort();
         }
     }
@@ -241,17 +241,17 @@ impl PlatformAdapter for QqAdapter {
             // Take it out into a local so the std MutexGuard is dropped before
             // any await (holding it across an await would make the future
             // non-`Send`).
-            let live_sink = this.sender.lock().unwrap().take();
+            let live_sink = this.sender.lock().unwrap_or_else(|e| e.into_inner()).take();
             if let Some(mut sink) = live_sink {
                 let (tx_rcv, rx_rcv) = tokio::sync::oneshot::channel::<SendReceipt>();
-                this.pending_sends.lock().unwrap().insert(echo.clone(), tx_rcv);
+                this.pending_sends.lock().unwrap_or_else(|e| e.into_inner()).insert(echo.clone(), tx_rcv);
                 if let Err(e) = sink.send(msg).await {
                     log::warn!("onebot send via shared conn failed: {e}");
-                    this.pending_sends.lock().unwrap().remove(&echo);
+                    this.pending_sends.lock().unwrap_or_else(|e| e.into_inner()).remove(&echo);
                     return Err(format!("onebot send failed: {e}"));
                 }
                 // Put the sink back for future sends.
-                *this.sender.lock().unwrap() = Some(sink);
+                *this.sender.lock().unwrap_or_else(|e| e.into_inner()) = Some(sink);
                 return match tokio::time::timeout(
                     std::time::Duration::from_secs(3),
                     rx_rcv,
@@ -301,7 +301,7 @@ impl PlatformAdapter for QqAdapter {
 async fn run_onebot_loop(inner: &Arc<QqInner>, tx: EventTx) -> Result<(), String> {
     let ws = connect_onebot(&inner.cfg).await?;
     let (sink, mut stream) = ws.split();
-    *inner.sender.lock().unwrap() = Some(sink);
+    *inner.sender.lock().unwrap_or_else(|e| e.into_inner()) = Some(sink);
     while !inner.stop.load(Ordering::Relaxed) {
         let msg = match stream.next().await {
             Some(Ok(m)) => m,
@@ -316,7 +316,7 @@ async fn run_onebot_loop(inner: &Arc<QqInner>, tx: EventTx) -> Result<(), String
             // A reply to one of our sends (carries `echo`): resolve the pending
             // oneshot with the real message_id so send_text can return it.
             if let Some(echo) = v.get("echo").and_then(|x| x.as_str()) {
-                if let Some(tx_send) = inner.pending_sends.lock().unwrap().remove(echo) {
+                if let Some(tx_send) = inner.pending_sends.lock().unwrap_or_else(|e| e.into_inner()).remove(echo) {
                     let message_id = v
                         .get("data")
                         .and_then(|d| d.get("message_id"))

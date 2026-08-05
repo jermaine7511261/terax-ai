@@ -66,6 +66,7 @@ export const zhMessages = {
     next: "下一个",
     more: "更多",
     window: "窗口",
+    block: "块",
   },
   app: {
     name: "Yamet",
@@ -246,6 +247,7 @@ export const zhMessages = {
   git: {
     sourceControl: "源代码管理",
     changes: "更改",
+    binary: "二进制",
     staged: "暂存的更改",
     unstaged: "未暂存的更改",
     mergeConflicts: "合并冲突",
@@ -485,6 +487,9 @@ export const zhMessages = {
     sessionInput: "会话输入",
     sessionOutput: "会话输出",
     todos: "待办事项",
+    resumeTurn: "上次回合中断，继续？",
+    editMessage: "编辑",
+    emptyOutput: "（无输出）",
   },
   updater: {
     checkForUpdates: "检查更新",
@@ -883,6 +888,7 @@ export const zhMessages = {
     checkUpdates: "检查更新",
   },
   gateway: {
+    relogin: "重新登录",
     title: "IM 网关",
     subtitle: "接入国内即时通信平台，通过聊天驱动本机 AI Agent",
     noPlatforms: "暂无可用平台",
@@ -1122,6 +1128,7 @@ export const enMessages = {
     next: "Next",
     more: "More",
     window: "Window",
+    block: "Block",
   },
   app: {
     name: "Yamet",
@@ -1305,6 +1312,7 @@ export const enMessages = {
   git: {
     sourceControl: "Source Control",
     changes: "Changes",
+    binary: "binary",
     staged: "Staged Changes",
     unstaged: "Unstaged Changes",
     mergeConflicts: "Merge Conflicts",
@@ -1546,6 +1554,9 @@ export const enMessages = {
     sessionInput: "Session input",
     sessionOutput: "Session output",
     todos: "To-dos",
+    resumeTurn: "Resume interrupted turn",
+    editMessage: "Edit",
+    emptyOutput: "(no output)",
   },
   agents: {
     agents: "Agents",
@@ -1960,6 +1971,7 @@ export const enMessages = {
     checkUpdates: "Check for Updates",
   },
   gateway: {
+    relogin: "Relogin",
     title: "IM Gateway",
     subtitle:
       "Connect domestic IM platforms and drive your local AI agent from chat",

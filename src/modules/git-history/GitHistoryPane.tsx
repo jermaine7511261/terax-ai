@@ -6,6 +6,7 @@ import {
 } from "@/components/ui/popover";
 import { Spinner } from "@/components/ui/spinner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import {
   native,
@@ -194,6 +195,7 @@ export function GitHistoryPane({
   onOpenCommitFile,
   onSearchHandle,
 }: Props) {
+  const { t } = useI18n();
   const [commits, setCommits] = useState<GitLogEntry[]>([]);
   const [loadStatus, setLoadStatus] = useState<LoadStatus>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -543,12 +545,12 @@ export function GitHistoryPane({
               }}
             >
               <div />
-              <div className="pl-px">SHA</div>
-              <div className="min-w-0">Subject</div>
+              <div className="pl-px">{t("git.sha")}</div>
+              <div className="min-w-0">{t("git.subject")}</div>
               <div />
-              <div className="ml-2">Author</div>
-              <div className="text-right">Date</div>
-              <div className="text-right">Changes</div>
+              <div className="ml-2">{t("history.author")}</div>
+              <div className="text-right">{t("history.date")}</div>
+              <div className="text-right">{t("git.changes")}</div>
             </div>
             <div
               ref={scrollRef}
@@ -952,7 +954,7 @@ function CommitFiles({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex shrink-0 items-center justify-between px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/85">
-        <span>Files</span>
+        <span>{t("sidebar.files")}</span>
         <span className="rounded-sm bg-muted/55 px-1 py-px text-[9.5px] tabular-nums text-muted-foreground/85 normal-case tracking-normal">
           {filesEntry.files.length}
         </span>
@@ -1006,7 +1008,7 @@ const FileRow = memo(function FileRow({
       </div>
       <div className="flex shrink-0 items-center gap-1 text-[10px] tabular-nums">
         {file.isBinary ? (
-          <span className="text-muted-foreground/70">binary</span>
+          <span className="text-muted-foreground/70">{t("git.binary")}</span>
         ) : (
           <>
             {file.added > 0 ? (

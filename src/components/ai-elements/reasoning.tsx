@@ -5,6 +5,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { tStatic } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { ArrowDown01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -151,10 +152,10 @@ export type ReasoningTriggerProps = ComponentProps<
 
 const defaultGetThinkingMessage = (isStreaming: boolean, duration?: number) => {
   if (isStreaming || duration === 0) {
-    return <Shimmer duration={1}>Thinking</Shimmer>;
+    return <Shimmer duration={1}{tStatic("ai.thinking")}/Shimmer>;
   }
   if (duration === undefined) {
-    return <span>Reasoned</span>;
+    return <span{tStatic("ai.reasoned")}/span>;
   }
   return <span>Reasoned for {duration}s</span>;
 };

@@ -248,7 +248,7 @@ export function NotificationBell({ onActivate, onActivateLocal }: Props) {
           variant="ghost"
           size="icon"
           className="relative size-7 shrink-0 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
-          title="Agent notifications"
+          title={tStatic("agents.notifications")}
         >
           <HugeiconsIcon
             icon={Notification01Icon}

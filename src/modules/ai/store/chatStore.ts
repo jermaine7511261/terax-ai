@@ -217,6 +217,8 @@ type StoreState = {
   sessionsHydrated: boolean;
   sessions: SessionMeta[];
   activeSessionId: string | null;
+  incompleteTurns: Record<string, boolean>;
+  setIncompleteTurn: (id: string, value: boolean) => void;
   hydrateSessions: () => Promise<void>;
   newSession: () => string;
   switchSession: (id: string) => void;
@@ -386,6 +388,7 @@ export const useChatStore = create<StoreState>((set, get) => ({
   sessionsHydrated: false,
   sessions: [],
   activeSessionId: null,
+  incompleteTurns: {},
 
   hydrateSessions: async () => {
     if (get().sessionsHydrated) return;
@@ -413,12 +416,29 @@ export const useChatStore = create<StoreState>((set, get) => ({
     }
     void saveActiveId(freshId);
 
+    const incompleteTurns: Record<string, boolean> = {};
+    for (const s of nextSessions) {
+      if (s.incompleteTurn) incompleteTurns[s.id] = true;
+    }
+
     set({
       sessions: nextSessions,
       activeSessionId: freshId,
       sessionsHydrated: true,
       sessionApprovalArmed: false,
+      incompleteTurns,
     });
+  },
+
+  setIncompleteTurn: (id, value) => {
+    const sessions = get().sessions.map((s) =>
+      s.id === id ? { ...s, incompleteTurn: value } : s,
+    );
+    set({
+      incompleteTurns: { ...get().incompleteTurns, [id]: value },
+      sessions,
+    });
+    void saveSessionsList(sessions);
   },
 
   newSession: () => {

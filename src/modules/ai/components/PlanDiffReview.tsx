@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { tStatic } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import {
   ArrowDown01Icon,
@@ -129,7 +130,7 @@ function PlanRow({
             open && "rotate-180",
             isDir && "invisible",
           )}
-          aria-label="Toggle diff"
+          aria-label={tStatic("ai.toggleDiff")}
         >
           <HugeiconsIcon icon={ArrowDown01Icon} size={11} strokeWidth={1.75} />
         </button>
@@ -175,7 +176,7 @@ function PlanRow({
           variant="ghost"
           className="size-5 shrink-0 opacity-0 transition-opacity group-hover/row:opacity-100"
           onClick={onReject}
-          aria-label="Reject"
+          aria-label={tStatic("ai.reject")}
         >
           <HugeiconsIcon icon={Cancel01Icon} size={11} strokeWidth={1.75} />
         </Button>

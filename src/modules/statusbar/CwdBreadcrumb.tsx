@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { usePreferencesStore } from "@/modules/settings/preferences";
+import { tStatic } from "@/lib/i18n";
 import { currentWorkspaceEnv } from "@/modules/workspace";
 import {
   ArrowDown01Icon,
@@ -264,7 +265,7 @@ function CollapsedSegments({
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              title="Show hidden folders"
+              title={tStatic("settingsGeneral.showHidden")}
               className="flex items-center rounded-sm px-1 text-muted-foreground hover:bg-accent hover:text-foreground"
             >
               <HugeiconsIcon

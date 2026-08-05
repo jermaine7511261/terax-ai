@@ -149,7 +149,7 @@ export const PreviewPane = forwardRef<PreviewPaneHandle, Props>(
               <iframe
                 key={`${url}#${nonce}`}
                 src={url}
-                title="Preview"
+                title={tStatic("preview.preview")}
                 className="h-full w-full border-0"
                 // sandbox grants the bare minimum for a dev preview: scripts,
                 // same-origin (cookies/storage for the previewed app), forms,
@@ -254,7 +254,7 @@ function FilePreviewHeader({
                 type="button"
                 onClick={() => onZoomChange(Math.max(0.25, zoom - 0.25))}
                 className="text-[11px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-                title="Zoom out"
+                title={tStatic("preview.zoomOut")}
               >
                 −
               </button>
@@ -265,7 +265,7 @@ function FilePreviewHeader({
                 type="button"
                 onClick={() => onZoomChange(Math.min(4, zoom + 0.25))}
                 className="text-[11px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-                title="Zoom in"
+                title={tStatic("preview.zoomIn")}
               >
                 +
               </button>
@@ -273,7 +273,7 @@ function FilePreviewHeader({
                 type="button"
                 onClick={() => onZoomChange(1)}
                 className="ml-1 text-[10.5px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-                title="Reset zoom"
+                title={tStatic("preview.resetZoom")}
               >
                 {tStatic("preview.resetZoom")}
               </button>

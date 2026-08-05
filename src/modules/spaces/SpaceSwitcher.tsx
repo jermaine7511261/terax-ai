@@ -274,7 +274,7 @@ export function SpaceSwitcher({
       </PopoverTrigger>
       <PopoverContent align="start" sideOffset={6} className="w-[20rem] p-1.5">
         <div className="flex items-center justify-between px-1.5 pb-1.5 pt-0.5">
-          <span className="text-xs font-semibold text-foreground">Spaces</span>
+          <span className="text-xs font-semibold text-foreground"{t("sidebar.spaces")}/span>
           {shortcut && (
             <Kbd className="h-5 bg-muted/70 text-[10px]">{shortcut}</Kbd>
           )}
@@ -606,7 +606,7 @@ function TabRow({
             e.stopPropagation();
             onClose();
           }}
-          aria-label="Close tab"
+          aria-label={t("tabs.close")}
           className="flex size-4 shrink-0 items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground group-hover/tab:opacity-70 hover:opacity-100"
         >
           <HugeiconsIcon icon={Cancel01Icon} size={11} strokeWidth={2} />

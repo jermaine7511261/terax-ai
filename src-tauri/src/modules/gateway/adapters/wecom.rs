@@ -53,7 +53,7 @@ struct WeComInner {
 impl WeComInner {
     /// Fetch (or reuse) a valid access_token (~7200s lifetime).
     async fn get_access_token(&self) -> Result<String, String> {
-        if let Some((tok, expires_at)) = &*self.access_token.lock().unwrap() {
+        if let Some((tok, expires_at)) = &*self.access_token.lock().unwrap_or_else(|e| e.into_inner()) {
             if Utc::now().timestamp() < *expires_at - 60 {
                 return Ok(tok.clone());
             }
@@ -80,7 +80,7 @@ impl WeComInner {
             .and_then(|v| v.as_i64())
             .unwrap_or(7200);
         let expires_at = Utc::now().timestamp() + expires_in;
-        *self.access_token.lock().unwrap() = Some((token.to_string(), expires_at));
+        *self.access_token.lock().unwrap_or_else(|e| e.into_inner()) = Some((token.to_string(), expires_at));
         Ok(token.to_string())
     }
 }
@@ -125,14 +125,14 @@ impl PlatformAdapter for WeComAdapter {
                     tokio::time::sleep(std::time::Duration::from_secs(5)).await;
                 }
             });
-            *this.task.lock().unwrap() = Some(task);
+            *this.task.lock().unwrap_or_else(|e| e.into_inner()) = Some(task);
             Ok(())
         })
     }
 
     fn disconnect(&self) {
         self.inner.stop.store(true, Ordering::Relaxed);
-        if let Some(t) = self.inner.task.lock().unwrap().take() {
+        if let Some(t) = self.inner.task.lock().unwrap_or_else(|e| e.into_inner()).take() {
             t.abort();
         }
     }
@@ -171,7 +171,7 @@ impl PlatformAdapter for WeComAdapter {
     }
 
     fn callback_url(&self) -> Option<String> {
-        self.inner.callback_url.lock().unwrap().clone()
+        self.inner.callback_url.lock().unwrap_or_else(|e| e.into_inner()).clone()
     }
 }
 
@@ -221,7 +221,7 @@ async fn run_callback_server(inner: &Arc<WeComInner>, tx: EventTx) -> Result<(),
         .local_addr()
         .map_err(|e| format!("callback addr failed: {e}"))?;
     let callback_url = format!("http://{addr}/callback");
-    *inner.callback_url.lock().unwrap() = Some(callback_url.clone());
+    *inner.callback_url.lock().unwrap_or_else(|e| e.into_inner()) = Some(callback_url.clone());
     log::info!("WeCom callback server listening on {addr} — configure this URL as the app's callback (tunnel to public if needed): {callback_url}");
     let token = inner.cfg.token.clone();
     let aes_key = inner.cfg.encoding_aes_key.clone();

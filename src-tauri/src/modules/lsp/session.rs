@@ -38,7 +38,7 @@ pub struct LspSession {
 
 impl LspSession {
     pub fn write_message(&self, payload: &str) -> Result<(), String> {
-        let mut guard = self.stdin.lock().unwrap();
+        let mut guard = self.stdin.lock().unwrap_or_else(|e| e.into_inner());
         let stdin = guard.as_mut().ok_or("lsp session stdin closed")?;
         stdin
             .write_all(&encode_frame(payload))
@@ -50,7 +50,7 @@ impl LspSession {
     // only the leader leaves them burning CPU. Unix: signal the process
     // group. Windows: the Job Object covers the tree.
     pub fn kill(&self) {
-        *self.stdin.lock().unwrap() = None;
+        *self.stdin.lock().unwrap_or_else(|e| e.into_inner()) = None;
         #[cfg(unix)]
         unsafe {
             libc::kill(-(self.child.id() as libc::pid_t), libc::SIGKILL);
@@ -181,7 +181,7 @@ pub fn spawn(
                 }
                 let text = String::from_utf8_lossy(line).into_owned();
                 log::debug!("lsp id={id} stderr: {text}");
-                let mut tail = stderr_tail_w.lock().unwrap();
+                let mut tail = stderr_tail_w.lock().unwrap_or_else(|e| e.into_inner());
                 if tail.len() >= STDERR_TAIL_LINES {
                     tail.pop_front();
                 }
@@ -231,7 +231,7 @@ pub fn spawn(
                             log::warn!(
                                 "lsp id={id} rss {rss_mb} MB over budget {cap_mb} MB; killing"
                             );
-                            *reason_w.lock().unwrap() = Some(format!(
+                            *reason_w.lock().unwrap_or_else(|e| e.into_inner()) = Some(format!(
                                 "Killed after exceeding the {cap_mb} MB memory budget ({rss_mb} MB resident)."
                             ));
                             session_w.kill();
@@ -267,11 +267,11 @@ pub fn spawn(
                 state.take(id);
             }
             log::info!("lsp id={id} exited code={code:?}");
-            let tail: Vec<String> = stderr_tail.lock().unwrap().iter().cloned().collect();
+            let tail: Vec<String> = stderr_tail.lock().unwrap_or_else(|e| e.into_inner()).iter().cloned().collect();
             let exit = LspExit {
                 code,
                 stderr_tail: tail.join("\n"),
-                reason: kill_reason.lock().unwrap().take(),
+                reason: kill_reason.lock().unwrap_or_else(|e| e.into_inner()).take(),
             };
             if on_exit.send(exit).is_err() {
                 log::debug!("lsp id={id} exit send failed (channel closed)");

@@ -4,6 +4,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { tStatic } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { useChatStore } from "@/modules/ai/store/chatStore";
 import {
@@ -210,7 +211,7 @@ function Toolbar({ block, all, onSearch }: ChromeProps) {
       {!block.running && !!block.command && (
         <button
           type="button"
-          title="Run again"
+          title={tStatic("terminal.runAgain")}
           className="bt-btn"
           disabled={!all.promptReady}
           onClick={() => all.onRunAgain(block.command)}
@@ -233,7 +234,7 @@ function BlockMenu({ block, all, onSearch }: ChromeProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button type="button" title="Block actions" className="bt-btn">
+        <button type="button" title={tStatic("common.block")} className="bt-btn">
           <HugeiconsIcon
             icon={MoreHorizontalIcon}
             size={14}
@@ -355,7 +356,7 @@ function SearchBar({
       <input
         ref={inputRef}
         className="bt-search-input"
-        placeholder="Find in block"
+        placeholder={tStatic("common.find")}
         onChange={(e) => run(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === "Enter") {
@@ -371,12 +372,12 @@ function SearchBar({
         {matches.length ? `${idx + 1}/${matches.length}` : "0"}
       </span>
       <SearchBtn
-        title="Previous"
+        title={tStatic("common.previous")}
         icon={ArrowUp01Icon}
         onClick={() => nav(-1)}
       />
-      <SearchBtn title="Next" icon={ArrowDown01Icon} onClick={() => nav(1)} />
-      <SearchBtn title="Close" icon={Cancel01Icon} onClick={onClose} />
+      <SearchBtn title={tStatic("common.next")} icon={ArrowDown01Icon} onClick={() => nav(1)} />
+      <SearchBtn title={tStatic("common.close")} icon={Cancel01Icon} onClick={onClose} />
     </div>
   );
 }

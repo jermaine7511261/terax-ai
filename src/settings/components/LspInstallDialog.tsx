@@ -7,6 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { tStatic } from "@/lib/i18n";
 import { redetectBinary, type LspPreset } from "@/modules/lsp";
 import { setLspActivation } from "@/modules/settings/store";
 import {
@@ -81,7 +82,7 @@ export function LspInstallDialog({ server, onClose }: Props) {
               type="button"
               className="shrink-0 cursor-pointer rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
               onClick={() => void copyInstallCommand()}
-              title="Copy install command"
+              title={tStatic("common.copy")}
             >
               <HugeiconsIcon
                 icon={copied ? Tick02Icon : Copy01Icon}

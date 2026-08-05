@@ -48,25 +48,25 @@ pub struct SchedulerState {
 
 impl SchedulerState {
     pub fn set_persist_path(&self, path: PathBuf) {
-        *self.persist_path.lock().unwrap() = Some(path);
+        *self.persist_path.lock().unwrap_or_else(|e| e.into_inner()) = Some(path);
     }
 
     pub fn load(&self) {
-        let Some(path) = self.persist_path.lock().unwrap().clone() else {
+        let Some(path) = self.persist_path.lock().unwrap_or_else(|e| e.into_inner()).clone() else {
             return;
         };
         if let Ok(json) = std::fs::read_to_string(&path) {
             if let Ok(tasks) = serde_json::from_str::<Vec<ScheduledTask>>(&json) {
-                *self.tasks.write().unwrap() = tasks;
+                *self.tasks.write().unwrap_or_else(|e| e.into_inner()) = tasks;
             }
         }
     }
 
     fn save(&self) {
-        let Some(path) = self.persist_path.lock().unwrap().clone() else {
+        let Some(path) = self.persist_path.lock().unwrap_or_else(|e| e.into_inner()).clone() else {
             return;
         };
-        let json = serde_json::to_string(&*self.tasks.read().unwrap()).unwrap_or_default();
+        let json = serde_json::to_string(&*self.tasks.read().unwrap_or_else(|e| e.into_inner())).unwrap_or_default();
         let _ = std::fs::create_dir_all(path.parent().unwrap_or(PathBuf::new().as_path()));
         let _ = std::fs::write(path, json);
     }
@@ -77,7 +77,7 @@ impl SchedulerState {
         let now: DateTime<Local> = Local::now();
         let mut fired = Vec::new();
         {
-            let mut tasks = self.tasks.write().unwrap();
+            let mut tasks = self.tasks.write().unwrap_or_else(|e| e.into_inner());
             for task in tasks.iter_mut() {
                 if !task.enabled {
                     continue;
@@ -108,7 +108,7 @@ impl SchedulerState {
 }
 
 fn list_inner(state: &SchedulerState) -> Vec<ScheduledTask> {
-    state.tasks.read().unwrap().clone()
+    state.tasks.read().unwrap_or_else(|e| e.into_inner()).clone()
 }
 
 fn upsert_inner(state: &SchedulerState, task: ScheduledTask) -> Result<(), String> {
@@ -120,7 +120,7 @@ fn upsert_inner(state: &SchedulerState, task: ScheduledTask) -> Result<(), Strin
     }
     parse_cron(&task.cron).map_err(|e| format!("bad cron: {e}"))?;
     {
-        let mut tasks = state.tasks.write().unwrap();
+        let mut tasks = state.tasks.write().unwrap_or_else(|e| e.into_inner());
         if let Some(existing) = tasks.iter_mut().find(|t| t.id == task.id) {
             *existing = task;
         } else {
@@ -132,12 +132,12 @@ fn upsert_inner(state: &SchedulerState, task: ScheduledTask) -> Result<(), Strin
 }
 
 fn delete_inner(state: &SchedulerState, id: String) {
-    state.tasks.write().unwrap().retain(|t| t.id != id);
+    state.tasks.write().unwrap_or_else(|e| e.into_inner()).retain(|t| t.id != id);
     state.save();
 }
 
 fn toggle_inner(state: &SchedulerState, id: String, enabled: bool) {
-    if let Some(task) = state.tasks.write().unwrap().iter_mut().find(|t| t.id == id) {
+    if let Some(task) = state.tasks.write().unwrap_or_else(|e| e.into_inner()).iter_mut().find(|t| t.id == id) {
         task.enabled = enabled;
     }
     state.save();

@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { tStatic } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { AgentIcon } from "@/modules/agents/lib/agentIcon";
 import {
@@ -112,7 +113,7 @@ export function AgentLauncherPanel({ onBack, onLaunch }: Props) {
           size="icon-xs"
           className="rounded-md text-muted-foreground"
           onClick={onBack}
-          aria-label="Back to new tab menu"
+          aria-label={tStatic("commandPalette.back")}
         >
           <HugeiconsIcon icon={ArrowLeft01Icon} size={14} strokeWidth={1.75} />
         </Button>

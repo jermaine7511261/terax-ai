@@ -31,6 +31,10 @@ try {
   pnpm size
   if ($LASTEXITCODE -ne 0) { Write-Host "size-limit warnings (bundle may exceed budget)" -ForegroundColor Yellow }
 
+  Write-Host "`n==> lock poison gate (Mutex/RwLock unwrap/expect must be 0)" -ForegroundColor Cyan
+  $poison = (Get-ChildItem src-tauri\src -Recurse -Filter *.rs | Select-String -Pattern '\.(lock|read|write)\(\)\.(unwrap|expect)\(').Matches.Count
+  if ($poison -ne 0) { throw "lock poison gate failed: $poison unwrap/expect on locks remain" }
+
   Write-Host "`n==> cargo check (backend)" -ForegroundColor Cyan
   Push-Location src-tauri
   try {

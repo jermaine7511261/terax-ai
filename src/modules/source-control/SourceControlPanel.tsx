@@ -1013,7 +1013,7 @@ export const SourceControlPanel = memo(function SourceControlPanel({
         ) : null}
 
         {scm.panelState === "loading" ? (
-          <PanelCenter title="Loading repository" />
+          <PanelCenter title={t("git.loadingRepository")} />
         ) : null}
 
         {scm.panelState === "no-repo" ? (
@@ -1025,7 +1025,7 @@ export const SourceControlPanel = memo(function SourceControlPanel({
 
         {scm.panelState === "error" ? (
           <PanelCenter
-            title="Source control error"
+            title={t("git.sourceControlError")}
             body={scm.statusError ?? "Unknown source control error"}
             action={
               <Button size="sm" onClick={() => void scm.refresh()}>
@@ -1175,7 +1175,7 @@ export const SourceControlPanel = memo(function SourceControlPanel({
                   value={scm.commitMessage}
                   onChange={(event) => scm.setCommitMessage(event.target.value)}
                   onKeyDown={handleCommitShortcut}
-                  placeholder="Commit message"
+                  placeholder={t("git.commitMessage")}
                   rows={3}
                   className={cn(
                     "min-h-[72px] border-border resize-none rounded-lg bg-transparent px-3 pb-7 pt-2.5 text-[12.5px] leading-snug shadow-none placeholder:text-muted-foreground/65 focus-visible:ring-0 focus:border-0",
@@ -1305,7 +1305,7 @@ export const SourceControlPanel = memo(function SourceControlPanel({
                 ref={containerRef}
                 tabIndex={0}
                 role="listbox"
-                aria-label="Changed files"
+                aria-label={t("git.changedFiles")}
                 aria-activedescendant={
                   focusedRowKey ? `scm-row-${focusedRowKey}` : undefined
                 }
@@ -1499,9 +1499,9 @@ function ListHeader({
         {row.count}
       </span>
       <label className="ml-auto flex shrink-0 cursor-pointer select-none items-center gap-1.5 text-[10.5px] font-medium text-muted-foreground hover:text-foreground">
-        <span>All</span>
+        <span{t("ai.all")}/span>
         <Checkbox
-          aria-label="Stage all changes"
+          aria-label={t("git.stageAllChanges")}
           checked={checkboxValue(headerCheckState)}
           disabled={actionBusy !== null}
           onCheckedChange={() => void onToggleAll()}

@@ -67,7 +67,7 @@ impl OfficialAccountAdapter {
     }
 
     async fn get_access_token(&self) -> Result<String, String> {
-        if let Some((tok, expires_at)) = &*self.inner.access_token.lock().unwrap() {
+        if let Some((tok, expires_at)) = &*self.inner.access_token.lock().unwrap_or_else(|e| e.into_inner()) {
             if Utc::now().timestamp() < *expires_at - 60 {
                 return Ok(tok.clone());
             }
@@ -92,7 +92,7 @@ impl OfficialAccountAdapter {
             .ok_or_else(|| format!("token err: {resp}"))?;
         let expires_in = resp.get("expires_in").and_then(|v| v.as_i64()).unwrap_or(7200);
         let expires_at = Utc::now().timestamp() + expires_in;
-        *self.inner.access_token.lock().unwrap() = Some((token.to_string(), expires_at));
+        *self.inner.access_token.lock().unwrap_or_else(|e| e.into_inner()) = Some((token.to_string(), expires_at));
         Ok(token.to_string())
     }
 }
@@ -160,14 +160,14 @@ impl PlatformAdapter for OfficialAccountAdapter {
                     tokio::time::sleep(std::time::Duration::from_secs(5)).await;
                 }
             });
-            *this.task.lock().unwrap() = Some(task);
+            *this.task.lock().unwrap_or_else(|e| e.into_inner()) = Some(task);
             Ok(())
         })
     }
 
     fn disconnect(&self) {
         self.inner.stop.store(true, Ordering::Relaxed);
-        if let Some(t) = self.inner.task.lock().unwrap().take() {
+        if let Some(t) = self.inner.task.lock().unwrap_or_else(|e| e.into_inner()).take() {
             t.abort();
         }
     }
@@ -189,8 +189,7 @@ impl PlatformAdapter for OfficialAccountAdapter {
             let token = {
                 // reuse cached token via a short re-fetch
                 this.access_token
-                    .lock()
-                    .unwrap()
+                    .lock().unwrap_or_else(|e| e.into_inner())
                     .clone()
                     .map(|(t, _)| t)
                     .unwrap_or_default()
@@ -212,7 +211,7 @@ impl PlatformAdapter for OfficialAccountAdapter {
                     .and_then(|v| v.as_str())
                     .ok_or_else(|| format!("token err: {resp}"))?;
                 let exp = resp.get("expires_in").and_then(|v| v.as_i64()).unwrap_or(7200);
-                *this.access_token.lock().unwrap() = Some((t.to_string(), Utc::now().timestamp() + exp));
+                *this.access_token.lock().unwrap_or_else(|e| e.into_inner()) = Some((t.to_string(), Utc::now().timestamp() + exp));
                 t.to_string()
             } else {
                 token
@@ -234,7 +233,7 @@ impl PlatformAdapter for OfficialAccountAdapter {
     }
 
     fn callback_url(&self) -> Option<String> {
-        self.inner.callback_url.lock().unwrap().clone()
+        self.inner.callback_url.lock().unwrap_or_else(|e| e.into_inner()).clone()
     }
 }
 
@@ -253,7 +252,7 @@ async fn run_oa_callback_server(inner: &Arc<OaInner>, tx: EventTx) -> Result<(),
         .local_addr()
         .map_err(|e| format!("oa callback addr failed: {e}"))?;
     let callback_url = format!("http://{addr}/callback");
-    *inner.callback_url.lock().unwrap() = Some(callback_url.clone());
+    *inner.callback_url.lock().unwrap_or_else(|e| e.into_inner()) = Some(callback_url.clone());
     log::info!("WeChat OA callback server on {addr} — set this URL (tunneled) as the公众号回调地址: {callback_url}");
     let token = inner.cfg.token.clone();
     let aes_key = inner.cfg.encoding_aes_key.clone();

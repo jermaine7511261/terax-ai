@@ -5,6 +5,12 @@ Yamet 的所有重要变更都记录于此。版本遵循项目规则：**功能
 ## [未发布]
 
 ### 新增
+- **第九轮（0.1.10）** 汉化收官：34 处显示文本 + 57 处属性硬编码英文全部走 i18n（仅剩白名单：shadcn 原语 / 品牌名 / 示例值 / 协议名）；新增 common.block / gateway.relogin / ai.emptyOutput / ai.resumeTurn / ai.editMessage / git.binary 等键（zh/en 双语）。
+- **第九轮（0.1.10）** 锁中毒自愈：152 处 Mutex/RwLock `.unwrap()/.expect()`（含 read/write 与多行形态）改为 `.unwrap_or_else(|e| e.into_inner())`；新增 `src-tauri/tests/lock_poison.rs` 自愈单测；`scripts/verify.ps1` 加 lock poison 门禁。
+- **第九轮（0.1.10）** 后台进程树杀：`bash_bg_*` kill 杀整棵进程树（Windows Job Object + Unix 进程组 `process_group(0)`）；补 Unix 组杀测试与 `tests/shell_background_windows.rs`。
+- **第九轮（0.1.10）** 崩溃恢复：会话记录 incompleteTurn 标记，流式回合中断后重启，AI 面板显示「继续」入口一键续接。
+- **第九轮（0.1.10）** 消息编辑/重做：末轮用户消息可编辑，保存后截断尾部并重发。
+- **第九轮（0.1.10）** WeixinReloginOverlay 组件测试：QR 渲染 / scanned 状态 / confirmed 持久化 / 非微信忽略四分支。
 - **第八轮（0.1.9）** 微信会话自动重连：会话过期后自动推送重登 QR 到前端（不再暂停 10 分钟），扫码确认后自动更新 token 恢复 poll。
 - **第八轮（0.1.9）** 网关限流后置：已授权会话消息不再被限流丢弃（DM auto-trust + 手动批准会话突发消息全送达）。
 - **第八轮（0.1.9）** 微信/QQ/Wecom 媒体下载：adapter 轮询循环自动下载图片/文件到 `~/.yamet/media/`，填充 `local_path` 给 agent 使用。

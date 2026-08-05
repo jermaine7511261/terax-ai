@@ -88,7 +88,7 @@ impl SessionRouter {
     /// Enable persistence to `path` and load any previously saved whitelist.
     pub fn set_persist_path(&self, path: PathBuf) {
         if let Some(saved) = Self::load_from(&path) {
-            let mut map = self.inner.lock().unwrap();
+            let mut map = self.inner.lock().unwrap_or_else(|e| e.into_inner());
             for s in saved {
                 let key = s.session_key.clone();
                 let entry = map
@@ -98,11 +98,11 @@ impl SessionRouter {
                 entry.authorized = s.authorized;
             }
         }
-        *self.persist_path.lock().unwrap() = Some(path);
+        *self.persist_path.lock().unwrap_or_else(|e| e.into_inner()) = Some(path);
     }
 
     fn persist_path(&self) -> Option<PathBuf> {
-        self.persist_path.lock().unwrap().clone()
+        self.persist_path.lock().unwrap_or_else(|e| e.into_inner()).clone()
     }
 
     /// Atomically write the authorization whitelist to disk. Only sessions with
@@ -114,8 +114,7 @@ impl SessionRouter {
         };
         let saved: Vec<PersistedSession> = self
             .inner
-            .lock()
-            .unwrap()
+            .lock().unwrap_or_else(|e| e.into_inner())
             .values()
             .filter(|s| s.authorized || s.auto_approve)
             .map(PersistedSession::from)
@@ -152,7 +151,7 @@ impl SessionRouter {
 
     /// Touch (create or refresh) a session for a message's session key.
     pub fn touch(&self, session_key: &str, platform: &str, chat_type: &str, chat_id: &str) -> SessionState {
-        let mut map = self.inner.lock().unwrap();
+        let mut map = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         let entry = map
             .entry(session_key.to_string())
             .or_insert_with(|| SessionState::new(session_key.to_string(), platform, chat_type, chat_id));
@@ -163,28 +162,28 @@ impl SessionRouter {
     }
 
     pub fn get(&self, session_key: &str) -> Option<SessionState> {
-        self.inner.lock().unwrap().get(session_key).cloned()
+        self.inner.lock().unwrap_or_else(|e| e.into_inner()).get(session_key).cloned()
     }
 
     pub fn set_awaiting_approval(&self, session_key: &str, value: bool) {
-        if let Some(s) = self.inner.lock().unwrap().get_mut(session_key) {
+        if let Some(s) = self.inner.lock().unwrap_or_else(|e| e.into_inner()).get_mut(session_key) {
             s.awaiting_approval = value;
         }
     }
 
     pub fn all(&self) -> Vec<SessionState> {
-        let mut out: Vec<_> = self.inner.lock().unwrap().values().cloned().collect();
+        let mut out: Vec<_> = self.inner.lock().unwrap_or_else(|e| e.into_inner()).values().cloned().collect();
         out.sort_by_key(|s| std::cmp::Reverse(s.last_active_ms));
         out
     }
 
     pub fn remove(&self, session_key: &str) {
-        self.inner.lock().unwrap().remove(session_key);
+        self.inner.lock().unwrap_or_else(|e| e.into_inner()).remove(session_key);
         self.persist();
     }
 
     pub fn clear(&self) {
-        self.inner.lock().unwrap().clear();
+        self.inner.lock().unwrap_or_else(|e| e.into_inner()).clear();
         self.persist();
     }
 
@@ -192,8 +191,7 @@ impl SessionRouter {
     /// per-session auto-approve). **Default is deny**.
     pub fn is_authorized(&self, session_key: &str) -> bool {
         self.inner
-            .lock()
-            .unwrap()
+            .lock().unwrap_or_else(|e| e.into_inner())
             .get(session_key)
             .map(|s| s.authorized || s.auto_approve)
             .unwrap_or(false)
@@ -202,7 +200,7 @@ impl SessionRouter {
     /// Mark an un-authorized session as awaiting approval (queued for the
     /// user to review) — its message must NOT drive the agent.
     pub fn request_approval(&self, session_key: &str) {
-        if let Some(s) = self.inner.lock().unwrap().get_mut(session_key) {
+        if let Some(s) = self.inner.lock().unwrap_or_else(|e| e.into_inner()).get_mut(session_key) {
             if !s.authorized && !s.auto_approve {
                 s.awaiting_approval = true;
             }
@@ -213,7 +211,7 @@ impl SessionRouter {
     /// the agent.
     pub fn approve(&self, session_key: &str) {
         log::info!("[gateway] approve session: {session_key}");
-        let mut map = self.inner.lock().unwrap();
+        let mut map = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         let entry = map
             .entry(session_key.to_string())
             .or_insert_with(|| SessionState::new(session_key.to_string(), "", "dm", ""));
@@ -225,7 +223,7 @@ impl SessionRouter {
 
     /// Toggle per-session auto-approve (bypasses the approval prompt).
     pub fn set_auto_approve(&self, session_key: &str, value: bool) {
-        let mut map = self.inner.lock().unwrap();
+        let mut map = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         let entry = map
             .entry(session_key.to_string())
             .or_insert_with(|| SessionState::new(session_key.to_string(), "", "dm", ""));
@@ -236,7 +234,7 @@ impl SessionRouter {
 
     /// Revoke authorization (back to default-deny).
     pub fn revoke(&self, session_key: &str) {
-        if let Some(s) = self.inner.lock().unwrap().get_mut(session_key) {
+        if let Some(s) = self.inner.lock().unwrap_or_else(|e| e.into_inner()).get_mut(session_key) {
             s.authorized = false;
         }
         self.persist();

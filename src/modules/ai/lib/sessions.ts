@@ -6,6 +6,7 @@ export type SessionMeta = {
   title: string;
   createdAt: number;
   updatedAt: number;
+  incompleteTurn?: boolean;
 };
 
 const STORE_PATH = "yamet-ai-sessions.json";

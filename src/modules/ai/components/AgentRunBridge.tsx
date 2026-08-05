@@ -79,6 +79,7 @@ function Bridge({
   const patch = useChatStore((s) => s.patchAgentMeta);
   const persistMessages = useChatStore((s) => s.persistMessages);
   const setApprovalResponder = useChatStore((s) => s.setApprovalResponder);
+  const setIncompleteTurn = useChatStore((s) => s.setIncompleteTurn);
   const autoApproveTools = usePreferencesStore((s) => s.autoApproveTools);
   const projectAutoApprove = usePreferencesStore(
     (s) => s.autoApproveProjectArmed,
@@ -156,6 +157,22 @@ function Bridge({
       ...(runStatus === "idle" ? { error: null } : {}),
     });
   }, [status, approvalsPending, patch]);
+
+  // Crash recovery: mark the session's turn incomplete while a run is in
+  // flight; clear it only after a run that actually started finishes
+  // (startedRef distinguishes a fresh boot from a completed turn).
+  const startedRef = useRef(false);
+  useEffect(() => {
+    startedRef.current = false;
+  }, [sessionId]);
+  useEffect(() => {
+    if (status === "submitted" || status === "streaming") {
+      startedRef.current = true;
+      setIncompleteTurn(sessionId, true);
+    } else if (startedRef.current) {
+      setIncompleteTurn(sessionId, false);
+    }
+  }, [sessionId, status, setIncompleteTurn]);
 
   // Auto-approve: once the user has manually resolved an approval this session
   // at the active remember scope (and the preference is on), every pending

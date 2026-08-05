@@ -41,7 +41,7 @@ import type {
   UIMessage,
   UIMessagePart,
 } from "ai";
-import { memo, useCallback, useMemo } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import { AiToolApproval } from "./AiToolApproval";
 
 function CommandSnippet({ name }: { name: string }) {
@@ -183,6 +183,7 @@ type Props = {
     opts?: ApprovalOptions,
   ) => void | PromiseLike<void>;
   stop: () => void | PromiseLike<void>;
+  onEditAndResend?: (newText: string) => void;
 };
 
 export function AiChatView({
@@ -204,14 +205,43 @@ export function AiChatView({
   const hitStepCap = useChatStore((s) => s.agentMeta.hitStepCap);
   const compactionNotice = useChatStore((s) => s.agentMeta.compactionNotice);
   const patchAgentMeta = useChatStore((s) => s.patchAgentMeta);
+  const incompleteTurns = useChatStore((s) => s.incompleteTurns);
+  const activeSessionId = useChatStore((s) => s.activeSessionId);
+  const showResumeTurn =
+    !isBusy &&
+    activeSessionId != null &&
+    incompleteTurns[activeSessionId] === true;
   const showContinue =
     !isBusy && hitStepCap && lastMessage?.role === "assistant";
+  let lastUserId: string | null = null;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].role === "user") {
+      lastUserId = messages[i].id;
+      break;
+    }
+  }
 
   const onApproval = useCallback(
     (id: string, approved: boolean, opts?: ApprovalOptions) =>
       addToolApprovalResponse({ id, approved }, opts),
     [addToolApprovalResponse],
   );
+
+  const resumeLastTurn = useCallback(() => {
+    if (!activeSessionId) return;
+    let lastUser: string | null = null;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role !== "user") continue;
+      for (const p of messages[i].parts) {
+        if (p.type === "text") {
+          lastUser = (p as { text: string }).text;
+          break;
+        }
+      }
+      if (lastUser) break;
+    }
+    if (lastUser) void sendMessage(lastUser);
+  }, [activeSessionId, messages, sendMessage]);
 
   if (messages.length === 0) {
     return (
@@ -229,12 +259,25 @@ export function AiChatView({
   return (
     <Conversation>
       <ConversationContent className="gap-5 p-3">
+        {showResumeTurn && (
+          <div className="flex items-center justify-center">
+            <button
+              type="button"
+              onClick={resumeLastTurn}
+              className="rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1 text-xs text-amber-600 hover:bg-amber-500/20"
+            >
+              {t("ai.resumeTurn")}
+            </button>
+          </div>
+        )}
         {messages.map((m) => (
           <RenderedMessage
             key={m.id}
             message={m}
             onApproval={onApproval}
             streaming={m.id === streamingMessageId}
+            editable={m.role === "user" && m.id === lastUserId && !isBusy}
+            onEditAndResend={onEditAndResend}
           />
         ))}
         {compactionNotice && (
@@ -330,11 +373,18 @@ const RenderedMessage = memo(function RenderedMessage({
   message,
   onApproval,
   streaming,
+  editable = false,
+  onEditAndResend,
 }: {
   message: UIMessage;
   onApproval: (id: string, approved: boolean, opts?: ApprovalOptions) => void;
   streaming: boolean;
+  editable?: boolean;
+  onEditAndResend?: (newText: string) => void;
 }) {
+  const { t } = useI18n();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
   // Index of the trailing text part — only that one is "live" mid-stream.
   // Earlier text parts (separated by tool calls) are already finalized.
   let lastTextIdx = -1;
@@ -355,9 +405,57 @@ const RenderedMessage = memo(function RenderedMessage({
     const withoutCmd = cmdMatch ? rawText.slice(cmdMatch[0].length) : rawText;
     const stripped = stripUserContextBlocks(withoutCmd);
 
+    if (editing) {
+      return (
+        <Message from="user">
+          <MessageContent>
+            <textarea
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              rows={Math.max(2, draft.split("\n").length)}
+              autoFocus
+              className="w-full rounded-md border border-border/50 bg-card/60 p-2 text-sm leading-relaxed focus:outline-none focus:ring-1 focus:ring-ring"
+            />
+            <div className="mt-1 flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const text = draft.trim();
+                  if (!text) return;
+                  setEditing(false);
+                  onEditAndResend?.(text);
+                }}
+                className="rounded-md bg-primary px-2 py-0.5 text-xs text-primary-foreground"
+              >
+                {t("common.save")}
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditing(false)}
+                className="rounded-md border border-border/50 px-2 py-0.5 text-xs text-muted-foreground"
+              >
+                {t("common.cancel")}
+              </button>
+            </div>
+          </MessageContent>
+        </Message>
+      );
+    }
     return (
       <Message from="user">
         <MessageContent>
+          {editable ? (
+            <button
+              type="button"
+              onClick={() => {
+                setDraft(rawText);
+                setEditing(true);
+              }}
+              className="mb-1 rounded-md border border-border/40 px-1.5 py-0.5 text-[10.5px] text-muted-foreground hover:text-foreground"
+            >
+              {t("ai.editMessage")}
+            </button>
+          ) : null}
           {commandName ? <CommandSnippet name={commandName} /> : null}
           {stripped.chips.length > 0 ? (
             <ContextChips chips={stripped.chips} />
@@ -520,7 +618,7 @@ const ReadGroup = memo(function ReadGroup({ parts }: { parts: AnyPart[] }) {
           strokeWidth={1.75}
           className="shrink-0 text-muted-foreground"
         />
-        <span className="shrink-0 font-medium text-foreground">Read</span>
+        <span className="shrink-0 font-medium text-foreground"{t("ai.read")}/span>
         <span className="shrink-0 text-[11px] text-muted-foreground">
           {count} file{count === 1 ? "" : "s"}
         </span>
@@ -587,7 +685,7 @@ const ReadRow = memo(function ReadRow({ part }: { part: AnyPart }) {
         strokeWidth={1.75}
         className="shrink-0 text-muted-foreground"
       />
-      <span className="shrink-0 font-medium text-foreground">Read</span>
+      <span className="shrink-0 font-medium text-foreground"{t("ai.read")}/span>
       <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-muted-foreground">
         {path ?? ""}
       </span>

@@ -7,6 +7,7 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { useI18n } from "@/lib/i18n";
+import { tStatic } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type { GitStatusSnapshot } from "@/modules/ai/lib/native";
 import { usePreferencesStore } from "@/modules/settings/preferences";
@@ -641,8 +642,8 @@ export const FileExplorer = memo(
             size="icon"
             className="size-6 text-muted-foreground hover:text-foreground"
             onClick={() => setIsSearchOpen((v) => !v)}
-            title="Search files"
-            aria-label="Search files"
+            title={tStatic("explorer.searchFiles")}
+            aria-label={tStatic("explorer.searchFiles")}
           >
             <HugeiconsIcon icon={Search01Icon} size={13} strokeWidth={2} />
           </Button>
@@ -652,7 +653,7 @@ export const FileExplorer = memo(
             size="icon"
             className="size-6 text-muted-foreground hover:text-foreground"
             onClick={() => tree.beginCreate(rootPath, "file")}
-            title="New file"
+            title={tStatic("explorer.newFile")}
           >
             <HugeiconsIcon icon={FileAddIcon} size={13} strokeWidth={2} />
           </Button>
@@ -661,7 +662,7 @@ export const FileExplorer = memo(
             size="icon"
             className="size-6 text-muted-foreground hover:text-foreground"
             onClick={() => tree.beginCreate(rootPath, "dir")}
-            title="New folder"
+            title={tStatic("explorer.newFolder")}
           >
             <HugeiconsIcon icon={FolderAddIcon} size={13} strokeWidth={2} />
           </Button>
@@ -670,7 +671,7 @@ export const FileExplorer = memo(
             size="icon"
             className="size-6 text-muted-foreground hover:text-foreground"
             onClick={() => tree.refresh(rootPath)}
-            title="Refresh"
+            title={tStatic("common.refresh")}
           >
             <HugeiconsIcon icon={Refresh01Icon} size={12} strokeWidth={2} />
           </Button>

@@ -112,37 +112,36 @@ impl GatewayRegistry {
     pub fn register(&self, adapter: Box<dyn PlatformAdapter>) {
         self.inner
             .adapters
-            .lock()
-            .unwrap()
+            .lock().unwrap_or_else(|e| e.into_inner())
             .insert(adapter.platform(), Arc::from(adapter));
     }
 
     pub fn set_handler(&self, handler: EventHandler) {
-        *self.inner.handler.lock().unwrap() = Some(handler);
+        *self.inner.handler.lock().unwrap_or_else(|e| e.into_inner()) = Some(handler);
     }
 
     /// Register a callback fired when a new un-authorized session appears,
     /// with the session key and an optional `sender: text` summary (so the
     /// frontend approval UI shows what was dropped instead of losing it).
     pub fn set_on_pending(&self, cb: Arc<dyn Fn(String, Option<String>) + Send + Sync>) {
-        *self.inner.on_pending.lock().unwrap() = Some(cb);
+        *self.inner.on_pending.lock().unwrap_or_else(|e| e.into_inner()) = Some(cb);
     }
 
     /// Register a callback fired when a platform's inbound loop connects.
     pub fn set_on_connected(&self, cb: Arc<dyn Fn(String, Option<String>) + Send + Sync>) {
-        *self.inner.on_connected.lock().unwrap() = Some(cb);
+        *self.inner.on_connected.lock().unwrap_or_else(|e| e.into_inner()) = Some(cb);
     }
 
     /// Register the out-of-band platform event fan-out. Every adapter that uses
     /// `set_event_sink` will receive a sink forwarding into this callback.
     pub fn set_platform_event(&self, cb: PlatformEventHandler) {
-        *self.inner.platform_event.lock().unwrap() = Some(cb);
+        *self.inner.platform_event.lock().unwrap_or_else(|e| e.into_inner()) = Some(cb);
     }
 
     /// Build a sink for one adapter that forwards into the global
     /// `platform_event` callback, if one is installed.
     fn sink_for(&self, platform: PlatformId) -> Option<PlatformEventSink> {
-        let cb = self.inner.platform_event.lock().unwrap().clone()?;
+        let cb = self.inner.platform_event.lock().unwrap_or_else(|e| e.into_inner()).clone()?;
         Some(Arc::new(move |payload| cb(platform.as_str().to_string(), payload)))
     }
 
@@ -151,22 +150,20 @@ impl GatewayRegistry {
     pub fn callback_urls(&self) -> Vec<(String, Option<String>)> {
         self.inner
             .adapters
-            .lock()
-            .unwrap()
+            .lock().unwrap_or_else(|e| e.into_inner())
             .iter()
             .map(|(id, a)| (id.as_str().to_string(), a.callback_url()))
             .collect()
     }
 
     pub fn registered_platforms(&self) -> Vec<PlatformId> {
-        self.inner.adapters.lock().unwrap().keys().copied().collect()
+        self.inner.adapters.lock().unwrap_or_else(|e| e.into_inner()).keys().copied().collect()
     }
 
     pub fn is_configured(&self, id: PlatformId) -> bool {
         self.inner
             .adapters
-            .lock()
-            .unwrap()
+            .lock().unwrap_or_else(|e| e.into_inner())
             .get(&id)
             .map(|a| a.is_configured())
             .unwrap_or(false)
@@ -183,21 +180,20 @@ impl GatewayRegistry {
         // Idempotency guard: if already connected or already mid-connect, no-op
         // rather than spawning a second inbound loop.
         {
-            let connected = self.inner.connected.lock().unwrap();
-            let connecting = self.inner.connecting.lock().unwrap();
+            let connected = self.inner.connected.lock().unwrap_or_else(|e| e.into_inner());
+            let connecting = self.inner.connecting.lock().unwrap_or_else(|e| e.into_inner());
             if connected.contains(&id) || connecting.contains(&id) {
                 return Ok(());
             }
         }
-        self.inner.connecting.lock().unwrap().insert(id.clone());
-        let handler = self.inner.handler.lock().unwrap().clone();
+        self.inner.connecting.lock().unwrap_or_else(|e| e.into_inner()).insert(id.clone());
+        let handler = self.inner.handler.lock().unwrap_or_else(|e| e.into_inner()).clone();
         let (tx, mut rx) = mpsc::channel::<MessageEvent>(128);
         {
             let adapter = self
                 .inner
                 .adapters
-                .lock()
-                .unwrap()
+                .lock().unwrap_or_else(|e| e.into_inner())
                 .get(&id)
                 .cloned()
                 .ok_or_else(|| "platform not registered".to_string())?;
@@ -213,20 +209,19 @@ impl GatewayRegistry {
             match adapter.connect(tx).await {
                 Ok(()) => {}
                 Err(e) => {
-                    self.inner.connecting.lock().unwrap().remove(&id);
+                    self.inner.connecting.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
                     return Err(e);
                 }
             }
         }
-        self.inner.connecting.lock().unwrap().remove(&id);
-        self.inner.connected.lock().unwrap().insert(id.clone());
+        self.inner.connecting.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
+        self.inner.connected.lock().unwrap_or_else(|e| e.into_inner()).insert(id.clone());
         // Surface the (possibly callback-based) local URL to the settings UI.
-        if let Some(cb) = self.inner.on_connected.lock().unwrap().as_ref() {
+        if let Some(cb) = self.inner.on_connected.lock().unwrap_or_else(|e| e.into_inner()).as_ref() {
             let url = self
                 .inner
                 .adapters
-                .lock()
-                .unwrap()
+                .lock().unwrap_or_else(|e| e.into_inner())
                 .get(&id)
                 .and_then(|a| a.callback_url());
             cb(id.as_str().to_string(), url);
@@ -244,7 +239,7 @@ impl GatewayRegistry {
                 // a repeated message_id within the window is dropped once. Runs
                 // before rate limiting so replays don't consume burst tokens.
                 if let Some(mid) = &ev.message_id {
-                    let mut seen = this.inner.seen.lock().unwrap();
+                    let mut seen = this.inner.seen.lock().unwrap_or_else(|e| e.into_inner());
                     if seen.len() >= DEDUP_CAP {
                         let cutoff = now_ms().saturating_sub(DEDUP_WINDOW_MS);
                         seen.retain(|_, t| *t >= cutoff);
@@ -296,7 +291,7 @@ impl GatewayRegistry {
                 // limiting — only unauthourised traffic is throttled. Dedup
                 // still runs before this so replays don't consume burst tokens.
                 if !authorized {
-                    let mut rates = this.inner.rates.lock().unwrap();
+                    let mut rates = this.inner.rates.lock().unwrap_or_else(|e| e.into_inner());
                     let bucket = rates.entry(ev.platform).or_default();
                     if !bucket.allow() {
                         log::warn!(
@@ -312,7 +307,7 @@ impl GatewayRegistry {
                     }
                 } else {
                     this.inner.sessions.request_approval(&sk);
-                    if let Some(cb) = this.inner.on_pending.lock().unwrap().as_ref() {
+                    if let Some(cb) = this.inner.on_pending.lock().unwrap_or_else(|e| e.into_inner()).as_ref() {
                         let summary = if ev.text.is_some() && !ev.sender_id.is_empty() {
                             let text = ev.text.clone().unwrap_or_default();
                             let clipped: String =
@@ -332,15 +327,15 @@ impl GatewayRegistry {
     }
 
     pub async fn disconnect_platform(&self, id: PlatformId) {
-        if let Some(adapter) = self.inner.adapters.lock().unwrap().get(&id).cloned() {
+        if let Some(adapter) = self.inner.adapters.lock().unwrap_or_else(|e| e.into_inner()).get(&id).cloned() {
             adapter.disconnect();
         }
-        self.inner.connected.lock().unwrap().remove(&id);
-        self.inner.connecting.lock().unwrap().remove(&id);
+        self.inner.connected.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
+        self.inner.connecting.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
     }
 
     pub fn is_connected(&self, id: PlatformId) -> bool {
-        self.inner.connected.lock().unwrap().contains(&id)
+        self.inner.connected.lock().unwrap_or_else(|e| e.into_inner()).contains(&id)
     }
 
     pub async fn send_text(
@@ -352,8 +347,7 @@ impl GatewayRegistry {
         let adapter = self
             .inner
             .adapters
-            .lock()
-            .unwrap()
+            .lock().unwrap_or_else(|e| e.into_inner())
             .get(&id)
             .cloned()
             .ok_or_else(|| "platform not registered".to_string())?;

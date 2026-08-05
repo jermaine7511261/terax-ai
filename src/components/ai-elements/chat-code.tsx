@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { tStatic } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { useChatStore } from "@/modules/ai/store/chatStore";
 import {
@@ -229,8 +230,8 @@ function RunInTerminalButton({ command }: { command: string }) {
       variant="ghost"
       onClick={onRun}
       className="h-5 gap-1 px-1.5 text-[10px] font-medium text-muted-foreground hover:text-foreground"
-      aria-label="Run in active terminal"
-      title="Run in active terminal"
+      aria-label={tStatic("ai.runInActiveTerminal")}
+      title={tStatic("ai.runInActiveTerminal")}
     >
       <HugeiconsIcon
         icon={sent ? TerminalIcon : ArrowRight01Icon}
@@ -266,7 +267,7 @@ function CopyButton({ text }: { text: string }) {
       variant="ghost"
       onClick={onCopy}
       className="size-5 shrink-0 text-muted-foreground hover:text-foreground"
-      aria-label="Copy code"
+      aria-label={tStatic("ai.copyCode")}
     >
       <HugeiconsIcon
         icon={copied ? CheckmarkCircle01Icon : CopyIcon}

@@ -94,7 +94,7 @@ export function WeixinReloginOverlay() {
           <>
             <img
               src={flow.qrUrl}
-              alt="Relogin QR"
+              alt={t("gateway.relogin")}
               className="mx-auto size-48 rounded-lg border border-border/50 bg-white p-2"
             />
             <p className="text-xs text-muted-foreground text-center">

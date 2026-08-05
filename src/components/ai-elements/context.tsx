@@ -7,6 +7,7 @@ import {
   HoverCardTrigger,
 } from "@/components/ui/hover-card";
 import { Progress } from "@/components/ui/progress";
+import { tStatic } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type { LanguageModelUsage } from "ai";
 import type { ComponentProps } from "react";
@@ -64,7 +65,7 @@ const ContextIcon = () => {
 
   return (
     <svg
-      aria-label="Model context usage"
+      aria-label={tStatic("ai.modelContextUsage")}
       height="20"
       role="img"
       style={{ color: "currentcolor" }}

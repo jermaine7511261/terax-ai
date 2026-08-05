@@ -45,7 +45,10 @@ import type { ResizeDir } from "../lib/miniWindowGeometry";
 import type { SessionMeta } from "../lib/sessions";
 import { useMiniWindowGeometry } from "../lib/useMiniWindowGeometry";
 import { useAgentsStore } from "../store/agentsStore";
-import { getOrCreateChat } from "../store/chatRuntime";
+import {
+  getOrCreateChat,
+  sendMessage,
+} from "../store/chatRuntime";
 import {
   type ApprovalOptions,
   handleApprovalDecision,
@@ -210,6 +213,23 @@ function Body({
     [helpers.addToolApprovalResponse],
   );
 
+  const onEditAndResend = useCallback(
+    (newText: string) => {
+      const msgs = helpers.messages;
+      let cut = -1;
+      for (let i = msgs.length - 1; i >= 0; i--) {
+        if (msgs[i].role === "user") {
+          cut = i;
+          break;
+        }
+      }
+      if (cut < 0) return;
+      helpers.setMessages(msgs.slice(0, cut));
+      void sendMessage(newText);
+    },
+    [helpers],
+  );
+
   return (
     <>
       <Header
@@ -245,6 +265,7 @@ function Body({
               clearError={helpers.clearError}
               addToolApprovalResponse={addToolApprovalResponse}
               stop={helpers.stop}
+              onEditAndResend={onEditAndResend}
             />
           </div>
         )}
@@ -362,7 +383,7 @@ function Header({
           variant="ghost"
           onClick={onClose}
           className="size-5"
-          aria-label="Close"
+          aria-label={t("common.close")}
           title={t("ai.closeEsc")}
         >
           <HugeiconsIcon icon={Cancel01Icon} size={11} strokeWidth={1.75} />
@@ -428,7 +449,7 @@ function ContextIndicator({ messages }: { messages: UIMessage[] }) {
         <ContextContentHeader />
         <ContextContentBody>
           <div className="flex items-center justify-between text-muted-foreground">
-            <span>Model</span>
+            <span{t("common.model")}/span>
             <span className="font-mono text-foreground">{modelLabel}</span>
           </div>
           <div className="mt-1 flex items-center justify-between text-muted-foreground">
@@ -478,7 +499,7 @@ function ContextIndicator({ messages }: { messages: UIMessage[] }) {
             </>
           )}
           <div className="flex items-center justify-between text-muted-foreground">
-            <span>Window</span>
+            <span{t("common.window")}/span>
             <span className="font-mono text-foreground">
               {formatTokens(max)}
             </span>

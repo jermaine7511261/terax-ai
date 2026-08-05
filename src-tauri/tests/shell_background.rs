@@ -108,3 +108,31 @@ fn info_reflects_command_and_exit() {
     assert!(info_done.exited);
     assert_eq!(info_done.exit_code, Some(0));
 }
+
+#[test]
+fn kill_terminates_the_whole_process_group() {
+    // `sh -c "sleep 30 & wait"` spawns sleep in the same process group as the
+    // shell (process_group(0)). kill() must reap both, not just the direct child.
+    let proc = background::spawn(
+        "sh -c 'sleep 30 & wait'".into(),
+        None,
+        WorkspaceEnv::Local,
+    )
+    .expect("spawn");
+    let pgid = proc.child.id() as i32;
+
+    proc.kill();
+
+    assert!(
+        wait_until(Duration::from_secs(5), || { proc.read_logs(0).exited }),
+        "shell must reach exited state after kill",
+    );
+    // kill -0 on the (negative) pgid fails once the group is empty.
+    let probe = std::process::Command::new("kill")
+        .args(["-0", &format!("-{pgid}")])
+        .status();
+    assert!(
+        probe.map(|s| !s.success()).unwrap_or(true),
+        "process group {pgid} must be empty after group kill",
+    );
+}

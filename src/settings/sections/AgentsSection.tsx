@@ -496,7 +496,7 @@ function CustomInstructionsBlock({ value }: { value: string }) {
       <div className="flex items-center justify-between">
         <Label>{t("agents.customInstructions")}</Label>
         {/* {savedTick > 0 ? (
-          <span className="text-[10px] text-muted-foreground">Saved</span>
+          <span className="text-[10px] text-muted-foreground"{t("ai.saved")}/span>
         ) : null} */}
         {draft && (
           <Button size="xs" onClick={() => void setCustomInstructions(draft)}>

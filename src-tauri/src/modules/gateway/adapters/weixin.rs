@@ -540,17 +540,17 @@ impl WeixinAdapter {
     }
 
     fn token(&self) -> String {
-        self.inner.token.lock().unwrap().clone()
+        self.inner.token.lock().unwrap_or_else(|e| e.into_inner()).clone()
     }
 
     fn base_url(&self) -> String {
-        self.inner.base_url.lock().unwrap().clone()
+        self.inner.base_url.lock().unwrap_or_else(|e| e.into_inner()).clone()
     }
 
     async fn poll_loop(&self, tx: EventTx) {
         let mut machine = PollFailureMachine::default();
         let mut timeout_ms = LONG_POLL_TIMEOUT_MS;
-        let event_sink = self.inner.event_sink.lock().unwrap().clone();
+        let event_sink = self.inner.event_sink.lock().unwrap_or_else(|e| e.into_inner()).clone();
 
         // Helper to emit QrLoginFrame through the event sink.
         let emit_frame = |frame: QrLoginFrame| {
@@ -564,7 +564,7 @@ impl WeixinAdapter {
         while !self.inner.stop.load(Ordering::SeqCst) {
             let base_url = self.base_url();
             let token = self.token();
-            let sync_buf = self.inner.sync_buf.lock().unwrap().clone();
+            let sync_buf = self.inner.sync_buf.lock().unwrap_or_else(|e| e.into_inner()).clone();
 
             match get_updates(&self.inner.client, &base_url, &token, &sync_buf, timeout_ms).await {
                 Ok(response) => {
@@ -757,9 +757,9 @@ impl WeixinAdapter {
                                             break;
                                         }
                                         // Update live credentials
-                                        *self.inner.token.lock().unwrap() =
+                                        *self.inner.token.lock().unwrap_or_else(|e| e.into_inner()) =
                                             new_token;
-                                        *self.inner.base_url.lock().unwrap() =
+                                        *self.inner.base_url.lock().unwrap_or_else(|e| e.into_inner()) =
                                             new_base_url;
                                         // Notify frontend
                                         if event_sink.is_some() {
@@ -800,7 +800,7 @@ impl WeixinAdapter {
                     machine.step(PollClass::Ok);
                     let new_sync_buf = response.get("get_updates_buf").and_then(Value::as_str).unwrap_or("");
                     if !new_sync_buf.is_empty() {
-                        *self.inner.sync_buf.lock().unwrap() = new_sync_buf.to_string();
+                        *self.inner.sync_buf.lock().unwrap_or_else(|e| e.into_inner()) = new_sync_buf.to_string();
                     }
 
                     if let Some(msgs) = response.get("msgs").and_then(Value::as_array) {
@@ -846,8 +846,7 @@ impl WeixinAdapter {
             if !ct.is_empty() {
                 self.inner
                     .context_tokens
-                    .lock()
-                    .unwrap()
+                    .lock().unwrap_or_else(|e| e.into_inner())
                     .insert(sender_id.clone(), ct);
             }
         }
@@ -893,7 +892,7 @@ impl PlatformAdapter for WeixinAdapter {
     }
 
     fn set_event_sink(&self, sink: PlatformEventSink) {
-        *self.inner.event_sink.lock().unwrap() = Some(sink);
+        *self.inner.event_sink.lock().unwrap_or_else(|e| e.into_inner()) = Some(sink);
     }
 
     fn connect(&self, tx: EventTx) -> BoxFuture<'static, Result<(), String>> {
@@ -909,14 +908,14 @@ impl PlatformAdapter for WeixinAdapter {
                 let adapter = WeixinAdapter { inner: me };
                 adapter.poll_loop(tx).await;
             });
-            *inner.task.lock().unwrap() = Some(handle);
+            *inner.task.lock().unwrap_or_else(|e| e.into_inner()) = Some(handle);
             Ok(())
         })
     }
 
     fn disconnect(&self) {
         self.inner.stop.store(true, Ordering::SeqCst);
-        if let Some(handle) = self.inner.task.lock().unwrap().take() {
+        if let Some(handle) = self.inner.task.lock().unwrap_or_else(|e| e.into_inner()).take() {
             handle.abort();
         }
     }
@@ -929,12 +928,12 @@ impl PlatformAdapter for WeixinAdapter {
         let chat_id = target.chat_id.clone();
         let text = text.to_string();
         Box::pin(async move {
-            let token = inner.token.lock().unwrap().clone();
+            let token = inner.token.lock().unwrap_or_else(|e| e.into_inner()).clone();
             if token.is_empty() {
                 return Err("weixin not connected (no token)".into());
             }
-            let base_url = inner.base_url.lock().unwrap().clone();
-            let context_token = inner.context_tokens.lock().unwrap().get(&chat_id).cloned();
+            let base_url = inner.base_url.lock().unwrap_or_else(|e| e.into_inner()).clone();
+            let context_token = inner.context_tokens.lock().unwrap_or_else(|e| e.into_inner()).get(&chat_id).cloned();
 
             let client_id = format!("weixin-{}", hex::encode(rand::random::<[u8; 16]>()));
 
@@ -982,7 +981,7 @@ impl PlatformAdapter for WeixinAdapter {
                             if !retried_without_token && context_token.is_some() {
                                 retried_without_token = true;
                                 context_token = None;
-                                inner.context_tokens.lock().unwrap().remove(&chat_id);
+                                inner.context_tokens.lock().unwrap_or_else(|e| e.into_inner()).remove(&chat_id);
                                 log::warn!("weixin: session expired for {chat_id}; retrying without context_token");
                                 continue;
                             }

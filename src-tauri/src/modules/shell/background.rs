@@ -22,6 +22,8 @@ pub struct BackgroundProc {
     pub exited: AtomicBool,
     pub exit_code: AtomicI32,
     pub exit_unknown: AtomicBool,
+    #[cfg(windows)]
+    job: Mutex<Option<crate::modules::proc::job::ProcessJob>>,
 }
 
 #[derive(Serialize)]
@@ -45,7 +47,7 @@ pub struct BackgroundProcInfo {
 
 impl BackgroundProc {
     pub fn read_logs(&self, since: u64) -> BackgroundLogResponse {
-        let (bytes, next_offset, dropped) = self.buffer.lock().unwrap().read_from(since);
+        let (bytes, next_offset, dropped) = self.buffer.lock().unwrap_or_else(|e| e.into_inner()).read_from(since);
         let exited = self.exited.load(Ordering::Acquire);
         let exit_code = if exited && !self.exit_unknown.load(Ordering::Acquire) {
             Some(self.exit_code.load(Ordering::Acquire))
@@ -62,7 +64,22 @@ impl BackgroundProc {
     }
 
     pub fn kill(&self) {
+        #[cfg(unix)]
+        {
+            let pid = self.child.id();
+            if pid > 1 {
+                // Negative pid targets the whole process group (set via process_group(0)).
+                unsafe { libc::kill(-(pid as i32), libc::SIGKILL) };
+            }
+        }
         let _ = self.child.kill();
+        #[cfg(windows)]
+        {
+            // Dropping the job handle triggers KILL_ON_JOB_CLOSE on the whole tree.
+            if let Some(job) = self.job.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                drop(job);
+            }
+        }
     }
 
     pub fn info(&self, handle: u32) -> BackgroundProcInfo {
@@ -108,12 +125,19 @@ pub fn spawn(
     if let (WorkspaceEnv::Local, Some(ref dir)) = (&workspace, &cwd) {
         cmd.current_dir(dir);
     }
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        cmd.process_group(0);
+    }
     cmd.stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
     crate::modules::proc::hide_console(&mut cmd);
 
     let shared = Arc::new(SharedChild::spawn(&mut cmd).map_err(|e| e.to_string())?);
+    #[cfg(windows)]
+    let job = crate::modules::proc::job::ProcessJob::create_for(shared.id()).ok();
     let kill_on_fail = || {
         let _ = shared.kill();
     };
@@ -141,6 +165,8 @@ pub fn spawn(
         exited: AtomicBool::new(false),
         exit_code: AtomicI32::new(0),
         exit_unknown: AtomicBool::new(false),
+        #[cfg(windows)]
+        job: Mutex::new(job),
     });
 
     {
@@ -151,7 +177,7 @@ pub fn spawn(
             loop {
                 match pipe.read(&mut buf) {
                     Ok(0) => break,
-                    Ok(n) => proc_ref.buffer.lock().unwrap().push(&buf[..n]),
+                    Ok(n) => proc_ref.buffer.lock().unwrap_or_else(|e| e.into_inner()).push(&buf[..n]),
                     Err(_) => break,
                 }
             }
@@ -165,7 +191,7 @@ pub fn spawn(
             loop {
                 match pipe.read(&mut buf) {
                     Ok(0) => break,
-                    Ok(n) => proc_ref.buffer.lock().unwrap().push(&buf[..n]),
+                    Ok(n) => proc_ref.buffer.lock().unwrap_or_else(|e| e.into_inner()).push(&buf[..n]),
                     Err(_) => break,
                 }
             }
