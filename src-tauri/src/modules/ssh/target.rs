@@ -12,11 +12,15 @@ pub struct SshTarget {
     #[serde(default)]
     pub user: Option<String>,
     /// Path to an identity (private key) file, passed via `-i`.
-    #[serde(default)]
+    /// The frontend (useTabs.ts `SshTarget`, SshConnectDialog) sends
+    /// `identityFile` (camelCase); backend callers may use `identity_file`.
+    /// `rename` picks the primary wire name, `alias` accepts the other form so
+    /// neither is silently dropped.
+    #[serde(default, rename = "identityFile", alias = "identity_file")]
     pub identity_file: Option<String>,
 }
 
-fn clean_component(value: &str, what: &str) -> Result<String, String> {
+pub(crate) fn clean_component(value: &str, what: &str) -> Result<String, String> {
     let v = value.trim();
     if v.is_empty() {
         return Err(format!("ssh: {what} must not be empty"));
@@ -174,5 +178,26 @@ mod tests {
             identity_file: None,
         });
         assert!(cmd.is_err());
+    }
+
+    #[test]
+    fn deserializes_camelcase_from_frontend_wire() {
+        // The frontend sends camelCase keys (`identityFile`); this is the MUST
+        // regression: without serde rename_all they'd be silently dropped.
+        let json = r#"{"host":"example.com","port":2222,"user":"deploy","identityFile":"~/.ssh/id"}"#;
+        let t: SshTarget = serde_json::from_str(json).unwrap();
+        assert_eq!(t.host, "example.com");
+        assert_eq!(t.port, Some(2222));
+        assert_eq!(t.user.as_deref(), Some("deploy"));
+        assert_eq!(t.identity_file.as_deref(), Some("~/.ssh/id"));
+    }
+
+    #[test]
+    fn deserializes_snake_case_for_backend_callers() {
+        // Backend callers may still use snake_case; both must work.
+        let json = r#"{"host":"h","identity_file":"/k"}"#;
+        let t: SshTarget = serde_json::from_str(json).unwrap();
+        assert_eq!(t.host, "h");
+        assert_eq!(t.identity_file.as_deref(), Some("/k"));
     }
 }

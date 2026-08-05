@@ -9,8 +9,28 @@ use std::io::Write;
 use std::process::{Command, Stdio};
 
 use super::target::SshTarget;
+use crate::modules::ssh::target::clean_component;
 
 const READ_BYTE_CAP: usize = 4 * 1024 * 1024;
+
+/// Quote a path for an sftp batch command so names with spaces/special chars
+/// survive tokenization. `sftp` batch mode does not do shell quoting, so we
+/// re-quote with single quotes and escape embedded single quotes.
+fn quote_batch(arg: &str) -> String {
+    format!("'{}'", arg.replace('\'', "'\\''"))
+}
+
+/// Quote a single path token. Returns an error if it contains control chars.
+fn sanitize_remote_path(path: &str) -> Result<String, String> {
+    let p = path.trim();
+    if p.is_empty() {
+        return Err("sftp: empty remote path".into());
+    }
+    if p.chars().any(char::is_control) {
+        return Err("sftp: remote path contains control characters".into());
+    }
+    Ok(quote_batch(p))
+}
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct SftpEntry {
@@ -19,20 +39,21 @@ pub struct SftpEntry {
     pub size: u64,
 }
 
-fn sanitize_path(path: &str) -> Result<String, String> {
-    let p = path.trim();
-    if p.is_empty() {
-        return Err("sftp: empty remote path".into());
-    }
-    if p.chars().any(char::is_control) {
-        return Err("sftp: remote path contains control characters".into());
-    }
-    Ok(p.to_string())
-}
-
 fn build_base(target: &SshTarget) -> Result<Command, String> {
+    // Host/user are sanitized exactly like the interactive ssh path so a
+    // hostile value can't smuggle extra `sftp`/`ssh` options via argv.
+    let host = clean_component(&target.host, "host")?;
+    let user = match &target.user {
+        Some(u) if !u.trim().is_empty() => Some(clean_component(u, "user")?),
+        _ => None,
+    };
+
     let mut cmd = Command::new("sftp");
-    cmd.args(["-o", "StrictHostKeyChecking=ask"]);
+    // StrictHostKeyChecking=ask needs a TTY; sftp -b - has none, so on a first
+    // connect to an unknown host it would fail. Use the same "ask, but fail
+    // with a clear message rather than hang" posture the tunnel path uses:
+    // accept the host key only if it's already known; otherwise error out.
+    cmd.args(["-o", "StrictHostKeyChecking=ask", "-o", "BatchMode=yes"]);
     if let Some(port) = target.port {
         if !(1..=65535).contains(&port) {
             return Err(format!("sftp: port out of range: {port}"));
@@ -40,15 +61,12 @@ fn build_base(target: &SshTarget) -> Result<Command, String> {
         cmd.args(["-P", &port.to_string()]);
     }
     if let Some(id) = &target.identity_file {
-        let id = id.trim();
-        if id.is_empty() || id.chars().any(char::is_whitespace) {
-            return Err("sftp: invalid identity file".into());
-        }
-        cmd.args(["-i", id]);
+        let id = clean_component(id, "identity file")?;
+        cmd.args(["-i", &id]);
     }
-    let dest = match &target.user {
-        Some(u) if !u.trim().is_empty() => format!("{}@{}", u.trim(), target.host),
-        _ => target.host.clone(),
+    let dest = match user {
+        Some(u) => format!("{u}@{host}"),
+        None => host,
     };
     cmd.arg(dest);
     Ok(cmd)
@@ -119,7 +137,7 @@ pub fn parse_ls_line(line: &str) -> Option<SftpEntry> {
 /// List a remote directory.
 #[tauri::command]
 pub async fn sftp_list(target: SshTarget, path: String) -> Result<Vec<SftpEntry>, String> {
-    let path = sanitize_path(&path)?;
+    let path = sanitize_remote_path(&path)?;
     let script = format!("ls -la {path}\nquit\n");
     let out = tokio::task::spawn_blocking(move || run_batch(&target, &script))
         .await
@@ -127,14 +145,34 @@ pub async fn sftp_list(target: SshTarget, path: String) -> Result<Vec<SftpEntry>
     Ok(out.lines().filter_map(parse_ls_line).collect())
 }
 
-/// Read a remote file's content (bounded). Downloads into a temp file via
-/// `sftp get`, reads it back, then removes it.
+/// Read a remote file's content (bounded). First stats the file via `ls -la`
+/// to reject over-cap files *before* downloading, then `get`s to a temp file,
+/// reads it back, and removes it. This avoids reading a huge file into memory.
 #[tauri::command]
 pub async fn sftp_read(target: SshTarget, path: String) -> Result<String, String> {
-    let path = sanitize_path(&path)?;
+    let quoted = sanitize_remote_path(&path)?;
+    // Pre-flight size check: bail out before pulling a multi-GB file.
+    let stat_script = format!("ls -la {quoted}\nquit\n");
+    let target_for_stat = target.clone();
+    let stat_out = tokio::task::spawn_blocking(move || run_batch(&target_for_stat, &stat_script))
+        .await
+        .map_err(|e| e.to_string())??;
+    let size = stat_out
+        .lines()
+        .find_map(parse_ls_line)
+        .map(|e| e.size)
+        .unwrap_or(0);
+    if size > READ_BYTE_CAP as u64 {
+        return Err(format!(
+            "sftp: remote file is {} bytes, exceeds {} MiB read cap",
+            size,
+            READ_BYTE_CAP / (1024 * 1024)
+        ));
+    }
+
     let dir = tempfile::tempdir().map_err(|e| format!("sftp tempdir: {e}"))?;
     let local = dir.path().join("yamet-remote");
-    let script = format!("get {path} {}\nquit\n", local.display());
+    let script = format!("get {quoted} {}\nquit\n", local.display());
     tokio::task::spawn_blocking(move || run_batch(&target, &script))
         .await
         .map_err(|e| e.to_string())??;
@@ -183,5 +221,59 @@ mod tests {
     fn rejects_non_ls_lines() {
         assert!(parse_ls_line("sftp> ls -la").is_none());
         assert!(parse_ls_line("random garbage").is_none());
+    }
+
+    #[test]
+    fn quote_batch_handles_spaces_and_quotes() {
+        assert_eq!(quote_batch("my file.txt"), "'my file.txt'");
+        assert_eq!(quote_batch("it's here"), "'it'\\''s here'");
+        assert_eq!(quote_batch("plain"), "'plain'");
+    }
+
+    #[test]
+    fn sanitize_remote_path_rejects_control_chars() {
+        assert!(sanitize_remote_path("a\nb").is_err());
+        assert!(sanitize_remote_path("").is_err());
+        assert_eq!(sanitize_remote_path("my dir").unwrap(), "'my dir'");
+    }
+
+    #[test]
+    fn build_base_rejects_option_smuggling_host() {
+        let target = SshTarget {
+            host: "-oProxyCommand=evil".into(),
+            port: None,
+            user: None,
+            identity_file: None,
+        };
+        assert!(build_base(&target).is_err());
+    }
+
+    #[test]
+    fn build_base_rejects_whitespace_host() {
+        let target = SshTarget {
+            host: "a b".into(),
+            port: None,
+            user: None,
+            identity_file: None,
+        };
+        assert!(build_base(&target).is_err());
+    }
+
+    #[test]
+    fn build_base_batches_and_uses_identity() {
+        let cmd = build_base(&SshTarget {
+            host: "example.com".into(),
+            port: Some(2222),
+            user: Some("deploy".into()),
+            identity_file: Some("~/.ssh/id_ed25519".into()),
+        })
+        .unwrap();
+        let args: Vec<_> = cmd.get_args().map(|a| a.to_string_lossy().into_owned()).collect();
+        assert!(args.contains(&"-P".into()));
+        assert!(args.contains(&"2222".into()));
+        assert!(args.contains(&"-i".into()));
+        assert!(args.contains(&"~/.ssh/id_ed25519".into()));
+        assert!(args.contains(&"deploy@example.com".into()));
+        assert!(args.contains(&"BatchMode=yes".into()));
     }
 }

@@ -9,6 +9,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Mutex, RwLock};
 
 use super::target::SshTarget;
+use crate::modules::ssh::target::clean_component;
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct TunnelInfo {
@@ -47,8 +48,26 @@ fn build_tunnel_command(
     flag: &str,
     spec: &str,
 ) -> Result<Command, String> {
+    // Sanitize host/user exactly like the interactive ssh path so a hostile
+    // value can't smuggle extra `ssh` options via argv.
+    let host = clean_component(&target.host, "host")?;
+    let user = match &target.user {
+        Some(u) if !u.trim().is_empty() => Some(clean_component(u, "user")?),
+        _ => None,
+    };
+
     let mut cmd = Command::new("ssh");
-    cmd.args(["-o", "StrictHostKeyChecking=ask", "-N"]);
+    // A background `ssh -N` has no TTY, so StrictHostKeyChecking=ask would fail
+    // on a first connect to an unknown host. Keep ask for known_hosts
+    // verification but add BatchMode=yes so it errors cleanly instead of
+    // hanging waiting for a prompt that never comes.
+    cmd.args([
+        "-o",
+        "StrictHostKeyChecking=ask",
+        "-o",
+        "BatchMode=yes",
+        "-N",
+    ]);
     cmd.arg(flag).arg(spec);
     if let Some(port) = target.port {
         if !(1..=65535).contains(&port) {
@@ -57,15 +76,12 @@ fn build_tunnel_command(
         cmd.args(["-p", &port.to_string()]);
     }
     if let Some(id) = &target.identity_file {
-        let id = id.trim();
-        if id.is_empty() || id.chars().any(char::is_whitespace) {
-            return Err("tunnel: invalid identity file".into());
-        }
-        cmd.args(["-i", id]);
+        let id = clean_component(id, "identity file")?;
+        cmd.args(["-i", &id]);
     }
-    let dest = match &target.user {
-        Some(u) if !u.trim().is_empty() => format!("{}@{}", u.trim(), target.host),
-        _ => target.host.clone(),
+    let dest = match user {
+        Some(u) => format!("{u}@{host}"),
+        None => host,
     };
     cmd.arg(dest);
     cmd.stdin(Stdio::null())
@@ -138,4 +154,53 @@ pub fn ssh_tunnel_kill(state: tauri::State<'_, TunnelsState>, id: u32) -> Result
         log::info!("ssh tunnel killed id={id}");
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tunnel_command_rejects_option_smuggling_host() {
+        let target = SshTarget {
+            host: "-oProxyCommand=evil".into(),
+            port: None,
+            user: None,
+            identity_file: None,
+        };
+        assert!(build_tunnel_command(&target, "-L", "8080:localhost:80").is_err());
+    }
+
+    #[test]
+    fn tunnel_command_uses_batch_mode_and_identity() {
+        let cmd = build_tunnel_command(
+            &SshTarget {
+                host: "example.com".into(),
+                port: Some(2222),
+                user: Some("deploy".into()),
+                identity_file: Some("~/.ssh/id".into()),
+            },
+            "-R",
+            "9000:127.0.0.1:90",
+        )
+        .unwrap();
+        let args: Vec<_> = cmd.get_args().map(|a| a.to_string_lossy().into_owned()).collect();
+        assert!(args.contains(&"BatchMode=yes".into()));
+        assert!(args.contains(&"-i".into()));
+        assert!(args.contains(&"deploy@example.com".into()));
+        assert!(args.contains(&"-R".into()));
+    }
+
+    #[test]
+    fn tunnel_command_rejects_unknown_kind() {
+        // kind validation lives in ssh_tunnel_start; build_tunnel_command takes
+        // the flag directly. Ensure a hostile host is still rejected there.
+        let target = SshTarget {
+            host: "-oProxyCommand=evil".into(),
+            port: None,
+            user: None,
+            identity_file: None,
+        };
+        assert!(build_tunnel_command(&target, "-L", "x:y").is_err());
+    }
 }

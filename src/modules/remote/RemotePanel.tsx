@@ -87,8 +87,10 @@ export function RemotePanel({ onOpenRemoteFile }: Props) {
       setTunnels([]);
       return;
     }
+    // Backend `ssh_tunnel_list` already reaps exited tunnels (try_wait), so
+    // show the list as-is — no client-side filtering needed.
     invoke<TunnelInfo[]>("ssh_tunnel_list")
-      .then((list) => setTunnels(list.filter((x) => x.bind === tunnelBind || true)))
+      .then((list) => setTunnels(list))
       .catch(() => {});
   };
   useEffect(() => {
