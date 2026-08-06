@@ -62,7 +62,7 @@ const urlHighlighter = ViewPlugin.fromClass(
   { decorations: (v) => v.decorations },
 );
 
-function urlAt(view: EditorView, pos: number): string | null {
+export function urlAt(view: EditorView, pos: number): string | null {
   const line = view.state.doc.lineAt(pos);
   URL_RE.lastIndex = 0;
   let m: RegExpExecArray | null;

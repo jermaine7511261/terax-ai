@@ -174,14 +174,14 @@ export default defineConfig(async ({ mode }): Promise<UserConfig> => ({
         "**/*.d.ts",
       ],
       // Progressive thresholds (round 13+): coverage raised via core-logic
-      // tests (21.35% -> 24.75%, 1258 -> 1392 tests; ai/agents store + lsp/
-      // settings/terminal/explorer/editor lib + src/lib now covered). Raise
-      // next round; further gains need the remaining store/lib + app hooks.
+      // tests (24.75% -> 29.13%, 1392 -> 1547 tests; P1 tools/hooks/libs now
+      // covered). Raise next round; remaining gaps are large integration hooks
+      // + component shells (target for E2E, not unit tests).
       thresholds: {
-        statements: 24,
-        branches: 22,
-        functions: 19,
-        lines: 25,
+        statements: 29,
+        branches: 25,
+        functions: 23,
+        lines: 29,
       },
     },
   },

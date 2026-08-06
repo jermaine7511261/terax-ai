@@ -11,11 +11,12 @@ import {
 const COLOR_RE =
   /#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3,4})\b|(?:rgba?|hsla?)\([^)]*\)/gi;
 
-function isHex(color: string): boolean {
+// Pure helpers exported for unit testing (color parsing / swatch math).
+export function isHex(color: string): boolean {
   return color.startsWith("#");
 }
 
-function toHex6(color: string): string {
+export function toHex6(color: string): string {
   const h = color.slice(1);
   if (h.length === 3 || h.length === 4) {
     const r = h[0];
@@ -26,7 +27,7 @@ function toHex6(color: string): string {
   return `#${h.slice(0, 6)}`;
 }
 
-function applyHex(original: string, picked6: string): string {
+export function applyHex(original: string, picked6: string): string {
   const h = original.slice(1);
   if (h.length === 8) return `${picked6}${h.slice(6, 8)}`;
   if (h.length === 4) return `${picked6}${h[3]}${h[3]}`;
