@@ -86,6 +86,7 @@ chrono = { version = "0.4", features = ["clock", "serde"] }
 [dev-dependencies]
 proptest = "1"
 tempfile = "3"
+tauri = { version = "2", features = ["test"] }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

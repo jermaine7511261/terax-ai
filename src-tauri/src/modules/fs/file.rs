@@ -65,9 +65,36 @@ pub async fn fs_read_file(
     path: String,
     workspace: Option<WorkspaceEnv>,
     force: Option<bool>,
+    source: Option<String>,
+    registry: tauri::State<'_, WorkspaceRegistry>,
+) -> Result<ReadResult, String> {
+    fs_read_file_impl(path, workspace, force, source, Some(&registry))
+}
+
+/// Pure core of `fs_read_file`, testable without a Tauri app context. The
+/// registry is optional: AI reads get the denylist + workspace authorization;
+/// editor/explorer reads (no `source`) pass through. Unit/integration tests
+/// pass `None` for the registry and rely on the denylist alone.
+pub fn fs_read_file_impl(
+    path: String,
+    workspace: Option<WorkspaceEnv>,
+    force: Option<bool>,
+    source: Option<String>,
+    registry: Option<&WorkspaceRegistry>,
 ) -> Result<ReadResult, String> {
     let workspace = WorkspaceEnv::from_option(workspace);
-    read_file_sync(&resolve_path(&path, &workspace), force.unwrap_or(false))
+    let target = resolve_path(&path, &workspace);
+    // Defense-in-depth for AI reads: the frontend `security.ts` denylist is the
+    // first gate; this authoritative backend gate applies the same policy plus
+    // workspace authorization. Editor/explorer reads (no `source`) are trusted
+    // user actions and pass through, matching the write-path contract.
+    if source.as_deref() == Some("ai") {
+        super::policy::check_read_path_authorized(&target, &source, registry).map_err(|e| {
+            log::warn!("{e}");
+            e
+        })?;
+    }
+    read_file_sync(&target, force.unwrap_or(false))
 }
 
 fn read_file_sync(p: &Path, force: bool) -> Result<ReadResult, String> {
@@ -206,17 +233,54 @@ pub async fn fs_write_file(
 pub async fn fs_canonicalize(
     path: String,
     workspace: Option<WorkspaceEnv>,
+    source: Option<String>,
+    registry: tauri::State<'_, WorkspaceRegistry>,
+) -> Result<String, String> {
+    fs_canonicalize_impl(path, workspace, source, Some(&registry))
+}
+
+pub fn fs_canonicalize_impl(
+    path: String,
+    workspace: Option<WorkspaceEnv>,
+    source: Option<String>,
+    registry: Option<&WorkspaceRegistry>,
 ) -> Result<String, String> {
     let workspace = WorkspaceEnv::from_option(workspace);
     let p = resolve_path(&path, &workspace);
+    if source.as_deref() == Some("ai") {
+        super::policy::check_read_path_authorized(&p, &source, registry).map_err(|e| {
+            log::warn!("{e}");
+            e
+        })?;
+    }
     let canon = std::fs::canonicalize(&p).map_err(|e| e.to_string())?;
     Ok(super::to_canon(&canon))
 }
 
 #[tauri::command]
-pub async fn fs_stat(path: String, workspace: Option<WorkspaceEnv>) -> Result<FileStat, String> {
+pub async fn fs_stat(
+    path: String,
+    workspace: Option<WorkspaceEnv>,
+    source: Option<String>,
+    registry: tauri::State<'_, WorkspaceRegistry>,
+) -> Result<FileStat, String> {
+    fs_stat_impl(path, workspace, source, Some(&registry))
+}
+
+pub fn fs_stat_impl(
+    path: String,
+    workspace: Option<WorkspaceEnv>,
+    source: Option<String>,
+    registry: Option<&WorkspaceRegistry>,
+) -> Result<FileStat, String> {
     let workspace = WorkspaceEnv::from_option(workspace);
     let p = resolve_path(&path, &workspace);
+    if source.as_deref() == Some("ai") {
+        super::policy::check_read_path_authorized(&p, &source, registry).map_err(|e| {
+            log::warn!("{e}");
+            e
+        })?;
+    }
     let meta = std::fs::metadata(&p).map_err(|e| e.to_string())?;
     // fs::metadata follows symlinks, so the link check needs symlink_metadata.
     let kind = if std::fs::symlink_metadata(&p)

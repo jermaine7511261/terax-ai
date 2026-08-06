@@ -170,6 +170,7 @@ fn search_tree(
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub fn fs_grep(
     pattern: String,
     root: String,
@@ -177,12 +178,36 @@ pub fn fs_grep(
     case_insensitive: Option<bool>,
     max_results: Option<usize>,
     workspace: Option<WorkspaceEnv>,
+    source: Option<String>,
+    registry: tauri::State<'_, crate::modules::workspace::WorkspaceRegistry>,
+) -> Result<GrepResponse, String> {
+    fs_grep_impl(pattern, root, glob, case_insensitive, max_results, workspace, source, Some(&registry))
+}
+
+/// Pure core of `fs_grep`, testable without a Tauri app context (registry is
+/// optional; tests pass `None`).
+#[allow(clippy::too_many_arguments)]
+pub fn fs_grep_impl(
+    pattern: String,
+    root: String,
+    glob: Option<Vec<String>>,
+    case_insensitive: Option<bool>,
+    max_results: Option<usize>,
+    workspace: Option<WorkspaceEnv>,
+    source: Option<String>,
+    registry: Option<&crate::modules::workspace::WorkspaceRegistry>,
 ) -> Result<GrepResponse, String> {
     if pattern.is_empty() {
         return Err("empty pattern".into());
     }
     let workspace = WorkspaceEnv::from_option(workspace);
     let root_path = resolve_path(&root, &workspace);
+    if source.as_deref() == Some("ai") {
+        super::policy::check_read_path_authorized(&root_path, &source, registry).map_err(|e| {
+            log::warn!("{e}");
+            e
+        })?;
+    }
     if !root_path.is_dir() {
         return Err(format!("not a directory: {root}"));
     }
@@ -269,12 +294,32 @@ pub fn fs_glob(
     root: String,
     max_results: Option<usize>,
     workspace: Option<WorkspaceEnv>,
+    source: Option<String>,
+    registry: tauri::State<'_, crate::modules::workspace::WorkspaceRegistry>,
+) -> Result<GlobResponse, String> {
+    fs_glob_impl(pattern, root, max_results, workspace, source, Some(&registry))
+}
+
+/// Pure core of `fs_glob`, testable without a Tauri app context.
+pub fn fs_glob_impl(
+    pattern: String,
+    root: String,
+    max_results: Option<usize>,
+    workspace: Option<WorkspaceEnv>,
+    source: Option<String>,
+    registry: Option<&crate::modules::workspace::WorkspaceRegistry>,
 ) -> Result<GlobResponse, String> {
     if pattern.is_empty() {
         return Err("empty pattern".into());
     }
     let workspace = WorkspaceEnv::from_option(workspace);
     let root_path = resolve_path(&root, &workspace);
+    if source.as_deref() == Some("ai") {
+        super::policy::check_read_path_authorized(&root_path, &source, registry).map_err(|e| {
+            log::warn!("{e}");
+            e
+        })?;
+    }
     if !root_path.is_dir() {
         return Err(format!("not a directory: {root}"));
     }

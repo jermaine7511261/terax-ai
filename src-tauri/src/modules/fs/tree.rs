@@ -68,9 +68,29 @@ pub fn fs_read_dir(
     show_hidden: bool,
     git_decorations: Option<bool>,
     workspace: Option<WorkspaceEnv>,
+    source: Option<String>,
+    registry: tauri::State<'_, crate::modules::workspace::WorkspaceRegistry>,
+) -> Result<Vec<DirEntry>, String> {
+    fs_read_dir_impl(path, show_hidden, git_decorations, workspace, source, Some(&registry))
+}
+
+/// Pure core of `fs_read_dir`, testable without a Tauri app context.
+pub fn fs_read_dir_impl(
+    path: String,
+    show_hidden: bool,
+    git_decorations: Option<bool>,
+    workspace: Option<WorkspaceEnv>,
+    source: Option<String>,
+    registry: Option<&crate::modules::workspace::WorkspaceRegistry>,
 ) -> Result<Vec<DirEntry>, String> {
     let workspace = WorkspaceEnv::from_option(workspace);
     let root = resolve_path(&path, &workspace);
+    if source.as_deref() == Some("ai") {
+        super::policy::check_read_path_authorized(&root, &source, registry).map_err(|e| {
+            log::warn!("{e}");
+            e
+        })?;
+    }
     let read = std::fs::read_dir(&root).map_err(|e| {
         log::debug!("fs_read_dir({}) failed: {e}", root.display());
         e.to_string()

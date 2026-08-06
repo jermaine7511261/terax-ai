@@ -174,6 +174,7 @@ export const native = {
   readFile: (path: string) =>
     invoke<ReadResult>("fs_read_file", {
       path,
+      source: "ai",
       workspace: currentWorkspaceEnv(),
     }),
   writeFile: (path: string, content: string) =>
@@ -218,6 +219,7 @@ export const native = {
   readDir: (path: string) =>
     invoke<DirEntry[]>("fs_read_dir", {
       path,
+      source: "ai",
       showHidden: false,
       workspace: currentWorkspaceEnv(),
     }),
@@ -234,6 +236,7 @@ export const native = {
       glob: params.glob ?? null,
       caseInsensitive: params.caseInsensitive ?? null,
       maxResults: params.maxResults ?? null,
+      source: "ai",
       workspace: currentWorkspaceEnv(),
     }),
   glob: (params: { pattern: string; root: string; maxResults?: number }) =>
@@ -241,6 +244,7 @@ export const native = {
       pattern: params.pattern,
       root: params.root,
       maxResults: params.maxResults ?? null,
+      source: "ai",
       workspace: currentWorkspaceEnv(),
     }),
   runCommand: (
