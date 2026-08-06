@@ -1556,7 +1556,7 @@ pub fn submodule_status(
         let prefix = line.chars().next().unwrap_or(' ');
         let rest = &line[1..];
         let sha = &rest[..7.min(rest.len())];
-        let after_sha = rest[7.min(rest.len()).max(0)..].trim_start();
+        let after_sha = rest[7.min(rest.len())..].trim_start();
         let path = after_sha.split(" (").next().unwrap_or("").trim().to_string();
         let describe = after_sha
             .split_once(" (")

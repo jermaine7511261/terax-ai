@@ -117,13 +117,13 @@ pub async fn mcp_server_add(
     match config.transport_type {
         McpTransportType::Stdio => {
             let cmd = config.config.get("command").and_then(Value::as_str);
-            if cmd.map_or(true, str::is_empty) {
+            if cmd.is_none_or(str::is_empty) {
                 return Err("mcp stdio server requires a command".to_string());
             }
         }
         McpTransportType::Sse => {
             let url = config.config.get("url").and_then(Value::as_str);
-            if url.map_or(true, str::is_empty) {
+            if url.is_none_or(str::is_empty) {
                 return Err("mcp sse server requires a url".to_string());
             }
         }

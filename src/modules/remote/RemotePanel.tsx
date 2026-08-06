@@ -16,6 +16,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import type { SshTarget } from "@/modules/tabs";
+import { parseTarget } from "./lib/sshArgs";
 
 type SftpEntry = {
   name: string;
@@ -34,16 +35,6 @@ type TunnelInfo = {
 type Props = {
   onOpenRemoteFile: (target: SshTarget, path: string) => void;
 };
-
-function parseTarget(host: string): SshTarget | null {
-  const h = host.trim();
-  if (!h) return null;
-  const at = h.lastIndexOf("@");
-  if (at > 0) {
-    return { host: h.slice(at + 1), user: h.slice(0, at) };
-  }
-  return { host: h };
-}
 
 export function RemotePanel({ onOpenRemoteFile }: Props) {
   const { t } = useI18n();

@@ -14,6 +14,7 @@ use serde_json::{json, Value};
 use tauri::ipc::Channel;
 use tauri::{AppHandle, Emitter, State};
 
+use crate::modules::lsp::env::resolve_binary;
 use crate::modules::workspace::{authorize_spawn_cwd, WorkspaceEnv, WorkspaceRegistry};
 
 use super::protocol::{
@@ -360,8 +361,19 @@ pub async fn dap_session_create(
     match config.transport_type {
         DapTransportType::Stdio => {
             let cmd = config.config.get("adapterCommand").and_then(Value::as_str);
-            if cmd.map_or(true, str::is_empty) {
+            if cmd.is_none_or(str::is_empty) {
                 return Err("dap stdio session requires adapterCommand".to_string());
+            }
+            // Probe the adapter binary so a missing tool surfaces a clear,
+            // actionable error instead of a silent spawn failure.
+            if let Some(cmd) = cmd {
+                if resolve_binary(cmd).is_none() {
+                    return Err(json!({
+                        "code": "adapter_missing",
+                        "command": cmd,
+                    })
+                    .to_string());
+                }
             }
         }
         DapTransportType::Tcp => {
@@ -564,4 +576,81 @@ fn parse_env_pairs(value: Option<&Value>) -> Vec<(String, String)> {
                 .collect()
         })
         .unwrap_or_default()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn status_kind_maps_every_variant() {
+        let cases = [
+            (DapSessionStatus::Inactive, "inactive"),
+            (DapSessionStatus::Initializing, "initializing"),
+            (DapSessionStatus::Initialized, "initialized"),
+            (DapSessionStatus::Running, "running"),
+            (DapSessionStatus::Stopped, "stopped"),
+            (DapSessionStatus::Exited, "exited"),
+            (DapSessionStatus::Error("boom".into()), "error"),
+        ];
+        for (status, expected) in cases {
+            assert_eq!(status.kind(), expected);
+        }
+    }
+
+    #[test]
+    fn status_message_only_for_error() {
+        assert_eq!(DapSessionStatus::Running.message(), None);
+        assert_eq!(DapSessionStatus::Error("x".into()).message(), Some("x"));
+    }
+
+    #[test]
+    fn session_info_serializes_camel_case() {
+        let info = DapSessionInfo {
+            id: "s1".into(),
+            adapter_type: "debugpy".into(),
+            transport: "stdio".into(),
+            status: "running".into(),
+            error: Some("oops".into()),
+        };
+        let json = serde_json::to_value(&info).unwrap();
+        assert_eq!(json["adapterType"], "debugpy");
+        assert_eq!(json["transport"], "stdio");
+        assert_eq!(json["error"], "oops");
+    }
+
+    #[test]
+    fn session_config_deserializes_camel_case_and_flattens() {
+        let json = serde_json::json!({
+            "id": "s1",
+            "adapterType": "debugpy",
+            "transport": "stdio",
+            "adapterCommand": "debugpy",
+        });
+        let config: DapSessionConfig = serde_json::from_value(json).unwrap();
+        assert_eq!(config.id, "s1");
+        assert_eq!(config.adapter_type, "debugpy");
+        assert_eq!(config.transport_type, DapTransportType::Stdio);
+        assert_eq!(config.config["adapterCommand"], "debugpy");
+    }
+
+    #[test]
+    fn parse_env_pairs_handles_missing_and_partial() {
+        assert_eq!(parse_env_pairs(None), Vec::<(String, String)>::new());
+        assert_eq!(parse_env_pairs(Some(&Value::Null)), Vec::new());
+        let arr = serde_json::json!([
+            { "name": "A", "value": "1" },
+            { "name": "B" },
+            { "name": "C", "value": "3" },
+        ]);
+        let got = parse_env_pairs(Some(&arr));
+        assert_eq!(
+            got,
+            vec![
+                ("A".into(), "1".into()),
+                ("B".into(), "".into()),
+                ("C".into(), "3".into()),
+            ]
+        );
+    }
 }

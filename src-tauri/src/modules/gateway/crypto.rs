@@ -18,7 +18,7 @@ type Aes128CbcDec = cbc::Decryptor<aes::Aes128>;
 pub fn pkcs7_pad(data: &[u8], block_size: usize) -> Vec<u8> {
     let pad_len = block_size - (data.len() % block_size);
     let mut out = data.to_vec();
-    out.extend(std::iter::repeat(pad_len as u8).take(pad_len));
+    out.extend(std::iter::repeat_n(pad_len as u8, pad_len));
     out
 }
 
@@ -66,7 +66,7 @@ pub fn aes128_ecb_decrypt(key: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>, Stri
     if key.len() != 16 {
         return Err("aes128_ecb: key must be 16 bytes".into());
     }
-    if ciphertext.len() % 16 != 0 {
+    if !ciphertext.len().is_multiple_of(16) {
         return Err("aes128_ecb: ciphertext length not a multiple of 16".into());
     }
     let cipher = aes::Aes128::new_from_slice(key).map_err(|e| e.to_string())?;

@@ -186,7 +186,7 @@ impl GatewayRegistry {
                 return Ok(());
             }
         }
-        self.inner.connecting.lock().unwrap_or_else(|e| e.into_inner()).insert(id.clone());
+        self.inner.connecting.lock().unwrap_or_else(|e| e.into_inner()).insert(id);
         let handler = self.inner.handler.lock().unwrap_or_else(|e| e.into_inner()).clone();
         let (tx, mut rx) = mpsc::channel::<MessageEvent>(128);
         {
@@ -215,7 +215,7 @@ impl GatewayRegistry {
             }
         }
         self.inner.connecting.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
-        self.inner.connected.lock().unwrap_or_else(|e| e.into_inner()).insert(id.clone());
+        self.inner.connected.lock().unwrap_or_else(|e| e.into_inner()).insert(id);
         // Surface the (possibly callback-based) local URL to the settings UI.
         if let Some(cb) = self.inner.on_connected.lock().unwrap_or_else(|e| e.into_inner()).as_ref() {
             let url = self

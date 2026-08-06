@@ -127,6 +127,11 @@ export const zhMessages = {
     aiKeyDesc: "在设置 → AI 中粘贴 API 密钥，或指向本地端点（LM Studio / Ollama）。密钥存于系统钥匙串。",
     getStarted: "开始使用",
     skip: "跳过",
+    capabilities: "调试、补全与远程",
+    capabilitiesDesc:
+      "内置 DAP 调试器（断点/调用栈/变量）、LSP 代码补全与诊断、SFTP 远程浏览与端口转发。",
+    windowsNote:
+      "Windows 首次启动可能显示“Windows 已保护你的电脑”。点击“更多信息”→“仍要运行”即可。",
   },
   sidebar: {
     explorer: "资源管理器",
@@ -1079,6 +1084,7 @@ export const zhMessages = {
       exited: "已退出",
       error: "错误",
     },
+    adapterMissing: "未找到调试适配器「{command}」。请先安装它，再重试。",
   },
   settingsAbout: {
     about: "关于",
@@ -1455,6 +1461,11 @@ export const enMessages = {
       "Paste an API key in Settings → AI, or point to a local endpoint (LM Studio / Ollama). Keys live in the OS keychain.",
     getStarted: "Get started",
     skip: "Skip",
+    capabilities: "Debug, autocomplete & remote",
+    capabilitiesDesc:
+      "Built-in DAP debugger (breakpoints / call stack / variables), LSP autocomplete & diagnostics, SFTP remote browsing and port forwarding.",
+    windowsNote:
+      "On first launch Windows may show \"Windows protected your PC\". Click \"More info\" → \"Run anyway\".",
   },
   sidebar: {
     explorer: "Explorer",
@@ -2427,6 +2438,7 @@ export const enMessages = {
       exited: "exited",
       error: "error",
     },
+    adapterMissing: "Debug adapter \"{command}\" not found. Install it and retry.",
   },
   settingsAbout: {
     about: "About",

@@ -10,6 +10,7 @@ import { Search01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import { highlightRanges } from "./lib/filter";
 
 type Props = {
   root: string | null;
@@ -25,25 +26,20 @@ function Highlight({
   term: string;
 }): React.ReactElement {
   if (!term) return <>{text}</>;
-  const lower = text.toLowerCase();
-  const needle = term.toLowerCase();
+  const ranges = highlightRanges(text, term);
+  if (ranges.length === 0) return <>{text}</>;
   const parts: React.ReactNode[] = [];
   let i = 0;
-  let key = 0;
-  for (;;) {
-    const idx = lower.indexOf(needle, i);
-    if (idx < 0) {
-      parts.push(text.slice(i));
-      break;
-    }
-    if (idx > i) parts.push(text.slice(i, idx));
+  ranges.forEach((r, key) => {
+    if (r.start > i) parts.push(text.slice(i, r.start));
     parts.push(
-      <mark key={key++} className="rounded-[2px] bg-primary/25 text-foreground">
-        {text.slice(idx, idx + needle.length)}
+      <mark key={key} className="rounded-[2px] bg-primary/25 text-foreground">
+        {text.slice(r.start, r.end)}
       </mark>,
     );
-    i = idx + needle.length;
-  }
+    i = r.end;
+  });
+  if (i < text.length) parts.push(text.slice(i));
   return <>{parts}</>;
 }
 

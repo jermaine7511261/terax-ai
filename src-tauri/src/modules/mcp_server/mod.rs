@@ -140,7 +140,7 @@ pub fn cli_entry() {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Cursor;
+    
 
     #[test]
     fn handle_initialize() {

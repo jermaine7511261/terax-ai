@@ -8,10 +8,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useI18n } from "@/lib/i18n";
+import { IS_WINDOWS } from "@/lib/platform";
 import {
   CodeCircleIcon,
   CodeIcon,
   Key02Icon,
+  ServerStack02Icon,
   TerminalIcon,
 } from "@hugeicons/core-free-icons";
 import type { IconSvgElement } from "@hugeicons/react";
@@ -52,6 +54,7 @@ function Feature({
  *  editor, AI agent) and is shown once until dismissed. */
 export function OnboardingDialog({ open, onOpenChange, onComplete }: Props) {
   const { t } = useI18n();
+  const isWindows = IS_WINDOWS;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -85,7 +88,18 @@ export function OnboardingDialog({ open, onOpenChange, onComplete }: Props) {
             title={t("onboarding.aiKey")}
             desc={t("onboarding.aiKeyDesc")}
           />
+          <Feature
+            icon={ServerStack02Icon}
+            title={t("onboarding.capabilities")}
+            desc={t("onboarding.capabilitiesDesc")}
+          />
         </div>
+
+        {isWindows && (
+          <div className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-[11.5px] leading-relaxed text-amber-200">
+            {t("onboarding.windowsNote")}
+          </div>
+        )}
 
         <DialogFooter className="mt-2">
           <Button variant="ghost" onClick={() => onOpenChange(false)}>

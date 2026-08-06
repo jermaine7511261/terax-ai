@@ -110,7 +110,7 @@ fn aes256_cbc_decrypt(key: &[u8], iv: &[u8], ciphertext: &[u8]) -> Result<Vec<u8
 
 /// Verify callback signature: sha1(sort(token, timestamp, nonce)).
 fn verify_signature(token: &str, ts: &str, nonce: &str, sig: &str) -> bool {
-    let mut parts = vec![token.to_string(), ts.to_string(), nonce.to_string()];
+    let mut parts = [token.to_string(), ts.to_string(), nonce.to_string()];
     parts.sort();
     constant_time_eq(&sha1_hex(parts.join("").as_bytes()), sig)
 }
@@ -196,7 +196,7 @@ impl PlatformAdapter for OfficialAccountAdapter {
             };
             let token = if token.is_empty() {
                 let resp: serde_json::Value = client
-                    .get(&format!(
+                    .get(format!(
                         "{API_BASE}/token?grant_type=client_credential&appid={}&secret={}",
                         this.cfg.app_id, this.cfg.app_secret
                     ))
@@ -280,7 +280,7 @@ async fn run_oa_callback_server(inner: &Arc<OaInner>, tx: EventTx) -> Result<(),
                 let nonce = qparam(&req, "nonce").unwrap_or_default();
                 let echostr = qparam(&req, "echostr").unwrap_or_default();
                 if verify_signature(&token_c, &ts, &nonce, &sig) {
-                    format!("{echostr}")
+                    echostr.to_string()
                 } else {
                     String::new()
                 }

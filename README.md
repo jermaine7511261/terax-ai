@@ -104,6 +104,10 @@ Yamet 是一个开源、轻量的终端（ADE，agentic development environment�
 2. 选择提供商并粘贴 API 密钥。本地推理则将 Yamet 指向你的 LM Studio / MLX / Ollama 端点。
 3. 密钥经 `keyring` 写入操作系统钥匙串，永不着盘或进 localStorage。
 
+## 排障
+
+遇到平台 / 调试 / AI / 远程问题，见 [docs/troubleshooting.md](docs/troubleshooting.md)（Windows 签名提示、Linux Wayland、DAP/LSP 适配器安装、AI 配置等）。
+
 ## 从源码构建
 
 **前置条件**

@@ -1,16 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const nativeMock = vi.hoisted(() => ({
-  readFile: vi.fn(async (_path: string) => ({
-    kind: "text" as const,
-    content: "",
-    size: 0,
-  })),
-  writeFile: vi.fn(async (_path: string, _content: string) => {}),
+vi.mock("./native", () => ({
+  native: { readFile: vi.fn(), writeFile: vi.fn() },
+}));
+vi.mock("../store/memoryStore", () => ({
+  formatSessionMemory: vi.fn(() => null),
+  getSessionMemory: vi.fn(() => []),
+}));
+vi.mock("./agent", () => ({
+  runAgentStream: vi.fn(),
+}));
+vi.mock("@/modules/mcp", () => ({
+  useMcpStore: { getState: () => ({ refresh: vi.fn().mockResolvedValue(undefined) }) },
 }));
 
-vi.mock("../lib/native", () => ({ native: nativeMock }));
-
+import { native } from "./native";
+import { runAgentStream } from "./agent";
 import {
   appendProjectMemory,
   mergeProjectMemory,
@@ -22,170 +27,135 @@ import {
   updateProjectMemory,
 } from "./transport";
 
+const mockReadFile = vi.mocked(native.readFile);
+const mockWriteFile = vi.mocked(native.writeFile);
+const mockRunAgentStream = vi.mocked(runAgentStream);
+
 const MEM_START = "<!-- yamet-project-memory:start -->";
 const MEM_END = "<!-- yamet-project-memory:end -->";
 
 beforeEach(() => {
-  // resetAllMocks clears implementations (mockRejectedValue leaks otherwise);
-  // re-apply the benign defaults so every test starts clean.
-  vi.resetAllMocks();
-  nativeMock.readFile.mockResolvedValue({
-    kind: "text",
-    content: "",
-    size: 0,
-  });
-  nativeMock.writeFile.mockResolvedValue(undefined);
+  mockReadFile.mockReset();
+  mockWriteFile.mockReset();
+  mockRunAgentStream.mockReset();
 });
 
-describe("parseBlock / rebuildBlock", () => {
-  it("parses the managed block and round-trips it", () => {
-    // suffix starts with a newline, so rebuild preserves the exact bytes.
-    const content = `# Y\n${MEM_START}\n- a\n- b\n${MEM_END}\ntail`;
+describe("renderEntry / parseBlock / rebuildBlock", () => {
+  it("renderEntry flattens newlines to spaces", () => {
+    expect(renderEntry({ content: "a\nb" })).toBe("- a b");
+  });
+
+  it("parseBlock returns everything as prefix when no markers exist", () => {
+    expect(parseBlock("just text")).toEqual({ prefix: "just text", lines: [], suffix: "" });
+  });
+
+  it("parseBlock extracts only non-empty lines from the managed block", () => {
+    const content = `head\n${MEM_START}\n- a\n\n- b\n${MEM_END}\ntail`;
     const block = parseBlock(content);
-    expect(block.prefix).toBe("# Y\n");
+    expect(block.prefix).toBe("head\n");
     expect(block.lines).toEqual(["- a", "- b"]);
     expect(block.suffix).toBe("\ntail");
-    expect(rebuildBlock(block)).toBe(content);
   });
 
-  it("treats content without a block as all-prefix", () => {
-    const block = parseBlock("# no block\n");
-    expect(block.lines).toEqual([]);
-    expect(block.prefix).toBe("# no block\n");
-    expect(rebuildBlock(block)).toBe("# no block\n");
+  it("parseBlock returns prefix only when end marker precedes start", () => {
+    const content = `${MEM_END}x${MEM_START}`;
+    expect(parseBlock(content).lines).toEqual([]);
   });
 
-  it("drops the block when lines are emptied", () => {
-    const content = `pre\n${MEM_START}\n- a\n${MEM_END}post`;
-    const block = parseBlock(content);
-    block.lines = [];
-    expect(rebuildBlock(block)).toBe("pre\npost");
+  it("rebuildBlock emits no markers when there are no lines", () => {
+    expect(rebuildBlock({ prefix: "p", lines: [], suffix: "s" })).toBe("ps");
   });
 
-  it("handles missing/backwards end marker", () => {
-    expect(parseBlock("abc").lines).toEqual([]);
-    expect(parseBlock(`${MEM_END}\n${MEM_START}`).lines).toEqual([]);
-  });
-});
-
-describe("renderEntry", () => {
-  it("collapses embedded newlines into spaces", () => {
-    expect(renderEntry({ content: "a\nb\nc" })).toBe("- a b c");
+  it("rebuildBlock reassembles markers around lines with newline separators", () => {
+    const out = rebuildBlock({ prefix: "p\n", lines: ["- a", "- b"], suffix: "\nt" });
+    expect(out).toBe(`p\n${MEM_START}\n- a\n- b\n${MEM_END}\nt`);
   });
 });
 
 describe("mergeProjectMemory", () => {
-  it("merges static + session and dedups identical lines", () => {
-    const out = mergeProjectMemory("- a\n- b", "- b\n- c");
-    expect(out).not.toBeNull();
-    for (const line of ["- a", "- b", "- c"]) {
-      expect(out).toContain(line);
-    }
-    expect(out!.split("- b")).toHaveLength(2); // deduped to one occurrence
+  it("returns null when both sources are empty", () => {
+    expect(mergeProjectMemory(null, null)).toBeNull();
+    expect(mergeProjectMemory("", "   ")).toBeNull();
   });
 
-  it("returns null when both inputs are empty", () => {
-    expect(mergeProjectMemory(null, null)).toBeNull();
-    expect(mergeProjectMemory("   ", null)).toBeNull();
-    expect(mergeProjectMemory("", "")).toBeNull();
+  it("merges and dedupes lines case-insensitively", () => {
+    const out = mergeProjectMemory("- Alpha\n- beta", "- Beta\n- gamma");
+    expect(out).toBe("- Alpha\n- beta\n- gamma");
+  });
+
+  it("skips blank lines", () => {
+    expect(mergeProjectMemory("  ", "- x")).toBe("- x");
+  });
+
+  it("caps the total at YAMET_MD_MAX_BYTES", () => {
+    const big = "- " + "x".repeat(40000);
+    const out = mergeProjectMemory(big, "- y");
+    expect(out!.length).toBe(32768);
   });
 });
 
 describe("appendProjectMemory", () => {
-  it("appends a new entry preserving existing lines", async () => {
-    nativeMock.readFile.mockResolvedValue({
-      kind: "text",
-      content: `# Y\n${MEM_START}\n- old\n${MEM_END}\n`,
-      size: 0,
-    });
-    const res = await appendProjectMemory("/w", {
-      id: "m1",
-      content: "new fact",
-      createdAt: 1,
-    });
-    expect(res).toEqual({ ok: true, path: "/w/YAMET.md" });
-    const written = nativeMock.writeFile.mock.calls[0][1] as string;
-    expect(written).toContain("- old");
-    expect(written).toContain("- new fact");
+  it("appends a new entry and writes back", async () => {
+    mockReadFile.mockResolvedValue({ kind: "text", content: `# YAMET\n${MEM_START}\n- a\n${MEM_END}`, size: 0 });
+    mockWriteFile.mockResolvedValue(undefined);
+
+    const res = await appendProjectMemory("/ws", { id: "1", content: "b", createdAt: 0 });
+    expect(res).toEqual({ ok: true, path: "/ws/YAMET.md" });
+    expect(mockWriteFile).toHaveBeenCalledTimes(1);
+    expect(mockWriteFile.mock.calls[0][1]).toContain("- a");
+    expect(mockWriteFile.mock.calls[0][1]).toContain("- b");
   });
 
-  it("dedups an identical entry (no duplicate line)", async () => {
-    nativeMock.readFile.mockResolvedValue({
+  it("does not duplicate an existing line", async () => {
+    mockReadFile.mockResolvedValue({
       kind: "text",
-      content: `${MEM_START}\n- fact\n${MEM_END}`,
+      content: `${MEM_START}\n- a\n${MEM_END}`,
       size: 0,
     });
-    await appendProjectMemory("/w", { id: "m1", content: "fact", createdAt: 1 });
-    const written = nativeMock.writeFile.mock.calls[0][1] as string;
-    expect(written.split("- fact")).toHaveLength(2); // exactly one line
+    await appendProjectMemory("/ws", { id: "1", content: "a", createdAt: 0 });
+    expect(mockWriteFile.mock.calls[0][1]).not.toContain("- a\n- a");
   });
 
-  it("caps the file at YAMET_MD_MAX_BYTES", async () => {
-    nativeMock.readFile.mockResolvedValue({
-      kind: "text",
-      content: `${MEM_START}\n- ${"x".repeat(40_000)}\n${MEM_END}`,
-      size: 0,
-    });
-    await appendProjectMemory("/w", { id: "m1", content: "y", createdAt: 1 });
-    const written = nativeMock.writeFile.mock.calls[0][1] as string;
-    expect(written.length).toBeLessThanOrEqual(32 * 1024);
-  });
-
-  it("reports failure when the disk write throws", async () => {
-    nativeMock.readFile.mockResolvedValue({ kind: "text", content: "", size: 0 });
-    nativeMock.writeFile.mockRejectedValue(new Error("disk full"));
-    const res = await appendProjectMemory("/w", {
-      id: "m1",
-      content: "z",
-      createdAt: 1,
-    });
+  it("returns ok:false when the write fails", async () => {
+    mockReadFile.mockResolvedValue({ kind: "text", content: "", size: 0 });
+    mockWriteFile.mockRejectedValue(new Error("disk full"));
+    const res = await appendProjectMemory("/ws", { id: "1", content: "a", createdAt: 0 });
     expect(res.ok).toBe(false);
   });
 });
 
-describe("updateProjectMemory", () => {
-  it("moves the matching entry to the end (replace semantics)", async () => {
-    nativeMock.readFile.mockResolvedValue({
-      kind: "text",
-      content: `${MEM_START}\n- old\n- keep\n${MEM_END}`,
-      size: 0,
-    });
-    await updateProjectMemory("/w", { id: "m1", content: "old", createdAt: 1 });
-    const written = nativeMock.writeFile.mock.calls[0][1] as string;
-    expect(written.indexOf("- keep")).toBeLessThan(written.indexOf("- old"));
-  });
-});
-
-describe("removeProjectMemory", () => {
-  it("removes the matching entry", async () => {
-    nativeMock.readFile.mockResolvedValue({
-      kind: "text",
-      content: `${MEM_START}\n- a\n- b\n${MEM_END}`,
-      size: 0,
-    });
-    const res = await removeProjectMemory("/w", "a");
-    expect(res.ok).toBe(true);
-    const written = nativeMock.writeFile.mock.calls[0][1] as string;
-    expect(written).not.toContain("- a");
-    expect(written).toContain("- b");
+describe("updateProjectMemory / removeProjectMemory", () => {
+  it("updateProjectMemory replaces an existing line", async () => {
+    mockReadFile.mockResolvedValue({ kind: "text", content: `${MEM_START}\n- a\n${MEM_END}`, size: 0 });
+    mockWriteFile.mockResolvedValue(undefined);
+    await updateProjectMemory("/ws", { id: "1", content: "a", createdAt: 0 });
+    expect(mockWriteFile.mock.calls[0][1]).toBe(`${MEM_START}\n- a\n${MEM_END}`);
   });
 
-  it("is idempotent when nothing matches (no write)", async () => {
-    nativeMock.readFile.mockResolvedValue({
-      kind: "text",
-      content: `${MEM_START}\n- b\n${MEM_END}`,
-      size: 0,
-    });
-    await removeProjectMemory("/w", "a");
-    expect(nativeMock.writeFile).not.toHaveBeenCalled();
+  it("removeProjectMemory is idempotent when nothing matches", async () => {
+    mockReadFile.mockResolvedValue({ kind: "text", content: `${MEM_START}\n- a\n${MEM_END}`, size: 0 });
+    const res = await removeProjectMemory("/ws", "zzz");
+    expect(res).toEqual({ ok: true, path: "/ws/YAMET.md" });
+    expect(mockWriteFile).not.toHaveBeenCalled();
+  });
+
+  it("removeProjectMemory drops a matching line", async () => {
+    mockReadFile.mockResolvedValue({ kind: "text", content: `${MEM_START}\n- a\n- b\n${MEM_END}`, size: 0 });
+    mockWriteFile.mockResolvedValue(undefined);
+    const res = await removeProjectMemory("/ws", "a");
+    expect(res).toEqual({ ok: true, path: "/ws/YAMET.md" });
+    expect(mockWriteFile.mock.calls[0][1]).toBe(`${MEM_START}\n- b\n${MEM_END}`);
   });
 });
 
 describe("stripContextBlock", () => {
-  it("strips a terminal-context block and its trailing newline", () => {
-    expect(stripContextBlock("<terminal-context>x</terminal-context>\nhi")).toBe(
-      "hi",
-    );
-    expect(stripContextBlock("plain text")).toBe("plain text");
+  it("removes a leading terminal-context block", () => {
+    expect(
+      stripContextBlock("<terminal-context>\ntext\n</terminal-context>\nhello"),
+    ).toBe("hello");
+  });
+
+  it("leaves text without the block unchanged", () => {
+    expect(stripContextBlock("plain")).toBe("plain");
   });
 });

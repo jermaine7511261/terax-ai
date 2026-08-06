@@ -717,8 +717,7 @@ impl WeixinAdapter {
                                                     } else {
                                                         v.get("qrcode")
                                                             .and_then(Value::as_str)
-                                                            .map(|q|
-                                                                ilink_qr_url(q))
+                                                            .map(ilink_qr_url)
                                                             .unwrap_or_default()
                                                     },
                                                 )
@@ -776,13 +775,12 @@ impl WeixinAdapter {
                                         machine = PollFailureMachine::default();
                                         break;
                                     }
-                                    QrStatus::Scanned => {
-                                        if event_sink.is_some() {
+                                    QrStatus::Scanned
+                                        if event_sink.is_some() => {
                                             emit_frame(QrLoginFrame::Status {
                                                 status: "scanned".into(),
                                             });
                                         }
-                                    }
                                     _ => {}
                                 }
                                 tokio::time::sleep(Duration::from_secs(2))

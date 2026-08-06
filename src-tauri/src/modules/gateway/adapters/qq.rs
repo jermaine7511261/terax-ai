@@ -53,21 +53,12 @@ async fn connect_onebot(cfg: &QqConfig) -> Result<OnebotWs, String> {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default)]
 pub struct QqConfig {
     pub ws_url: String,
     pub access_token: String,
 }
 
-impl Default for QqConfig {
-    fn default() -> Self {
-        Self {
-            // Empty by default so an un-configured QQ shows as "not configured"
-            // (the previous default made every fresh install look configured).
-            ws_url: String::new(),
-            access_token: String::new(),
-        }
-    }
-}
 
 pub struct QqAdapter {
     inner: Arc<QqInner>,
@@ -235,7 +226,7 @@ impl PlatformAdapter for QqAdapter {
                 "params": { id_key: id_val, "message": content },
                 "echo": echo,
             });
-            let msg = tokio_tungstenite::tungstenite::Message::Text(payload.to_string().into());
+            let msg = tokio_tungstenite::tungstenite::Message::Text(payload.to_string());
 
             // Preferred path: reuse the connection held by the receive loop.
             // Take it out into a local so the std MutexGuard is dropped before

@@ -43,6 +43,10 @@ try {
   pnpm check-drift
   if ($LASTEXITCODE -ne 0) { throw "doc-drift gate failed" }
 
+  Write-Host "`n==> pnpm i18n-scan (hardcoded-CJK gate)" -ForegroundColor Cyan
+  pnpm i18n-scan
+  if ($LASTEXITCODE -ne 0) { throw "i18n-scan gate failed" }
+
   Write-Host "`n==> pnpm size (size-limit)" -ForegroundColor Cyan
   pnpm size
   if ($LASTEXITCODE -ne 0) { Write-Host "size-limit warnings (bundle may exceed budget)" -ForegroundColor Yellow }

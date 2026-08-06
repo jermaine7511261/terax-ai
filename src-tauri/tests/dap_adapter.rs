@@ -6,7 +6,6 @@
 //! elsewhere and the plain-pipe semantics differ; the cfg gate keeps the
 //! suite green on the windows CI runner.
 
-use yamet_lib::modules::dap::transport::StdioDapTransport;
 
 #[cfg(unix)]
 mod unix {

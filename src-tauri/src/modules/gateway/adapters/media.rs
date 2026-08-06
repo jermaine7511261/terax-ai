@@ -14,7 +14,7 @@ const DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(30);
 /// Derive the `~/.yamet/media/` directory (creates it on first call).
 fn media_dir() -> PathBuf {
     dirs::home_dir()
-        .unwrap_or_else(|| std::env::temp_dir())
+        .unwrap_or_else(std::env::temp_dir)
         .join(".yamet")
         .join("media")
 }

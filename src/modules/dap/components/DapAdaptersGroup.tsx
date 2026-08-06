@@ -14,6 +14,7 @@ import { useI18n } from "@/lib/i18n";
 import { useDapStore } from "@/modules/dap";
 import { Delete02Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { toast } from "sonner";
 import { useEffect, useId, useState } from "react";
 
 export function DapAdaptersGroup() {
@@ -132,6 +133,22 @@ function AddAdapterDialog({
       setAdapterArgs("");
     } catch (e) {
       console.error("[yamet] dap create failed", e);
+      const msg = String(e instanceof Error ? e.message : e);
+      try {
+        const parsed = JSON.parse(msg) as { code?: string; command?: string };
+        if (parsed.code === "adapter_missing") {
+          toast.error(
+            t("settingsDap.adapterMissing", { command: parsed.command ?? "" }),
+            {
+              duration: 8000,
+            },
+          );
+          return;
+        }
+      } catch {
+        // not the structured adapter_missing error
+      }
+      toast.error(msg);
     }
   };
 

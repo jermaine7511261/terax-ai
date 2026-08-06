@@ -65,19 +65,12 @@ const WS_READ_TIMEOUT_SECS: u64 = 25;
 
 /// Credentials configured in the gateway settings.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default)]
 pub struct FeishuConfig {
     pub app_id: String,
     pub app_secret: String,
 }
 
-impl Default for FeishuConfig {
-    fn default() -> Self {
-        Self {
-            app_id: String::new(),
-            app_secret: String::new(),
-        }
-    }
-}
 
 /// Concrete Feishu platform adapter. Connection state lives behind interior
 /// mutability so `connect`/`disconnect` can take `&self` (the registry drops
@@ -296,7 +289,7 @@ where
     <S as futures_util::Sink<Message>>::Error: std::fmt::Display,
 {
     write
-        .send(Message::Text(text.into()))
+        .send(Message::Text(text))
         .await
         .map_err(|e| format!("feishu ws send failed: {e}"))?;
     Ok(())
@@ -322,10 +315,7 @@ fn handle_inbound_event(data: &Value) -> Option<MessageEvent> {
         return None;
     }
 
-    let message = match data.pointer("/event/message") {
-        Some(m) => m,
-        None => return None,
-    };
+    let message = data.pointer("/event/message")?;
 
     let message_id = message
         .get("message_id")
@@ -501,7 +491,7 @@ async fn download_feishu_media(
         .map_err(|e| format!("feishu media read failed: {e}"))?;
 
     let media_dir = dirs::home_dir()
-        .unwrap_or_else(|| std::env::temp_dir())
+        .unwrap_or_else(std::env::temp_dir)
         .join(".yamet")
         .join("media");
     std::fs::create_dir_all(&media_dir)
@@ -637,7 +627,7 @@ impl PlatformAdapter for FeishuAdapter {
         let text = text.to_string();
         Box::pin(async move {
             let client = http_client();
-            let token = match fetch_tenant_access_token(&client, &cfg).await {
+            let token = match fetch_tenant_access_token(client, &cfg).await {
                 Ok(t) => t,
                 Err(e) => return Err(e),
             };

@@ -176,7 +176,7 @@ impl PlatformAdapter for WeComAdapter {
 
 /// Verify the callback signature: sha1(sort(token, timestamp, nonce, encrypt)).
 fn verify_cb_signature(token: &str, ts: &str, nonce: &str, encrypt: &str, sig: &str) -> bool {
-    let mut parts = vec![token.to_string(), ts.to_string(), nonce.to_string(), encrypt.to_string()];
+    let mut parts = [token.to_string(), ts.to_string(), nonce.to_string(), encrypt.to_string()];
     parts.sort();
     let joined = parts.join("");
     constant_time_eq(&sha1_hex(joined.as_bytes()), sig)
@@ -247,7 +247,7 @@ async fn run_callback_server(inner: &Arc<WeComInner>, tx: EventTx) -> Result<(),
             let req = String::from_utf8_lossy(&buf).to_string();
             let body = if req.starts_with("GET ") {
                 let echo = parse_query(&req, "echostr").unwrap_or_default();
-                format!("{echo}")
+                echo.to_string()
             } else {
                 let encrypt = extract_encrypt(&req);
                 if let Some(enc) = encrypt {

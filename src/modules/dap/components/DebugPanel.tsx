@@ -78,20 +78,54 @@ export function DebugPanel({ rootPath }: { rootPath: string | null }) {
       toast.info(t("settingsDap.sampleExists"));
       return;
     }
+    // Detect the project language from workspace markers to pick a sensible
+    // default template (falls back to Python/debugpy).
+    const markers: Array<[string, () => unknown]> = [
+      ["Cargo.toml", () => invoke("fs_stat", { path: `${rootPath}/Cargo.toml`, workspace: ws }).then(() => true).catch(() => false)],
+      ["go.mod", () => invoke("fs_stat", { path: `${rootPath}/go.mod`, workspace: ws }).then(() => true).catch(() => false)],
+      ["package.json", () => invoke("fs_stat", { path: `${rootPath}/package.json`, workspace: ws }).then(() => true).catch(() => false)],
+    ];
+    let template: "python" | "node" | "rust" | "go" = "python";
+    for (const [marker, probe] of markers) {
+      if (await probe()) {
+        template = marker === "Cargo.toml" ? "rust" : marker === "go.mod" ? "go" : "node";
+        break;
+      }
+    }
+    const configs = {
+      python: {
+        name: "Python (debugpy)",
+        type: "debugpy",
+        request: "launch",
+        program: "${file}",
+        console: "integratedTerminal",
+      },
+      node: {
+        name: "Node.js (node)",
+        type: "node",
+        request: "launch",
+        program: "${file}",
+      },
+      rust: {
+        name: "Rust (lldb-dap)",
+        type: "lldb-dap",
+        request: "launch",
+        program: "${workspaceFolder}/target/debug/${input:binary}",
+      },
+      go: {
+        name: "Go (delve)",
+        type: "dlv-dap",
+        request: "launch",
+        mode: "debug",
+        program: "${fileDirname}",
+      },
+    }[template];
     await invoke("fs_write_file", {
       path,
       content: JSON.stringify(
         {
           version: "0.2.0",
-          configurations: [
-            {
-              name: "Python (debugpy)",
-              type: "debugpy",
-              request: "launch",
-              program: "${file}",
-              console: "integratedTerminal",
-            },
-          ],
+          configurations: [configs],
         },
         null,
         2,

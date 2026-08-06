@@ -29,7 +29,9 @@ Yamet 从工作区根目录加载 `YAMET.md` 作为 agent 记忆（类似 AGENTS
 
 核心子系统（终端/shell 启动、工作区认证、git、fs、IPC 或 AI 工具面）的改动需要一条锁定不变量的测试。
 
-**原生铁律（维护者硬约束）**：DAP / MCP / PTY / LSP 的宿主/传输/UI 层必须 Rust 原生（PTY = `portable-pty` + 原生 helper；LSP/DAP = 复用 `lsp/framing.rs` 分帧 + 原生子进程宿主；MCP = Rust client/server + 前端原生 store）；Skill、技能沉淀、插件系统同样必须原生（`create_skill` 工具 + `skills/` 目录约定为 Yamet 自身实现，写盘走 Rust fs + 安全拒绝名单）。禁止 tmux、`vscode-debugadapter`/`js-debug`、Node/Python 常驻桥接、VSCode 式扩展宿主、非原生插件运行时。适配器/语言服务器二进制（debugpy/node/lldb-dap/gdb/dlv）是 DAP/LSP 协议固有设计，不违背。`scripts/check-doc-drift.mjs`（`pnpm check-drift`）在 CI 强制：命令面 / 模块布局 / 原生铁律三件事。
+**原生铁律（维护者硬约束）**：DAP / MCP / PTY / LSP 的宿主/传输/UI 层必须 Rust 原生（PTY = `portable-pty` + 原生 helper；LSP/DAP = 复用 `lsp/framing.rs` 分帧 + 原生子进程宿主；MCP = Rust client/server + 前端原生 store）；Skill、技能沉淀、插件系统同样必须原生（`create_skill` 工具 + `skills/` 目录约定为 Yamet 自身实现，写盘走 Rust fs + 安全拒绝名单）。禁止 tmux、`vscode-debugadapter`/`js-debug`、Node/Python 常驻桥接、VSCode 式扩展宿主、非原生插件运行时。适配器/语言服务器二进制（debugpy/node/lldb-dap/gdb/dlv）是 DAP/LSP 协议固有设计，不违背。**扩展边界（插件系统）**：插件系统当前不在范围内（`ROADMAP.md`「范围外」）。一旦实现，只做**窄范围 AI 工具/片段 bundle**（`skills/` 目录约定 + JSON 配置 + 工具白名单，原生解析），UI/行为扩展必须走 Rust 原生 ABI + 前端原生 store。禁止 VSCode 式扩展宿主、禁止 Node/Python 插件运行时。技能沉淀（agent 长任务后 `create_skill` 固化可复用流程）为 Yamet 自身实现（前端原生 + Rust fs），无外部技能市场。
+
+`scripts/check-doc-drift.mjs`（`pnpm check-drift`）在 CI 强制：命令面 / 模块布局 / 原生铁律三件事。
 
 ## 约定
 

@@ -105,7 +105,7 @@ impl PtySink for SocketSink {
 
 pub fn state_file_path() -> PathBuf {
     dirs::home_dir()
-        .unwrap_or_else(|| std::env::temp_dir())
+        .unwrap_or_else(std::env::temp_dir)
         .join(".yamet")
         .join("pty-helper.json")
 }

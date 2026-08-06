@@ -353,7 +353,7 @@ async fn download_dingtalk_media(
 
     // 3. Persist to the local media directory.
     let media_dir = dirs::home_dir()
-        .unwrap_or_else(|| std::env::temp_dir())
+        .unwrap_or_else(std::env::temp_dir)
         .join(".yamet")
         .join("media");
     std::fs::create_dir_all(&media_dir)
@@ -418,7 +418,7 @@ async fn run_stream_session(
         "headers": { "topic": "/meta/subscribe", "messageId": format!("sub-{}", epoch_ms()) },
         "body": { "topic": CHATBOT_TOPIC }
     });
-    ws.send(WsMessage::Text(subscribe.to_string().into()))
+    ws.send(WsMessage::Text(subscribe.to_string()))
         .await
         .map_err(|e| format!("subscribe send failed: {e}"))?;
 
@@ -454,7 +454,7 @@ async fn run_stream_session(
                 "headers": { "topic": "/meta/ack", "messageId": msg_id },
                 "body": {}
             });
-            let _ = ws.send(WsMessage::Text(ack.to_string().into())).await;
+            let _ = ws.send(WsMessage::Text(ack.to_string())).await;
         }
     }
 
@@ -568,7 +568,7 @@ async fn send_robot_message(
         .await
         .map_err(|e| format!("send response unreadable: {e}"))?;
     let v: serde_json::Value = serde_json::from_str(&text_body)
-        .unwrap_or_else(|_| serde_json::Value::String(text_body));
+        .unwrap_or(serde_json::Value::String(text_body));
     if !status.is_success() {
         return Err(format!("send status {status}: {v}"));
     }
