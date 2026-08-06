@@ -84,13 +84,11 @@ async fn connect(app: &AppHandle, info: &HelperInfo) -> Result<Arc<HelperClient>
         .name("yamet-helper-client-reader".into())
         .spawn(move || {
             let mut reader = FrameReader::new(stream);
-            loop {
-                match reader.read_frame() {
-                    Ok(Some((t, body))) => {
-                        let Some(frame) = protocol::decode(body.len(), t, &body) else {
-                            continue;
-                        };
-                        match frame {
+            while let Ok(Some((t, body))) = reader.read_frame() {
+                let Some(frame) = protocol::decode(body.len(), t, &body) else {
+                    continue;
+                };
+                match frame {
                             Frame::Output { id, data } => {
                                 let handlers =
                                     reader_client.handlers.read().unwrap_or_else(|e| e.into_inner());
@@ -124,9 +122,6 @@ async fn connect(app: &AppHandle, info: &HelperInfo) -> Result<Arc<HelperClient>
                             }
                             _ => {}
                         }
-                    }
-                    Ok(None) | Err(_) => break,
-                }
             }
             // Connection lost: fail every outstanding handler so the frontend
             // falls back to the in-process path instead of hanging.

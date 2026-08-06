@@ -19,6 +19,9 @@ pub type EventHandler = Arc<dyn Fn(MessageEvent) + Send + Sync>;
 /// frontend. `(platform_id, serializable payload)`.
 pub type PlatformEventHandler = Arc<dyn Fn(String, serde_json::Value) + Send + Sync>;
 
+/// Callback fired with a session key + summary (approval / connected UI).
+type SessionCallback = Arc<dyn Fn(String, Option<String>) + Send + Sync>;
+
 /// Per-platform token bucket for inbound rate limiting: bursts of up to
 /// `RATE_CAPACITY` events pass, then refill at `RATE_REFILL_PER_SEC`.
 struct TokenBucket {
@@ -73,11 +76,11 @@ struct Inner {
     handler: Mutex<Option<EventHandler>>,
     /// Fired when a new un-authorized session appears, with the session key and
     /// a sender+text summary so the approval UI shows who/what was dropped.
-    on_pending: Mutex<Option<Arc<dyn Fn(String, Option<String>) + Send + Sync>>>,
+    on_pending: Mutex<Option<SessionCallback>>,
     /// Fired after a platform's inbound loop connects, with the platform id
     /// and its local callback URL (empty for non-callback platforms). Lets the
     /// settings UI surface "paste this into the platform admin console".
-    on_connected: Mutex<Option<Arc<dyn Fn(String, Option<String>) + Send + Sync>>>,
+    on_connected: Mutex<Option<SessionCallback>>,
     /// Out-of-band platform events (e.g. Weixin background re-login QR frames).
     platform_event: Mutex<Option<PlatformEventHandler>>,
     connected: Mutex<HashSet<PlatformId>>,
