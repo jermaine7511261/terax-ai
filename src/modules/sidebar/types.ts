@@ -4,4 +4,5 @@ export type SidebarViewId =
   | "search"
   | "debug"
   | "remote"
-  | "mcp";
+  | "mcp"
+  | "gateway";

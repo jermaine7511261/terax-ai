@@ -27,6 +27,9 @@ const RemotePanel = lazy(() =>
 const McpSidebarPanel = lazy(() =>
   import("@/modules/mcp").then((m) => ({ default: m.McpSidebarPanel })),
 );
+const GatewaySidebarPanel = lazy(() =>
+  import("@/modules/gateway").then((m) => ({ default: m.GatewaySidebarPanel })),
+);
 import {
   type AgentLaunchRequest,
   AgentNotificationsBridge,
@@ -1414,6 +1417,10 @@ export default function App() {
                     ) : sidebarView === "mcp" ? (
                       <Suspense fallback={null}>
                         <McpSidebarPanel root={explorerRoot} />
+                      </Suspense>
+                    ) : sidebarView === "gateway" ? (
+                      <Suspense fallback={null}>
+                        <GatewaySidebarPanel />
                       </Suspense>
                     ) : (
                       <SourceControlPanel

@@ -2,6 +2,7 @@ import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import {
   Bug01Icon,
+  Chat01Icon,
   FolderGitTwoIcon,
   FolderTreeIcon,
   GlobeIcon,
@@ -40,6 +41,7 @@ export function SidebarRail({ activeView, onSelectView, changedCount }: Props) {
     { id: "debug", label: t("sidebar.debug"), icon: Bug01Icon },
     { id: "remote", label: t("sidebar.remote"), icon: GlobeIcon },
     { id: "mcp", label: t("sidebar.mcp"), icon: Plug01Icon },
+    { id: "gateway", label: t("sidebar.gateway"), icon: Chat01Icon },
   ];
 
   return (
