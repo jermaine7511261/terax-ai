@@ -1,5 +1,6 @@
 import { resolveFontFamily } from "@/lib/fonts";
 import { usePreferencesStore } from "@/modules/settings/preferences";
+import { tStatic } from "@/lib/i18n";
 import { buildTerminalTheme } from "@/styles/terminalTheme";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { FitAddon } from "@xterm/addon-fit";
@@ -322,10 +323,10 @@ function createSlot(): Slot {
 function confirmMultilinePaste(slot: Slot, text: string): void {
   const lineCount = text.split("\n").length;
   const preview = text.split("\n").slice(0, 3).join("\n");
-  toast("检测到多行粘贴", {
-    description: `剪贴板包含 ${lineCount} 行内容。确认后将作为一个整体粘贴（Bracketed Paste），不会逐行执行。\n\n${preview}${lineCount > 3 ? "\n…" : ""}`,
+  toast(tStatic("terminal.multilinePasteTitle"), {
+    description: tStatic("terminal.multilinePasteDesc", { count: String(lineCount) }).replace("{preview}", preview + (lineCount > 3 ? "\n…" : "")),
     action: {
-      label: "粘贴",
+      label: tStatic("terminal.paste"),
       onClick: () => {
         const leafId = slot.currentLeafId;
         if (leafId === null) return;

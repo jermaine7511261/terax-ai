@@ -301,6 +301,9 @@ export const zhMessages = {
     search: "查找",
     copy: "复制",
     paste: "粘贴",
+    multilinePasteTitle: "检测到多行粘贴",
+    multilinePasteDesc:
+      "剪贴板包含 {count} 行内容。确认后将作为一个整体粘贴（Bracketed Paste），不会逐行执行。\n\n{preview}",
     clear: "清空终端",
     kill: "终止进程",
     selectAll: "全选",
@@ -1651,6 +1654,9 @@ export const enMessages = {
     search: "Find",
     copy: "Copy",
     paste: "Paste",
+    multilinePasteTitle: "Multiline paste detected",
+    multilinePasteDesc:
+      "Your clipboard contains {count} lines. Pasting will insert it as a single block (Bracketed Paste), not execute line-by-line.\n\n{preview}",
     clear: "Clear Terminal",
     kill: "Kill Process",
     selectAll: "Select All",
