@@ -5,6 +5,7 @@ import {
   FolderGitTwoIcon,
   FolderTreeIcon,
   GlobeIcon,
+  Plug01Icon,
   Search01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -38,6 +39,7 @@ export function SidebarRail({ activeView, onSelectView, changedCount }: Props) {
     { id: "search", label: t("sidebar.search"), icon: Search01Icon },
     { id: "debug", label: t("sidebar.debug"), icon: Bug01Icon },
     { id: "remote", label: t("sidebar.remote"), icon: GlobeIcon },
+    { id: "mcp", label: t("sidebar.mcp"), icon: Plug01Icon },
   ];
 
   return (

@@ -1,4 +1,5 @@
 export { McpServersGroup } from "./components/McpServersGroup";
+export { McpSidebarPanel } from "./components/McpSidebarPanel";
 export {
   useMcpStore,
   useMcpStatusBridge,

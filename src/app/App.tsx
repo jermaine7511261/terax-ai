@@ -24,6 +24,9 @@ const DebugPanel = lazy(() =>
 const RemotePanel = lazy(() =>
   import("@/modules/remote").then((m) => ({ default: m.RemotePanel })),
 );
+const McpSidebarPanel = lazy(() =>
+  import("@/modules/mcp").then((m) => ({ default: m.McpSidebarPanel })),
+);
 import {
   type AgentLaunchRequest,
   AgentNotificationsBridge,
@@ -1407,6 +1410,10 @@ export default function App() {
                     ) : sidebarView === "remote" ? (
                       <Suspense fallback={null}>
                         <RemotePanel onOpenRemoteFile={openRemoteFile} />
+                      </Suspense>
+                    ) : sidebarView === "mcp" ? (
+                      <Suspense fallback={null}>
+                        <McpSidebarPanel root={explorerRoot} />
                       </Suspense>
                     ) : (
                       <SourceControlPanel
