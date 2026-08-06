@@ -1,4 +1,5 @@
 import { isMarkdownPath } from "@/lib/utils";
+import { basename } from "@/lib/path";
 import {
   createAgentPanePlan,
   type AgentInstanceCount,
@@ -167,10 +168,6 @@ export type GitDiffOpenInput = {
   title?: string;
 };
 
-function basename(path: string): string {
-  const parts = path.split(/[\\/]/).filter(Boolean);
-  return parts.length ? parts[parts.length - 1] : path;
-}
 
 function titleFromUrl(url: string): string {
   try {

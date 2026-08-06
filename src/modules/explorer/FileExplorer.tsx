@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { basename } from "@/lib/path";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -100,10 +101,6 @@ type Row =
 const ROW_HEIGHT = 24;
 const OVERSCAN = 8;
 
-function basename(path: string): string {
-  const parts = path.split(/[\\/]/).filter(Boolean);
-  return parts.length ? parts[parts.length - 1] : path;
-}
 
 function parentOf(path: string, fallback: string): string {
   const i = path.lastIndexOf("/");

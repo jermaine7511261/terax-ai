@@ -1,14 +1,11 @@
 import { useEffect } from "react";
+import { basename } from "@/lib/path";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { findLeafCwd } from "@/modules/terminal/lib/panes";
 import type { Tab } from "./useTabs";
 
 const APP_NAME = "Yamet";
 
-function basename(path: string): string {
-  const parts = path.split(/[\\/]/).filter(Boolean);
-  return parts.length ? parts[parts.length - 1] : "/";
-}
 
 /** Label of the focused tab — for terminals, the active pane's folder. */
 function tabLabel(tab: Tab | undefined): string {

@@ -11,6 +11,7 @@ import type {
   Tab,
   TerminalTab,
 } from "@/modules/tabs/lib/useTabs";
+import { basename } from "@/lib/path";
 
 export type SerializedNode =
   | { kind: "leaf"; cwd?: string; active?: boolean }
@@ -28,10 +29,6 @@ export type SerializedTab =
   | { kind: "preview"; url: string }
   | { kind: "markdown"; path: string };
 
-function basename(path: string): string {
-  const parts = path.split(/[\\/]/).filter(Boolean);
-  return parts.length ? parts[parts.length - 1] : path;
-}
 
 function sshLabel(ssh: SshTarget): string {
   return ssh.user ? `${ssh.user}@${ssh.host}` : ssh.host;
