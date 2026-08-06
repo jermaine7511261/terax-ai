@@ -5,6 +5,8 @@ import { Spinner } from "@/components/ui/spinner";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type { ProviderInfo } from "@/modules/ai/config";
+import { PROVIDER_API_BASES } from "@/modules/ai/config";
+import { fetchProviderModels } from "@/modules/ai/lib/providerModels";
 import {
   ArrowUpRight01Icon,
   Cancel01Icon,
@@ -44,6 +46,13 @@ export function ProviderKeyCard({
   const [reveal, setReveal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [testing, setTesting] = useState(false);
+  const [testStatus, setTestStatus] = useState<"idle" | "ok" | "fail">("idle");
+
+  // Cloud providers resolve their API base from the built-in map; providers
+  // without a known base (llama.cpp / openai-compatible) can't be probed here
+  // because their endpoint is user-defined elsewhere.
+  const probeBase = PROVIDER_API_BASES[provider.id] ?? null;
 
   useEffect(() => {
     setEditing(!currentKey);
@@ -74,6 +83,20 @@ export function ProviderKeyCard({
       setError(t("settingsModels.failedToSave", { error: String(e) }));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const test = async () => {
+    if (!currentKey || !probeBase) return;
+    setTesting(true);
+    setTestStatus("idle");
+    try {
+      await fetchProviderModels(provider.id, probeBase, currentKey);
+      setTestStatus("ok");
+    } catch {
+      setTestStatus("fail");
+    } finally {
+      setTesting(false);
     }
   };
 
@@ -189,6 +212,31 @@ export function ProviderKeyCard({
           >
             {maskKey(currentKey ?? "")}
           </code>
+          {probeBase && currentKey ? (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => void test()}
+              disabled={testing}
+              className="h-7 shrink-0 gap-1 px-2 text-[10.5px]"
+            >
+              {testing ? (
+                <Spinner className="size-3" />
+              ) : testStatus === "ok" ? (
+                <HugeiconsIcon icon={CheckmarkCircle02Icon} size={11} strokeWidth={2} />
+              ) : null}
+              {t("settingsModels.test")}
+            </Button>
+          ) : null}
+          {testStatus === "ok" ? (
+            <span className="shrink-0 text-[10.5px] text-emerald-500">
+              {t("settingsModels.reachable")}
+            </span>
+          ) : testStatus === "fail" ? (
+            <span className="shrink-0 text-[10.5px] text-destructive">
+              {t("settingsModels.unreachable")}
+            </span>
+          ) : null}
           <Button
             size="icon"
             variant="ghost"
