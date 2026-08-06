@@ -22,7 +22,7 @@
 | pty/mod.rs 线程 spawn `expect` | 中低 | ✅ 已修复 | `b2d22d5`（3 处 → `if let Err` 记日志） |
 | 死依赖 `@ai-sdk/{openai,anthropic,...}` | 低 | ✅ 已修复 | 此前轮次移除，仅剩两个活依赖（`openai-compatible`/`react`） |
 
-> P0-2（gateway 凭据明文落盘）仍在处理中，见下方「P0-2 补充」。
+| P0-2 gateway 凭据明文落盘 | P0 | ✅ 已修复 | `creds_encrypt.rs`（Windows DPAPI `CryptProtectData` + 旧明文降级，Unix 0700/0600）；`adapters/mod.rs` 加密读写；`security-model.md` 同步 |
 
 ---
 
