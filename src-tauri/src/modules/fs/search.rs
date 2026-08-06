@@ -51,6 +51,31 @@ pub fn fs_search(
     limit: Option<usize>,
     workspace: Option<WorkspaceEnv>,
     show_hidden: Option<bool>,
+    source: Option<String>,
+    registry: tauri::State<'_, crate::modules::workspace::WorkspaceRegistry>,
+) -> Result<SearchResult, String> {
+    fs_search_impl(
+        root,
+        query,
+        limit,
+        workspace,
+        show_hidden,
+        source,
+        Some(&registry),
+    )
+}
+
+/// Pure core of `fs_search`, testable without a Tauri app context (registry is
+/// optional; tests pass `None`).
+#[allow(clippy::too_many_arguments)]
+pub fn fs_search_impl(
+    root: String,
+    query: String,
+    limit: Option<usize>,
+    workspace: Option<WorkspaceEnv>,
+    show_hidden: Option<bool>,
+    source: Option<String>,
+    registry: Option<&crate::modules::workspace::WorkspaceRegistry>,
 ) -> Result<SearchResult, String> {
     let q = query.trim();
     if q.is_empty() {
@@ -63,6 +88,12 @@ pub fn fs_search(
     let show_hidden = show_hidden.unwrap_or(false);
     let workspace = WorkspaceEnv::from_option(workspace);
     let root_path = resolve_path(&root, &workspace);
+    if source.as_deref() == Some("ai") {
+        super::policy::check_read_path_authorized(&root_path, &source, registry).map_err(|e| {
+            log::warn!("{e}");
+            e
+        })?;
+    }
     if !root_path.is_dir() {
         return Err(format!("not a directory: {root}"));
     }
@@ -160,6 +191,23 @@ pub fn fs_list_files(
     max_depth: Option<usize>,
     workspace: Option<WorkspaceEnv>,
     show_hidden: Option<bool>,
+    source: Option<String>,
+    registry: tauri::State<'_, crate::modules::workspace::WorkspaceRegistry>,
+) -> Result<ListFilesResult, String> {
+    fs_list_files_impl(root, limit, max_depth, workspace, show_hidden, source, Some(&registry))
+}
+
+/// Pure core of `fs_list_files`, testable without a Tauri app context (registry
+/// is optional; tests pass `None`).
+#[allow(clippy::too_many_arguments)]
+pub fn fs_list_files_impl(
+    root: String,
+    limit: Option<usize>,
+    max_depth: Option<usize>,
+    workspace: Option<WorkspaceEnv>,
+    show_hidden: Option<bool>,
+    source: Option<String>,
+    registry: Option<&crate::modules::workspace::WorkspaceRegistry>,
 ) -> Result<ListFilesResult, String> {
     const DEFAULT_LIMIT: usize = 2_000;
     const HARD_LIMIT: usize = 10_000;
@@ -171,6 +219,12 @@ pub fn fs_list_files(
     let show_hidden = show_hidden.unwrap_or(false);
     let workspace = WorkspaceEnv::from_option(workspace);
     let root_path = resolve_path(&root, &workspace);
+    if source.as_deref() == Some("ai") {
+        super::policy::check_read_path_authorized(&root_path, &source, registry).map_err(|e| {
+            log::warn!("{e}");
+            e
+        })?;
+    }
     if !root_path.is_dir() {
         return Err(format!("not a directory: {root}"));
     }

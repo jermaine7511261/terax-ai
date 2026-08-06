@@ -1,7 +1,7 @@
 mod common;
 use common::{git_available, FsFixture, GitRepoFixture};
 use yamet_lib::modules::fs::grep::{fs_glob_impl, fs_grep_impl};
-use yamet_lib::modules::fs::search::{fs_list_files, fs_search};
+use yamet_lib::modules::fs::search::{fs_list_files_impl, fs_search_impl};
 use yamet_lib::modules::fs::tree::{fs_read_dir_impl, list_subdirs, EntryKind};
 #[test]
 fn grep_finds_matches_and_returns_relative_paths() {
@@ -123,7 +123,7 @@ fn search_substring_matches_filename() {
     fx.write("src/main.rs", "");
     fx.write("src/lib.rs", "");
     fx.write("docs/main.md", "");
-    let res = fs_search(fx.root_str(), "main".into(), None, None, None).expect("search");
+    let res = fs_search_impl(fx.root_str(), "main".into(), None, None, None, None, None).expect("search");
     let rels: Vec<&str> = res.hits.iter().map(|h| h.rel.as_str()).collect();
     assert!(rels.contains(&"src/main.rs"));
     assert!(rels.contains(&"docs/main.md"));
@@ -133,14 +133,14 @@ fn search_substring_matches_filename() {
 fn search_is_case_insensitive() {
     let fx = FsFixture::new();
     fx.write("README.md", "");
-    let res = fs_search(fx.root_str(), "readme".into(), None, None, None).expect("search");
+    let res = fs_search_impl(fx.root_str(), "readme".into(), None, None, None, None, None).expect("search");
     assert_eq!(res.hits.len(), 1);
 }
 #[test]
 fn search_empty_query_returns_empty() {
     let fx = FsFixture::new();
     fx.write("a.txt", "");
-    let res = fs_search(fx.root_str(), "   ".into(), None, None, None).expect("search");
+    let res = fs_search_impl(fx.root_str(), "   ".into(), None, None, None, None, None).expect("search");
     assert!(res.hits.is_empty());
     assert!(!res.truncated);
 }
@@ -149,7 +149,7 @@ fn search_prunes_node_modules() {
     let fx = FsFixture::new();
     fx.write("node_modules/lodash/index.js", "");
     fx.write("src/index.js", "");
-    let res = fs_search(fx.root_str(), "index".into(), None, None, None).expect("search");
+    let res = fs_search_impl(fx.root_str(), "index".into(), None, None, None, None, None).expect("search");
     let rels: Vec<&str> = res.hits.iter().map(|h| h.rel.as_str()).collect();
     assert!(rels.iter().any(|r| r.starts_with("src/")));
     assert!(!rels.iter().any(|r| r.starts_with("node_modules")));
@@ -159,7 +159,7 @@ fn search_ranks_filename_hits_before_path_hits() {
     let fx = FsFixture::new();
     fx.write("zeta/inner.txt", "");
     fx.write("beta/zeta.txt", "");
-    let res = fs_search(fx.root_str(), "zeta".into(), None, None, None).expect("search");
+    let res = fs_search_impl(fx.root_str(), "zeta".into(), None, None, None, None, None).expect("search");
     let zeta_file = res
         .hits
         .iter()
@@ -181,7 +181,7 @@ fn list_files_returns_sorted_relative_paths() {
     fx.write("z.txt", "");
     fx.write("a.txt", "");
     fx.write("nested/b.txt", "");
-    let res = fs_list_files(fx.root_str(), None, None, None, None).expect("list");
+    let res = fs_list_files_impl(fx.root_str(), None, None, None, None, None, None).expect("list");
     assert_eq!(res.files, vec!["a.txt", "nested/b.txt", "z.txt"]);
 }
 #[test]
@@ -189,13 +189,13 @@ fn list_files_max_depth_clamps() {
     let fx = FsFixture::new();
     fx.write("d1/d2/d3/deep.txt", "");
     fx.write("shallow.txt", "");
-    let res = fs_list_files(fx.root_str(), None, Some(1), None, None).expect("list");
+    let res = fs_list_files_impl(fx.root_str(), None, Some(1), None, None, None, None).expect("list");
     assert!(res.files.contains(&"shallow.txt".to_string()));
     assert!(!res.files.iter().any(|f| f.contains("deep.txt")));
 }
 #[test]
 fn list_files_non_dir_errors() {
-    assert!(fs_list_files("/no/such/dir".into(), None, None, None, None).is_err());
+    assert!(fs_list_files_impl("/no/such/dir".into(), None, None, None, None, None, None).is_err());
 }
 #[test]
 fn read_dir_orders_dirs_before_files_then_alpha() {
