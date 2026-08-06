@@ -5,6 +5,7 @@ Yamet 的所有重要变更都记录于此。版本遵循项目规则：**功能
 ## [未发布]
 
 ### 新增
+- **第十四轮（0.1.15）** 原生能力深化：终端滚动缓冲区下沉 Rust（新增 `pty/buffer.rs` RollingBuffer 环形 10k 行镜像 + `pty_buffer_lines(id,count,end)` 分页命令 + 前端 `PtySession.bufferLines`，大输出可经后端分页不占前端内存）；文件搜索增量缓存（新增 `fs/index_cache.rs`，按根目录子条目 name+mtime 签名缓存 `(root,query)->hits`，树未变跳过 walk+rank，缺失/变更回退全扫，正确性不依赖缓存）；会话持久化容错（`loadAll` 顶层容错，store 文件整体损坏回退空态防启动崩溃，已有 LazyStore 原子 + hydrateTabs 损坏条目跳过）。
 - **第十三轮（0.1.14）** 产品成熟度补强：DAP 适配器缺失检测 + 可复制安装命令引导（多语言 launch.json 模板 node/rust/go）；五面板引导性空状态（dap/mcp/remote/search/gateway 用 EmptyState 组件）；Onboarding 能力引导 + Windows 首启签名提示；coverage 渐进基线 21%（补 6 轮测试，statements 18.76%→21.35%、测试 1020→1240）；命令面板搜索 + 快捷键搜索 + 搜索替换正则；主题扩充 + 导出/导入；工作区最近打开；会话导出/清理 + 容量提示；扩展边界固化 + i18n 扫描门禁 + 平台排障文档。
 - **第十二轮（0.1.13）** 测试覆盖率接入：前端 `pnpm test:coverage`（v8 provider，CI 强制 statements ≥ 45% / branches ≥ 35% / functions ≥ 30% / lines ≥ 45%）；新增零测试模块覆盖（mcp store 状态机、dap store 会话/断点/栈帧、source-control remote indicator、gateway pending-meta 状态机）；Rust DAP 真实子进程 fake-adapter 集成测试（grok 思路，不 mock 传输层）。
 - **第十二轮（0.1.13）** 漂移清偿 + 防漂移门禁：YAMET.md 修正 dap 命令面（统一为 `dap_session_create/connect/disconnect/list/get` + `dap_request_send`）、补 mcp 命令面与 mcp/search/gateway 模块布局、补启动命令；两篇英文架构文档（dap-protocol/mcp-protocol）汉化；需求汇总补第十/十一轮；ROADMAP 勾选发布自动化与打包体积优化；新建 `scripts/check-doc-drift.mjs`（命令面 / 模块布局 / 原生铁律三查）挂 verify + CI。

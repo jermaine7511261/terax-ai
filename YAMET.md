@@ -47,9 +47,9 @@ Yamet 从工作区根目录加载 `YAMET.md` 作为 agent 记忆（类似 AGENTS
 
 **Rust（`src-tauri/`）持有全部 OS 访问**。webview 绝不直接碰 fs、进程或 shell，一切经 `invoke()` 调用注册在 `src-tauri/src/lib.rs` 的命令：
 
-- `pty::pty_*`：长生命周期交互式 PTY 会话（xterm ↔ portable-pty），由 `PtyState`（`RwLock<HashMap<id, Session>>`）管理。输出经 Tauri `Channel<PtyEvent>` 流式推送。
+- `pty::pty_*`：长生命周期交互式 PTY 会话（xterm ↔ portable-pty），由 `PtyState`（`RwLock<HashMap<id, Session>>`）管理。输出经 Tauri `Channel<PtyEvent>` 流式推送。每会话经 `pty/buffer.rs`（RollingBuffer）镜像滚动缓冲，`pty_buffer_lines(id,count,end)` 分页查询——大输出可从后端懒加载，不占前端内存。
 - `fs::tree::*`（`fs_read_dir`、`list_subdirs`）、`fs::file::*`（`fs_read_file`、`fs_write_file`、`fs_stat`、`fs_canonicalize`）、`fs::mutate::*`（`fs_create_file`、`fs_create_dir`、`fs_rename`、`fs_delete`）：文件浏览器 + 编辑器 IO。
-- `fs::search::*`（`fs_search`、`fs_list_files`）、`fs::grep::*`（`fs_grep`、`fs_glob`）：模糊文件查找 + 内容搜索（基于 `ignore` + `grep-*` crate）。
+- `fs::search::*`（`fs_search`、`fs_list_files`）、`fs::grep::*`（`fs_grep`、`fs_glob`）：模糊文件查找 + 内容搜索（基于 `ignore` + `grep-*` crate）。`fs_search` 经 `fs/index_cache.rs` 增量缓存（按根目录子条目 name+mtime 签名缓存 `(root,query)->hits`，树未变跳过 walk+rank，缺失/变更回退全扫，正确性不依赖缓存）。
 - `git::commands::*`：完整源码控制面（`git_status`、`git_diff`、`git_diff_content`、`git_stage`、`git_unstage`、`git_discard`、`git_commit`、`git_fetch`、`git_pull_ff_only`、`git_push`、`git_log`、`git_show_commit`、`git_commit_files`、`git_commit_file_diff`、`git_panel_snapshot`、`git_resolve_repo`、`git_remote_url`）。全部经工作区授权注册表门控。
 - `shell::shell_run_command`：一次性子 shell 执行，供 AI 工具使用。不同于 PTY 会话，不是用户的交互终端。Windows 用 PowerShell（`-NoProfile -Command`），Unix 用 `$SHELL -lc`。共享助手 `build_oneshot_command`。
 - `shell::shell_session_*`：跨调用保留状态的持久 agent shell。`shell::shell_bg_*`（`spawn`、`logs`、`kill`、`list`）：长运行后台进程（开发服务器等），带有限环形缓冲日志捕获。
