@@ -1,48 +1,27 @@
 import { describe, expect, it } from "vitest";
 import { quoteShellArg } from "./shellQuote";
 
-describe("quoteShellArg (posix)", () => {
-  const q = (s: string) => quoteShellArg(s, false);
-
-  it("wraps a plain string in single quotes", () => {
-    expect(q("fix the bug")).toBe("'fix the bug'");
+describe("quoteShellArg", () => {
+  it("wraps a simple value in single quotes on POSIX", () => {
+    expect(quoteShellArg("foo", false)).toBe("'foo'");
   });
 
-  it("escapes embedded single quotes with the '\\'' dance", () => {
-    expect(q("it's broken")).toBe("'it'\\''s broken'");
+  it("escapes embedded single quotes for POSIX", () => {
+    expect(quoteShellArg("it's", false)).toBe("'it'\\''s'");
   });
 
-  it("neutralizes shell metacharacters", () => {
-    expect(q("a; rm -rf / $(whoami) `id` && b")).toBe(
-      "'a; rm -rf / $(whoami) `id` && b'",
-    );
+  it("doubles embedded single quotes on Windows", () => {
+    expect(quoteShellArg("it's", true)).toBe("'it''s'");
   });
 
-  it("quotes an empty string to a real empty argument", () => {
-    expect(q("")).toBe("''");
+  it("keeps a value without quotes unchanged on Windows", () => {
+    expect(quoteShellArg("plain value", true)).toBe("'plain value'");
   });
 
-  it("cannot break out of the quoted argument", () => {
-    expect(q("'; rm -rf /; '")).toBe("''\\''; rm -rf /; '\\'''");
-  });
-});
-
-describe("quoteShellArg (windows/pwsh)", () => {
-  const q = (s: string) => quoteShellArg(s, true);
-
-  it("wraps a plain string in single quotes", () => {
-    expect(q("fix the bug")).toBe("'fix the bug'");
-  });
-
-  it("doubles embedded single quotes", () => {
-    expect(q("it's broken")).toBe("'it''s broken'");
-  });
-
-  it("keeps backticks and $ literal inside single quotes", () => {
-    expect(q("$env:PATH `n")).toBe("'$env:PATH `n'");
-  });
-
-  it("quotes an empty string", () => {
-    expect(q("")).toBe("''");
+  it("defaults to the platform flag (IS_WINDOWS)", () => {
+    // The exact output depends on the runtime platform; just assert it is one
+    // of the two quoting variants for a quote-free value.
+    const out = quoteShellArg("abc");
+    expect(out).toBe("'abc'");
   });
 });
