@@ -35,8 +35,13 @@ fn ping(port: u16, token: &str) -> bool {
         return false;
     };
     let _ = s.set_read_timeout(Some(Duration::from_secs(2)));
-    let auth = protocol::encode(&Frame::Auth { token: token.to_string() });
-    let ping = protocol::encode(&Frame::Ping);
+    // Encode failures are unexpected (fixed structs); treat as "not alive".
+    let Ok(auth) = protocol::encode(&Frame::Auth { token: token.to_string() }) else {
+        return false;
+    };
+    let Ok(ping) = protocol::encode(&Frame::Ping) else {
+        return false;
+    };
     if s.write_all(&auth).is_err() || s.write_all(&ping).is_err() {
         return false;
     }

@@ -107,6 +107,28 @@ where
     Ok(f(map))
 }
 
+/// Mutate the in-memory cache and persist it to disk under a single lock.
+/// Unlike the read-only `with_store` (which releases the lock before the
+/// caller snapshots and writes), this holds the cache lock across the whole
+/// modify + write. Without this, two concurrent `secrets_set`/`secrets_delete`
+/// could each snapshot mid-flight and one's disk write would clobber the
+/// other's key (last-writer-wins on a stale snapshot).
+#[cfg(target_os = "linux")]
+fn with_store_mut<F>(app: &AppHandle, state: &SecretsState, f: F) -> Result<(), String>
+where
+    F: FnOnce(&mut HashMap<String, String>),
+{
+    let mut guard = state.cache.lock().map_err(|e| e.to_string())?;
+    if guard.is_none() {
+        *guard = Some(read_store(app)?);
+    }
+    let map = guard.as_mut().expect("cache initialized above");
+    f(map);
+    // Write while still holding the lock so the persisted snapshot is exactly
+    // the mutated map — no other writer can interleave a stale snapshot.
+    write_store(app, map)
+}
+
 #[cfg(not(target_os = "linux"))]
 fn entry(service: &str, account: &str) -> Result<keyring::Entry, String> {
     keyring::Entry::new(service, account).map_err(|e| e.to_string())
@@ -148,14 +170,9 @@ pub async fn secrets_set(
     #[cfg(target_os = "linux")]
     {
         let key = key(&service, &account);
-        with_store(&app, &state, |m| {
+        with_store_mut(&app, &state, |m| {
             m.insert(key, password);
-        })?;
-        let snapshot = {
-            let guard = state.cache.lock().map_err(|e| e.to_string())?;
-            guard.as_ref().cloned().unwrap_or_default()
-        };
-        write_store(&app, &snapshot)
+        })
     }
     #[cfg(not(target_os = "linux"))]
     {
@@ -175,14 +192,9 @@ pub async fn secrets_delete(
     #[cfg(target_os = "linux")]
     {
         let key = key(&service, &account);
-        with_store(&app, &state, |m| {
+        with_store_mut(&app, &state, |m| {
             m.remove(&key);
-        })?;
-        let snapshot = {
-            let guard = state.cache.lock().map_err(|e| e.to_string())?;
-            guard.as_ref().cloned().unwrap_or_default()
-        };
-        write_store(&app, &snapshot)
+        })
     }
     #[cfg(not(target_os = "linux"))]
     {

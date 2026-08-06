@@ -70,10 +70,13 @@ impl PtySink for SocketSink {
         let Some(tx) = guard.as_mut() else {
             return true; // disconnected: keep buffering, keep flushing
         };
-        let frame = protocol::encode(&Frame::Output {
+        let Ok(frame) = protocol::encode(&Frame::Output {
             id: self.id,
             data: bytes.to_vec(),
-        });
+        }) else {
+            log::warn!("pty helper output encode failed (session {})", self.id);
+            return true;
+        };
         if tx.write_all(&frame).is_err() {
             // Client gone mid-write; drop the writer so we buffer until
             // reattach instead of failing every frame.
@@ -82,7 +85,10 @@ impl PtySink for SocketSink {
         true
     }
     fn exit(&self, code: i32) {
-        let frame = protocol::encode(&Frame::Exit(ExitEvent { id: self.id, code }));
+        let Ok(frame) = protocol::encode(&Frame::Exit(ExitEvent { id: self.id, code })) else {
+            log::warn!("pty helper exit encode failed (session {})", self.id);
+            return;
+        };
         if let Ok(mut guard) = self.out.lock() {
             if let Some(tx) = guard.as_mut() {
                 let _ = tx.write_all(&frame);
@@ -90,11 +96,14 @@ impl PtySink for SocketSink {
         }
     }
     fn agent_signal(&self, kind: &'static str, agent: Option<String>) {
-        let frame = protocol::encode(&Frame::AgentSignal(AgentSignalEvent {
+        let Ok(frame) = protocol::encode(&Frame::AgentSignal(AgentSignalEvent {
             id: self.id,
             kind: kind.to_string(),
             agent,
-        }));
+        })) else {
+            log::warn!("pty helper agent_signal encode failed (session {})", self.id);
+            return;
+        };
         if let Ok(mut guard) = self.out.lock() {
             if let Some(tx) = guard.as_mut() {
                 let _ = tx.write_all(&frame);
@@ -225,10 +234,11 @@ fn handle_connection(stream: TcpStream, state: Arc<HelperState>) {
             if data.is_empty() {
                 continue;
             }
-            let frame = protocol::encode(&Frame::Output { id: s.id, data });
-            let mut out = state.client_tx.lock().unwrap_or_else(|e| e.into_inner());
-            if let Some(tx) = out.as_mut() {
-                let _ = tx.write_all(&frame);
+            if let Ok(frame) = protocol::encode(&Frame::Output { id: s.id, data }) {
+                let mut out = state.client_tx.lock().unwrap_or_else(|e| e.into_inner());
+                if let Some(tx) = out.as_mut() {
+                    let _ = tx.write_all(&frame);
+                }
             }
         }
     }
@@ -418,7 +428,10 @@ fn cleanup(state: &Arc<HelperState>) {
 }
 
 fn send_frame(state: &Arc<HelperState>, frame: &Frame) {
-    let bytes = protocol::encode(frame);
+    let Ok(bytes) = protocol::encode(frame) else {
+        log::warn!("pty helper send_frame encode failed");
+        return;
+    };
     let mut out = state.client_tx.lock().unwrap_or_else(|e| e.into_inner());
     if let Some(tx) = out.as_mut() {
         let _ = tx.write_all(&bytes);

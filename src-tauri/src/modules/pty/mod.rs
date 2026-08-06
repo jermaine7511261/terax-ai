@@ -83,10 +83,15 @@ pub async fn pty_open(
         .unwrap_or(false);
     if exited {
         if let Some(s) = state.take(id) {
-            thread::Builder::new()
+            // Thread spawn failure (resource exhaustion) must not abort the
+            // whole process under `panic = abort`; the orphaned session is
+            // still reclaimed via the shared killer. Log and continue.
+            let handle = thread::Builder::new()
                 .name(format!("yamet-pty-drop-{id}"))
-                .spawn(move || session::drop_session(s))
-                .expect("spawn pty drop thread");
+                .spawn(move || session::drop_session(s));
+            if let Err(e) = handle {
+                log::warn!("spawn pty drop thread failed: {e}");
+            }
         }
     }
     log::info!("pty opened id={id} cols={cols} rows={rows}");
@@ -176,7 +181,7 @@ pub fn pty_close(state: tauri::State<PtyState>, id: u32) -> Result<(), String> {
         log::info!("pty closed id={id}");
         // Detached: on Windows `ClosePseudoConsole` can block until conhost
         // drains, which would freeze this Tauri worker thread and stall IPC.
-        thread::Builder::new()
+        let handle = thread::Builder::new()
             .name(format!("yamet-pty-drop-{id}"))
             .spawn(move || {
                 let t0 = std::time::Instant::now();
@@ -185,8 +190,10 @@ pub fn pty_close(state: tauri::State<PtyState>, id: u32) -> Result<(), String> {
                     "pty session id={id} dropped in {}ms",
                     t0.elapsed().as_millis()
                 );
-            })
-            .expect("spawn pty drop thread");
+            });
+        if let Err(e) = handle {
+            log::warn!("spawn pty drop thread failed: {e}");
+        }
     } else {
         log::debug!("pty_close: unknown id={id}");
     }
@@ -287,10 +294,12 @@ pub fn pty_close_all(state: tauri::State<PtyState>) -> Result<usize, String> {
         if let Err(e) = s.killer.lock().unwrap_or_else(|e| e.into_inner()).kill() {
             log::debug!("pty_close_all: kill id={id} returned {e}");
         }
-        thread::Builder::new()
+        let handle = thread::Builder::new()
             .name(format!("yamet-pty-drop-{id}"))
-            .spawn(move || session::drop_session(s))
-            .expect("spawn pty drop thread");
+            .spawn(move || session::drop_session(s));
+        if let Err(e) = handle {
+            log::warn!("spawn pty drop thread failed: {e}");
+        }
     }
     if count > 0 {
         log::info!("pty_close_all: reaped {count} orphaned session(s)");

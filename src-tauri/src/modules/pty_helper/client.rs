@@ -66,7 +66,7 @@ async fn connect(app: &AppHandle, info: &HelperInfo) -> Result<Arc<HelperClient>
     stream
         .write_all(&protocol::encode(&Frame::Auth {
             token: info.token.clone(),
-        }))
+        })?)
         .map_err(|e| format!("pty helper auth: {e}"))?;
 
     let client = Arc::new(HelperClient {
@@ -154,7 +154,7 @@ async fn connect(app: &AppHandle, info: &HelperInfo) -> Result<Arc<HelperClient>
 }
 
 pub fn send_frame(client: &HelperClient, frame: &Frame) -> Result<(), String> {
-    let bytes = protocol::encode(frame);
+    let bytes = protocol::encode(frame)?;
     client
         .writer
         .lock().unwrap_or_else(|e| e.into_inner())

@@ -137,19 +137,22 @@ fn decode_len(b: &[u8]) -> usize {
     u32::from_le_bytes([b[0], b[1], b[2], b[3]]) as usize
 }
 
-/// Encode a frame into its wire bytes.
-pub fn encode(frame: &Frame) -> Vec<u8> {
+/// Encode a frame into its wire bytes. `serde_json::to_vec` on these fixed,
+/// `Serialize`-derived structs is not expected to fail, but we return a `Result`
+/// so a serialization error degrades to a dropped frame instead of aborting the
+/// process under `panic = abort`.
+pub fn encode(frame: &Frame) -> Result<Vec<u8>, String> {
     let (msg_type, body): (u8, Vec<u8>) = match frame {
-        Frame::Auth { token } => (TYPE_AUTH, serde_json::to_vec(token).expect("json")),
-        Frame::Open(req) => (TYPE_OPEN, serde_json::to_vec(req).expect("json")),
+        Frame::Auth { token } => (TYPE_AUTH, serde_json::to_vec(token).map_err(|e| e.to_string())?),
+        Frame::Open(req) => (TYPE_OPEN, serde_json::to_vec(req).map_err(|e| e.to_string())?),
         Frame::Write(req) => {
             let mut body = Vec::with_capacity(4 + req.data.len());
             body.extend_from_slice(&req.id.to_le_bytes());
             body.extend_from_slice(&req.data);
             (TYPE_WRITE, body)
         }
-        Frame::Resize(req) => (TYPE_RESIZE, serde_json::to_vec(req).expect("json")),
-        Frame::Kill(req) => (TYPE_KILL, serde_json::to_vec(req).expect("json")),
+        Frame::Resize(req) => (TYPE_RESIZE, serde_json::to_vec(req).map_err(|e| e.to_string())?),
+        Frame::Kill(req) => (TYPE_KILL, serde_json::to_vec(req).map_err(|e| e.to_string())?),
         Frame::List => (TYPE_LIST, Vec::new()),
         Frame::Ping => (TYPE_PING, Vec::new()),
         Frame::Shutdown => (TYPE_SHUTDOWN, Vec::new()),
@@ -160,17 +163,17 @@ pub fn encode(frame: &Frame) -> Vec<u8> {
             body.extend_from_slice(data);
             (TYPE_OUTPUT, body)
         }
-        Frame::Exit(e) => (TYPE_EXIT, serde_json::to_vec(e).expect("json")),
-        Frame::AgentSignal(e) => (TYPE_AGENT_SIGNAL, serde_json::to_vec(e).expect("json")),
-        Frame::SessionList(l) => (TYPE_SESSION_LIST, serde_json::to_vec(l).expect("json")),
+        Frame::Exit(e) => (TYPE_EXIT, serde_json::to_vec(e).map_err(|e| e.to_string())?),
+        Frame::AgentSignal(e) => (TYPE_AGENT_SIGNAL, serde_json::to_vec(e).map_err(|e| e.to_string())?),
+        Frame::SessionList(l) => (TYPE_SESSION_LIST, serde_json::to_vec(l).map_err(|e| e.to_string())?),
         Frame::Pong => (TYPE_PONG, Vec::new()),
-        Frame::Error(e) => (TYPE_ERROR, serde_json::to_vec(e).expect("json")),
+        Frame::Error(e) => (TYPE_ERROR, serde_json::to_vec(e).map_err(|e| e.to_string())?),
     };
     let mut out = Vec::with_capacity(5 + body.len());
     out.extend_from_slice(&encode_len(body.len()));
     out.push(msg_type);
     out.extend_from_slice(&body);
-    out
+    Ok(out)
 }
 
 /// Decode one frame body (length prefix and type byte already stripped).
@@ -281,7 +284,7 @@ mod tests {
     use super::*;
 
     fn roundtrip(frame: &Frame) -> Frame {
-        let bytes = encode(frame);
+        let bytes = encode(frame).expect("encode");
         let len = decode_len(&bytes[..4]);
         assert_eq!(len, bytes.len() - 5);
         decode(len, bytes[4], &bytes[5..]).expect("decode")
@@ -356,8 +359,8 @@ mod tests {
     #[test]
     fn reader_parses_back_to_back_frames() {
         let mut bytes = Vec::new();
-        bytes.extend_from_slice(&encode(&Frame::Ping));
-        bytes.extend_from_slice(&encode(&Frame::Output { id: 1, data: vec![1, 2, 3] }));
+        bytes.extend_from_slice(&encode(&Frame::Ping).expect("encode"));
+        bytes.extend_from_slice(&encode(&Frame::Output { id: 1, data: vec![1, 2, 3] }).expect("encode"));
         let mut reader = FrameReader::new(&bytes[..]);
         let (t, _) = reader.read_frame().unwrap().unwrap();
         assert_eq!(t, TYPE_PING);
