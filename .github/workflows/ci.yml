@@ -38,6 +38,12 @@ jobs:
       - name: Test
         run: pnpm test
 
+      - name: Coverage (thresholds enforced)
+        run: pnpm test:coverage
+
+      - name: Doc drift check (YAMET.md vs commands/modules)
+        run: pnpm check-drift
+
       - name: React Compiler healthcheck (advisory)
         run: pnpm exec react-compiler-healthcheck
         continue-on-error: true

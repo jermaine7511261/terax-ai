@@ -169,6 +169,7 @@ function PreviewBlock({
   toolName: string;
   input: Record<string, unknown>;
 }) {
+  const { t } = useI18n();
   if (toolName === "bash_run" || toolName === "bash_background") {
     const cwd = typeof input.cwd === "string" ? input.cwd : null;
     return (
@@ -282,7 +283,7 @@ function PreviewBlock({
   if (toolName === "git_commit") {
     return (
       <div className="space-y-0.5 font-mono text-[11px]">
-        <div className="text-muted-foreground">Commit staged changes</div>
+        <div className="text-muted-foreground">{t("ai.commitStaged")}</div>
         <div className="rounded bg-muted/40 p-1.5 text-foreground">
           {String(input.message ?? "")}
         </div>

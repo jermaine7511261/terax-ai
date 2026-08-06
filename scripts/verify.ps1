@@ -35,6 +35,14 @@ try {
   pnpm test
   if ($LASTEXITCODE -ne 0) { throw "frontend tests failed" }
 
+  Write-Host "`n==> pnpm test:coverage (coverage thresholds)" -ForegroundColor Cyan
+  pnpm test:coverage
+  if ($LASTEXITCODE -ne 0) { throw "coverage thresholds not met" }
+
+  Write-Host "`n==> pnpm check-drift (doc-code drift gate)" -ForegroundColor Cyan
+  pnpm check-drift
+  if ($LASTEXITCODE -ne 0) { throw "doc-drift gate failed" }
+
   Write-Host "`n==> pnpm size (size-limit)" -ForegroundColor Cyan
   pnpm size
   if ($LASTEXITCODE -ne 0) { Write-Host "size-limit warnings (bundle may exceed budget)" -ForegroundColor Yellow }

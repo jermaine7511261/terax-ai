@@ -1,0 +1,124 @@
+#!/usr/bin/env node
+// Round-12 drift gate (P0): the three doc-code invariants, machine-checked.
+//   1. Every command registered in `generate_handler!` (src-tauri/src/lib.rs)
+//      must be documented in YAMET.md (as the command itself or its module
+//      prefix group, e.g. `dap::*`).
+//   2. Every `src/modules/*` directory must appear in the YAMET.md module
+//      layout section.
+//   3. Native-only rule: no tmux / vscode-debugadapter / js-debug / external
+//      MCP crate / non-native plugin runtime anywhere in Rust source or
+//      Cargo.toml dependencies (comment lines are ignored).
+// Any failure prints the offending list and exits non-zero. Wired into
+// `pnpm verify` and CI.
+
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const root = dirname(dirname(fileURLToPath(import.meta.url)));
+let failed = false;
+const fail = (msg) => {
+  console.error(`check-drift: ${msg}`);
+  failed = true;
+};
+
+// ---- 1. commands from generate_handler! ----
+const libRs = readFileSync(join(root, "src-tauri", "src", "lib.rs"), "utf8");
+const marker = "generate_handler![";
+const blockStart = libRs.indexOf(marker);
+if (blockStart < 0) {
+  fail("lib.rs: generate_handler![ not found");
+} else {
+  let depth = 0;
+  let i = blockStart + marker.length;
+  let block = "";
+  for (; i < libRs.length && depth >= 0; i++) {
+    const ch = libRs[i];
+    if (ch === "[") depth++;
+    else if (ch === "]") {
+      if (depth === 0) break;
+      depth--;
+    }
+    block += ch;
+  }
+  const commands = block
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((e) => e.split("::").pop().trim())
+    .filter((c) => /^[a-z_][a-z0-9_]*$/.test(c));
+  const unique = [...new Set(commands)];
+
+  const yamet = readFileSync(join(root, "YAMET.md"), "utf8");
+  const missing = unique.filter((cmd) => {
+    const prefix = cmd.split("_")[0];
+    return !yamet.includes(`\`${cmd}\``) && !yamet.includes(`${prefix}::`);
+  });
+  if (missing.length) {
+    fail(`YAMET.md 未覆盖以下已注册命令: ${missing.join(", ")}`);
+  }
+}
+
+// ---- 2. src/modules/* directories in YAMET.md ----
+const modulesDir = join(root, "src", "modules");
+if (!statSync(modulesDir, { throwIfNoEntry: false })) {
+  fail("src/modules 目录不存在");
+} else {
+  const modules = readdirSync(modulesDir, { withFileTypes: true })
+    .filter((d) => d.isDirectory())
+    .map((d) => d.name);
+  const yamet = readFileSync(join(root, "YAMET.md"), "utf8");
+  const missingMods = modules.filter(
+    (m) => !yamet.includes(`- **${m}/**`) && !yamet.includes(`**/${m}/**`),
+  );
+  if (missingMods.length) {
+    fail(`YAMET.md 模块布局未列出: ${missingMods.join(", ")}`);
+  }
+}
+
+// ---- 3. native-only rule ----
+const FORBIDDEN = [
+  { label: "tmux 引用", re: /\btmux\b/ },
+  { label: "vscode-debugadapter / js-debug 依赖", re: /vscode-debugadapter|js-debug|debugadapter-node/ },
+  { label: "非原生插件运行时", re: /extension-host|extensionHost|plugin-runtime/ },
+];
+
+const walk = (dir, out = []) => {
+  for (const ent of readdirSync(dir, { withFileTypes: true })) {
+    const p = join(dir, ent.name);
+    if (ent.isDirectory()) walk(p, out);
+    else if (ent.name.endsWith(".rs")) out.push(p);
+  }
+  return out;
+};
+
+const codeLines = (p) =>
+  readFileSync(p, "utf8")
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => !l.startsWith("//") && !l.startsWith("*") && !l.startsWith("/*"))
+    .join("\n");
+
+for (const f of walk(join(root, "src-tauri", "src"))) {
+  const code = codeLines(f);
+  for (const { label, re } of FORBIDDEN) {
+    if (re.test(code)) {
+      fail(`原生铁律违规（${label}）: ${f.replace(root, ".")}`);
+    }
+  }
+}
+
+const cargo = readFileSync(join(root, "src-tauri", "Cargo.toml"), "utf8");
+const depsSection = cargo.slice(cargo.indexOf("[dependencies]"));
+for (const name of ["mcp", "tmux", "vscode"]) {
+  const re = new RegExp(`^${name}\\s*=`, "m");
+  if (re.test(depsSection)) {
+    fail(`Cargo.toml 引入了非原生依赖 "${name}"`);
+  }
+}
+
+if (failed) {
+  console.error("check-drift: 门禁未通过，请修复后再提交（docs/yamet-需求迭代-第十二轮-测试覆盖与漂移更新-2026-08-05.md §4.4）");
+  process.exit(1);
+}
+console.log("check-drift: 通过（命令面 / 模块布局 / 原生铁律全部一致）");

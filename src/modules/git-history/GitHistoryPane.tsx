@@ -530,9 +530,9 @@ export function GitHistoryPane({
           </CenterPlaceholder>
         ) : commits.length === 0 ? (
           <CenterPlaceholder>
-            <div className="text-[13px] font-medium">No commits yet</div>
+            <div className="text-[13px] font-medium">{t("history.noCommits")}</div>
             <div className="max-w-md text-[11px] leading-relaxed text-muted-foreground">
-              This branch has no commits.
+              {t("history.noCommitsBody")}
             </div>
           </CenterPlaceholder>
         ) : (

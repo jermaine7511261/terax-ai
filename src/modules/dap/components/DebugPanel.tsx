@@ -1,6 +1,8 @@
+import { invoke } from "@tauri-apps/api/core";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/lib/i18n";
 import { useDapStore } from "@/modules/dap";
+import { currentWorkspaceEnv } from "@/modules/workspace";
 import {
   Cancel01Icon,
   PauseIcon,
@@ -9,6 +11,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 
 export function DebugPanel({ rootPath }: { rootPath: string | null }) {
   const { t } = useI18n();
@@ -64,6 +67,41 @@ export function DebugPanel({ rootPath }: { rootPath: string | null }) {
     }
   };
 
+  const createSampleConfig = async () => {
+    if (!rootPath) return;
+    const path = `${rootPath}/.yamet/launch.json`;
+    const ws = currentWorkspaceEnv();
+    const exists = await invoke("fs_stat", { path, workspace: ws })
+      .then(() => true)
+      .catch(() => false);
+    if (exists) {
+      toast.info(t("settingsDap.sampleExists"));
+      return;
+    }
+    await invoke("fs_write_file", {
+      path,
+      content: JSON.stringify(
+        {
+          version: "0.2.0",
+          configurations: [
+            {
+              name: "Python (debugpy)",
+              type: "debugpy",
+              request: "launch",
+              program: "${file}",
+              console: "integratedTerminal",
+            },
+          ],
+        },
+        null,
+        2,
+      ),
+      workspace: ws,
+      source: "dap-sample",
+    });
+    toast.success(t("settingsDap.sampleCreated"));
+  };
+
   const toolbarButton = (
     label: string,
     onClick: () => void,
@@ -97,6 +135,17 @@ export function DebugPanel({ rootPath }: { rootPath: string | null }) {
               </option>
             ))}
         </select>
+
+        {rootPath && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-6 px-2 text-[11px]"
+            onClick={() => void createSampleConfig()}
+          >
+            {t("settingsDap.createSample")}
+          </Button>
+        )}
 
         <Button
           size="sm"

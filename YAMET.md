@@ -29,6 +29,8 @@ Yamet 从工作区根目录加载 `YAMET.md` 作为 agent 记忆（类似 AGENTS
 
 核心子系统（终端/shell 启动、工作区认证、git、fs、IPC 或 AI 工具面）的改动需要一条锁定不变量的测试。
 
+**原生铁律（维护者硬约束）**：DAP / MCP / PTY / LSP 的宿主/传输/UI 层必须 Rust 原生（PTY = `portable-pty` + 原生 helper；LSP/DAP = 复用 `lsp/framing.rs` 分帧 + 原生子进程宿主；MCP = Rust client/server + 前端原生 store）；Skill、技能沉淀、插件系统同样必须原生（`create_skill` 工具 + `skills/` 目录约定为 Yamet 自身实现，写盘走 Rust fs + 安全拒绝名单）。禁止 tmux、`vscode-debugadapter`/`js-debug`、Node/Python 常驻桥接、VSCode 式扩展宿主、非原生插件运行时。适配器/语言服务器二进制（debugpy/node/lldb-dap/gdb/dlv）是 DAP/LSP 协议固有设计，不违背。`scripts/check-doc-drift.mjs`（`pnpm check-drift`）在 CI 强制：命令面 / 模块布局 / 原生铁律三件事。
+
 ## 约定
 
 - **注释**：默认不写，代码应自解释。确有必要时写 1-2 行"为什么"，绝不写"是什么"。不要 AI 通用废话。
@@ -51,11 +53,18 @@ Yamet 从工作区根目录加载 `YAMET.md` 作为 agent 记忆（类似 AGENTS
 - `shell::shell_session_*`：跨调用保留状态的持久 agent shell。`shell::shell_bg_*`（`spawn`、`logs`、`kill`、`list`）：长运行后台进程（开发服务器等），带有限环形缓冲日志捕获。
 - `workspace::*`：`workspace_authorize` / `workspace_current_dir`（spawn/git/AI 的 cwd 授权注册表）以及 WSL 桥（`wsl_list_distros`、`wsl_default_distro`、`wsl_home`）。
 - `lsp::*`（`lsp_detect`、`lsp_host_pid`、`lsp_resolve_root`、`lsp_spawn`、`lsp_send`、`lsp_kill`）：语言服务器进程宿主。哑 JSON-RPC 管道：Rust 侧做 Content-Length 帧协议 + 进程生命周期（`lsp/framing.rs`，纯函数 + 已测试），协议智能在前端。spawn 的 cwd 经工作区注册表门控；二进制经捕获的登录 shell 环境解析（`lsp/env.rs`，macOS GUI 应用是裸 PATH）；根目录发现向上找标记，但绝不越过 `$HOME`。Unix 下服务器在自己进程组运行并组杀（cargo check / proc-macro 子进程随服务器死）；Windows 子进程用 `proc::job::ProcessJob`（kill-on-close，与 pty 共用）。`RunEvent::Exit` 时杀全部会话。
-- `dap::*`（`dap_launch`、`dap_attach`、`dap_send`、`dap_kill`、`dap_list`）：调试适配器进程宿主（Debug Adapter Protocol）。与 LSP 同构：复用 `lsp/framing.rs` 的 Content-Length 帧 + 子进程模式；`DapSession` 做请求-响应 id 配对（30s 超时）、reverse request 分发、孤儿响应转发现前端、stderr tail。适配器注册表 `dap/adapter.rs`（debugpy/node-inspect/lldb-dap/gdb/dlv，按扩展名 + root marker 选择）。`launch` 用 fire-and-forget（debugpy 等延迟到 `configurationDone` 才回响应，阻塞会死锁），前端在 `initialized` 事件后发 `configurationDone`。`RunEvent::Exit` 时杀全部调试会话。
+- `dap::*`（`dap_session_create`、`dap_session_connect`、`dap_session_disconnect`、`dap_session_list`、`dap_session_get`、`dap_request_send`）：调试适配器进程宿主（Debug Adapter Protocol），原生 session+transport 模型（stdio/TCP）。与 LSP 同构：复用 `lsp/framing.rs` 的 Content-Length 帧 + 子进程模式；`DapSession` 做请求-响应 id 配对（30s 超时）、reverse request 分发、孤儿响应转发现前端、stderr tail。适配器注册表 `dap/adapter.rs`（debugpy/node-inspect/lldb-dap/gdb/dlv，按扩展名 + root marker 选择；适配器为协议固有的外部二进制，宿主/传输/UI 层全原生）。`launch` 用 fire-and-forget（debugpy 等延迟到 `configurationDone` 才回响应，阻塞会死锁），前端在 `initialized` 事件后发 `configurationDone`。`RunEvent::Exit` 时杀全部调试会话。
 - `net::*`（`ai_http_request`、`ai_http_stream`、`lm_ping`）：带 SSRF 守卫的 AI HTTP 代理；把提供商调用与本地模型 ping 移出 webview。
 - `secrets::secrets_*`：经 `keyring` crate 访问系统钥匙串。服务常量 `yamet-ai`。Linux 用文件回退，以 `#[cfg(target_os = "linux")]` 门控。
 - `gateway::*`（`modules/gateway/`）：国内 IM 网关。适配器（`adapters/*.rs`）覆盖钉钉 / 飞书 / 企微 / QQ（OneBot v11 WebSocket / go-cqhttp）/ 微信个人（iLink Bot API，二维码登录 + 长轮询）/ 公众号（回调）。`registry.rs` 持有适配器并把入站分发给 agent；`session.rs` 实施认证门禁（默认拒绝 + 按会话批准白名单 + 自动批准）。凭据落系统钥匙串（`gateway:<platform>`）。`weixin.rs` 在会话过期时经二维码重登（`errcode -14` / 陈旧 `-2`）；`gateway_weixin_qr_login` 以 SVG data-URL 把二维码流式推给设置 UI。`agent_probe`（`shell/external_agent.rs`）检测已安装的外部 agent CLI 及版本。
+- `mcp::*`（`mcp_server_add`、`mcp_server_remove`、`mcp_server_list`、`mcp_server_get`、`mcp_server_connect`、`mcp_server_disconnect`、`mcp_server_refresh`、`mcp_tool_call`、`mcp_resource_read`）：MCP（Model Context Protocol）原生 client（`modules/mcp/`）与 server 宿主（`modules/mcp_server/`）。自研 JSON-RPC 分帧 + stdio/SSE 传输，不依赖外部 `mcp` crate；会话生命周期、工具/资源注册在 Rust 侧管理。AI 子系统工具面经 `@/modules/mcp` 原生 store 接入（已删除旧 `ai/lib/mcp`）。全链路原生：无 Node/Python 常驻桥接。
+- `ssh::tunnels::*`（`ssh_tunnel_start`、`ssh_tunnel_list`、`ssh_tunnel_kill`）：SSH 端口转发隧道管理（`-L`/`-R`），配合 `sftp_list`/`sftp_read`（`modules/ssh/sftp.rs`）做远程 SFTP 文件浏览。命令/主机参数经 `clean_component` 校验，argv 传参无 shell 注入。
+- `history::*`（`history_suggest`、`history_commands`、`history_record`、`history_list`）：命令历史记录与建议补全（`modules/history/`）。
+- `agent::*`（`agent_enable_hooks`、`agent_hooks_status`）：终端 agent（Claude/Codex/Gemini/Pi/OpenCode/Grok）的 hook 启停与状态查询（`modules/agent.rs`，数据驱动 `AgentSpec`；`YAMET_TERMINAL` 门控，原子写、幂等）。
+- `window::*`（`toggle_devtools`）：webview 开发者工具开关（release 下无操作，dev/devtools feature 下生效）。
+- `scheduler::*`（`scheduler_list`、`scheduler_upsert`、`scheduler_delete`、`scheduler_toggle`）：定时任务调度（`modules/scheduler/`，持久化到 `data_dir/scheduler.json`）。
 - `open_settings_window`：独立的设置 webview 窗口（可选 `tab` 参数深链到指定分区）。
+- `get_launch_dir` / `get_launch_files`：返回启动时的工作目录与待打开文件（Tauri 启动参数）。
 
 ### PTY shell 集成
 
@@ -104,6 +113,10 @@ Windows 上 ConPTY 需要 `SPAWN_LOCK`（Mutex）包住 `session.rs` 里的 `ope
 - **settings/**：设置 store（`store.ts`，`tauri-plugin-store`）、偏好 hook、设置窗口打开器。
 - **sidebar/**：活动栏 + 可折叠侧面板（explorer、源码管理、git 历史）。
 - **source-control/**：git status / stage / commit 面板与 diff 工作流。
+- **mcp/**：MCP 服务器管理面板 + AI 工具面原生接入。`components/McpServersGroup.tsx` + `lib/store.ts`（zustand：server 增删/连接状态/工具列表）+ `lib/api.ts` 桥到 Rust `mcp_server_*`/`mcp_tool_call`/`mcp_resource_read`。AI 子系统 MCP 工具集成走该 store（已删除旧 `ai/lib/mcp`）。
+- **search/**：全局搜索面板（`SearchPanel.tsx`），经 `fs_grep_interactive` 跨文件全文搜索 + 结果高亮。
+- **ai/**：AI 聊天侧栏、BYOK 提供商（OpenAI/Anthropic/Google/Groq/xAI/Cerebras/OpenRouter/DeepSeek/Mistral + 本地 LM Studio/Ollama）、agentic 工作流（plans/子 agent/`YAMET.md` 项目记忆）、工具注册表（fs/编辑/grep/glob/bash/后台进程/`create_skill`）、Composer、计划模式与审批门禁。详见下文「AI 子系统」。
+- **gateway/**：IM 网关前端桥（`bridge.ts`）与微信会话过期重登浮层（`WeixinReloginOverlay.tsx`，监听 platform-event）。
 - **dap/**：DAP 调试面板（侧栏「调试」视图），原生增强版 session+transport 模型。`lib/api.ts` 桥到 Rust `dap_session_create/connect/disconnect/list/get` + `dap_request_send`（stdio/TCP 传输）；`components/DebugPanel.tsx` 提供适配器选择、启动/停止、状态指示、单步、调用栈/线程/变量树、Debug 输出；`lib/breakpointGutter.ts`（CodeMirror 断点 gutter：红点 + 暂停高亮、双向同步 `setBreakpoints`）注入编辑器；`lib/store.ts`（zustand `useDapStore`）持有会话与断点状态。`.yamet/launch.json` / `launch.json` / `.vscode/launch.json` 自动解析为配置下拉。
 - **remote/**：远程面板（侧栏「远程」视图）。SFTP 文件浏览器（连接目标 → `sftp_list` 目录导航 → 文件经 `sftp_read` 读取为 preview）+ 端口转发隧道管理（`-L`/`-R`，`ssh_tunnel_start/list/kill`）。懒加载。
 - **git-history/**：提交图轨道、refs、按提交的文件 diff。
@@ -129,6 +142,8 @@ BYOK。内置提供商（全部经 `@ai-sdk/openai-compatible`）：**DeepSeek�
 - **实时上下文桥**：`App.tsx` 调 `setLive({ getCwd, getTerminalContext, … })`，让工具读取*当前活动*终端的 cwd + 末 300 行 buffer。懒取设计，不预快照。
 - **工具**（`tools/tools.ts`）：`read_file`、`list_directory`、`fs_search`、`fs_grep` 自动执行。`write_file`、`create_directory`、`rename`、`delete`、`run_command`、`shell_session_run`、`shell_bg_spawn` 置 `needsApproval: true`，AI SDK 暂停等待应用内确认卡。批准后自动发送用 `lastAssistantMessageIsCompleteWithApprovalResponses`。`lib/security.ts` 是拒绝名单，拒绝明显密钥路径（`.env*`、`.ssh/`、凭据、钥匙串目录）：**读写两侧**都生效且不可绕过。
 - **编辑 diff**：AI 提议的编辑打开并排 diff 标签（`ai-diff` 类型）；写工具真正执行前逐块接受/拒绝。
+- **MCP 工具面**：外部 MCP server 的 tools/resources 经原生 store（`@/modules/mcp`）接入 AI 工具集，默认审批 + 脱敏；宿主在 Rust（`mcp_server_*`），前端只做状态与参数。
+- **Skill 与技能沉淀**：`create_skill` 工具把可复用流程沉淀为 `<workspace>/skills/<name>/skill.json`（Yamet 自身实现：写盘走 Rust fs + `checkWritableCanonical` 拒绝名单 + handle 校验）；内置扫描经 `lib/skills.ts` + `snippetsStore` 合并为 `builtin:true`；设置页 `SkillsSection` 可禁用/导入/重扫。技能沉淀 = agent 长任务后主动调 `create_skill`。
 - **片段**：可复用提示词片段，经 composer 的 `#handle` 展示（设置在 Agents 下）。Tool-bundle 尚未实现。
 
 ### UI 约定

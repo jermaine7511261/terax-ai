@@ -162,5 +162,24 @@ export default defineConfig(async ({ mode }): Promise<UserConfig> => ({
     // tests (.ts) stay in the fast node environment.
     environment: "node",
     setupFiles: ["./src/test/setup.ts"],
+    coverage: {
+      provider: "v8",
+      include: ["src/**/*.{ts,tsx}"],
+      exclude: [
+        "**/*.test.*",
+        "src/test/**",
+        "src/components/ui/**",
+        "src/components/ai-elements/**",
+        "src/styles/**",
+        "**/*.d.ts",
+      ],
+      // Progressive thresholds (round 12 baseline): raise next round.
+      thresholds: {
+        statements: 45,
+        branches: 35,
+        functions: 30,
+        lines: 45,
+      },
+    },
   },
 }));

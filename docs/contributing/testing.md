@@ -18,6 +18,13 @@ cargo nextest run --locked        # CI 用 nextest
 
 没装 `cargo-nextest` 时，本地回退是 `cargo test --locked`。用 `cargo install cargo-nextest` 安装 nextest。
 
+## 覆盖率契约（第十二轮起）
+
+- 前端 coverage 由 `pnpm test:coverage` 产出（v8 provider，配置在 `vite.config.ts` test.coverage），**CI 强制阈值**：statements ≥ 45%、branches ≥ 35%、functions ≥ 30%、lines ≥ 45%（渐进式，下一轮上调）。
+- `src/components/ui/`（shadcn 原语）、`src/components/ai-elements/`（生成代码）、`src/styles/` 不在覆盖范围：UI 渲染/主题不需要测试（见下）。
+- 新增模块（如 dap/mcp/remote/search/source-control）必须带测试；纯逻辑（状态机、解析、参数组装）必须覆盖主要状态迁移与错误分支。
+- Rust 侧 `cargo llvm-cov nextest --lcov` 已在 CI 生成 lcov.info（暂无阈值）；DAP 会话/传输层必须用真实子进程 fake 适配器测试（对齐 grok test-support 思路，不 mock 传输层）。
+
 ## 什么必须有测试
 
 `CONTRIBUTING.md` 要求，任何触碰以下承重路径行为的改动都要测试：

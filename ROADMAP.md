@@ -120,9 +120,9 @@ Yamet 是一个快速、轻量的 AI 原生终端（ADE，agentic development en
 
 ### 更远期
 
-- [ ] 发布自动化（CHANGELOG、版本递增；tag 流程待办）
-- [ ] 打包体积优化（语言包懒加载、UI 原语按需导入、tree-shake）
-- [ ] AI 工具 / 片段作为可安装 bundle（`skills/` 目录约定 + 工具白名单已交付子集；bundle 分享留后续）
+- [x] 发布自动化（`scripts/release.mjs` 一键版本递增 + CHANGELOG 固化 + commit + tag；`verify.ps1` CHANGELOG 门禁；第十轮交付）
+- [x] 打包体积优化（round-11 把 total client JS 上限压到 1550KB / eager 359KB；语言包懒加载持续进行）
+- [ ] AI 工具 / 片段作为可安装 bundle（`skills/` 目录约定 + 工具白名单已交付子集；bundle 分享留后续；方向：原生 JSON + 工具白名单，禁止非原生插件运行时）
 
 ## 欢迎贡献
 

@@ -1005,7 +1005,7 @@ export const SourceControlPanel = memo(function SourceControlPanel({
               strokeWidth={1.85}
               className="shrink-0"
             />
-            <span className="flex-1 text-[12px] font-medium">Commit Graph</span>
+            <span className="flex-1 text-[12px] font-medium">{t("git.commitGraph")}</span>
             <HugeiconsIcon
               icon={ArrowRight01Icon}
               size={12}
@@ -1021,8 +1021,8 @@ export const SourceControlPanel = memo(function SourceControlPanel({
 
         {scm.panelState === "no-repo" ? (
           <PanelCenter
-            title="No repository"
-            body="The active workspace is not inside a Git repository."
+            title={t("git.noRepository")}
+            body={t("git.noRepositoryBody")}
           />
         ) : null}
 

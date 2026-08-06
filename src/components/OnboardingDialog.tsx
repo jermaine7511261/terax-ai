@@ -11,6 +11,7 @@ import { useI18n } from "@/lib/i18n";
 import {
   CodeCircleIcon,
   CodeIcon,
+  Key02Icon,
   TerminalIcon,
 } from "@hugeicons/core-free-icons";
 import type { IconSvgElement } from "@hugeicons/react";
@@ -78,6 +79,11 @@ export function OnboardingDialog({ open, onOpenChange, onComplete }: Props) {
             icon={CodeCircleIcon}
             title={t("onboarding.ai")}
             desc={t("onboarding.aiDesc")}
+          />
+          <Feature
+            icon={Key02Icon}
+            title={t("onboarding.aiKey")}
+            desc={t("onboarding.aiKeyDesc")}
           />
         </div>
 

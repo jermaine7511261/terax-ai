@@ -459,7 +459,7 @@ function ContextIndicator({ messages }: { messages: UIMessage[] }) {
           </div>
           {lastCached > 0 && (
             <div className="flex items-center justify-between text-muted-foreground">
-              <span>Of which cached</span>
+              <span>{t("ai.cachedPart")}</span>
               <span className="font-mono text-foreground">
                 {formatTokens(lastCached)}
               </span>

@@ -123,6 +123,8 @@ export const zhMessages = {
     editorDesc: "CodeMirror 6，LSP 诊断与跳转、AI 补全、格式化。",
     ai: "AI Agent",
     aiDesc: "自带 API 密钥或完全本地模型，可驱动终端、编辑文件、管理 Git。",
+    aiKey: "配置 AI 密钥",
+    aiKeyDesc: "在设置 → AI 中粘贴 API 密钥，或指向本地端点（LM Studio / Ollama）。密钥存于系统钥匙串。",
     getStarted: "开始使用",
     skip: "跳过",
   },
@@ -357,6 +359,9 @@ export const zhMessages = {
     newBranchName: "新分支名称",
     deleteBranchConfirm: "确定删除分支“{branch}”吗？此操作不可撤销。",
     cannotDeleteCurrent: "不能删除当前所在分支",
+    commitGraph: "提交图",
+    noRepository: "未检测到仓库",
+    noRepositoryBody: "当前工作区不在 Git 仓库内。",
     branchDeleted: "已删除分支 {branch}",
     branchCreated: "已创建分支 {branch}",
     branchRenamed: "已重命名分支为 {branch}",
@@ -378,11 +383,9 @@ export const zhMessages = {
     copyAbsolutePath: "复制绝对路径",
     copyNPaths: "复制 {count} 个路径",
     loadingRepository: "加载仓库中",
-    noRepository: "无仓库",
     sourceControlError: "源代码管理错误",
     changedFiles: "已更改的文件",
     stageAllChanges: "暂存所有更改",
-    commitGraph: "提交图",
     commitStagedChanges: "提交已暂存的更改",
     subject: "主题",
     sha: "SHA",
@@ -400,6 +403,7 @@ export const zhMessages = {
     date: "日期",
     message: "提交信息",
     copySha: "复制 SHA",
+    noCommitsBody: "该分支还没有提交。",
   },
   preview: {
     preview: "预览",
@@ -455,6 +459,8 @@ export const zhMessages = {
     sessions: "会话",
     conversation: "对话",
     attachSelection: "附加选区",
+    cachedPart: "其中缓存",
+    commitStaged: "提交暂存的更改",
     attachedFiles: "已附加文件",
     removeAttachment: "移除附件",
     noApiKey: "尚未配置 API 密钥，请在设置中添加",
@@ -1061,6 +1067,9 @@ export const zhMessages = {
     noFrames: "无调用帧",
     noVariables: "无变量",
     noOutput: "无输出",
+    createSample: "创建示例配置",
+    sampleCreated: "已创建 .yamet/launch.json",
+    sampleExists: ".yamet/launch.json 已存在，未覆盖",
     status: {
       inactive: "未激活",
       initializing: "初始化中",
@@ -1441,6 +1450,9 @@ export const enMessages = {
     ai: "AI Agent",
     aiDesc:
       "Bring your own API keys or run fully local models — drive the terminal, edit files, manage Git.",
+    aiKey: "Configure an AI key",
+    aiKeyDesc:
+      "Paste an API key in Settings → AI, or point to a local endpoint (LM Studio / Ollama). Keys live in the OS keychain.",
     getStarted: "Get started",
     skip: "Skip",
   },
@@ -1675,6 +1687,9 @@ export const enMessages = {
     newBranchName: "New branch name",
     deleteBranchConfirm: 'Delete branch "{branch}"? This cannot be undone.',
     cannotDeleteCurrent: "Cannot delete the current branch",
+    commitGraph: "Commit Graph",
+    noRepository: "No repository",
+    noRepositoryBody: "The active workspace is not inside a Git repository.",
     branchDeleted: "Deleted branch {branch}",
     branchCreated: "Created branch {branch}",
     branchRenamed: "Renamed branch to {branch}",
@@ -1696,10 +1711,8 @@ export const enMessages = {
     copyAbsolutePath: "Copy Absolute Path",
     copyNPaths: "Copy {count} Paths",
     changedFiles: "Changed files",
-    commitGraph: "Commit graph",
     commitStagedChanges: "Commit staged changes",
     loadingRepository: "Loading repository",
-    noRepository: "No repository",
     sha: "SHA",
     sourceControlError: "Source control error",
     stageAllChanges: "Stage all changes",
@@ -1718,6 +1731,7 @@ export const enMessages = {
     date: "Date",
     message: "Message",
     copySha: "Copy SHA",
+    noCommitsBody: "This branch has no commits.",
   },
   preview: {
     preview: "Preview",
@@ -1774,6 +1788,8 @@ export const enMessages = {
     sessions: "Sessions",
     conversation: "Conversation",
     attachSelection: "Attach Selection",
+    cachedPart: "Of which cached",
+    commitStaged: "Commit staged changes",
     attachedFiles: "Attached files",
     removeAttachment: "Remove attachment",
     noApiKey: "No API key configured. Add one in Settings.",
@@ -2399,6 +2415,9 @@ export const enMessages = {
     noFrames: "no frames",
     noVariables: "no variables",
     noOutput: "no output",
+    createSample: "Create sample config",
+    sampleCreated: "Created .yamet/launch.json",
+    sampleExists: ".yamet/launch.json already exists, not overwritten",
     status: {
       inactive: "inactive",
       initializing: "initializing",
@@ -2587,6 +2606,59 @@ export const enMessages = {
     clearShortcut: "Clear shortcut",
     recording: "Recording...",
     escToCancel: "(Esc to cancel)",
+    commandPalette_open: "Open command palette",
+    commandPalette_content: "Find in files",
+    settings_open: "Open settings",
+    tab_new: "New tab",
+    tab_newBlock: "New Blocks terminal",
+    tab_newPrivate: "New private terminal",
+    tab_newPreview: "New web preview",
+    tab_newEditor: "New editor tab",
+    tab_close: "Close tab or pane",
+    pane_splitRight: "Split pane right",
+    pane_splitDown: "Split pane down",
+    pane_focusNext: "Focus next pane",
+    pane_focusPrev: "Focus previous pane",
+    pane_swapLeft: "Swap pane left",
+    pane_swapRight: "Swap pane right",
+    pane_swapUp: "Swap pane up",
+    pane_swapDown: "Swap pane down",
+    pane_source: "Toggle source panel",
+    terminal_clear: "Clear terminal",
+    terminal_toggleInput: "Toggle Shell / AI input",
+    blocks_prev: "Previous command block",
+    blocks_next: "Next command block",
+    tab_next: "Next tab",
+    tab_prev: "Previous tab",
+    tab_selectByIndex: "Jump to tab 1-9",
+    space_next: "Next space",
+    space_prev: "Previous space",
+    space_overview: "Open spaces",
+    explorer_search: "Search files",
+    search_focus: "Find in tab",
+    ai_toggle: "Toggle AI agent",
+    ai_toggleMini: "Toggle AI chat window",
+    ai_askSelection: "Ask AI about selection",
+    agent_focusAttention: "Jump to agent needing attention",
+    sidebar_toggle: "Toggle file explorer",
+    explorer_focus: "Toggle file explorer focus",
+    view_zoomIn: "Zoom in",
+    view_zoomOut: "Zoom out",
+    view_zoomReset: "Reset zoom",
+    view_zenMode: "Toggle zen mode",
+    editor_undo: "Undo",
+    editor_redo: "Redo",
+    editor_aiComplete: "Trigger AI completion",
+    editor_codeComplete: "Trigger code completion",
+    group_ai: "AI",
+    group_editor: "Editor",
+    group_general: "General",
+    group_panes: "Panes",
+    group_search: "Search",
+    group_spaces: "Spaces",
+    group_tabs: "Tabs",
+    group_terminal: "Terminal",
+    group_view: "View",
   },
   dialogs: {
     confirm: "Confirm",
@@ -2623,13 +2695,14 @@ export const enMessages = {
 } satisfies Messages;
 
 // Compile-time check disabled — zh/en key parity is maintained manually.
-// type AssertSameKeys<A, B> =
-//   Exclude<Paths<A>, Paths<B>> extends never
-//     ? Exclude<Paths<B>, Paths<A>> extends never
-//       ? true
-//       : never
-//     : never;
-// export const _keyParity: AssertSameKeys<typeof zhMessages, typeof enMessages> =
-//   true;
+type AssertSameKeys<A, B> =
+  Exclude<Paths<A>, Paths<B>> extends never
+    ? Exclude<Paths<B>, Paths<A>> extends never
+      ? true
+      : never
+    : never;
+// Compile-time gate: zh and en key sets must stay in sync (round 12, D7).
+export const _keyParity: AssertSameKeys<typeof zhMessages, typeof enMessages> =
+  true;
 
 export type MessagesType = Messages;

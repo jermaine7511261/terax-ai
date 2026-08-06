@@ -41,10 +41,10 @@ const ADAPTERS: &[DapAdapterDef] = &[
         extensions: &["js", "jsx", "mjs", "cjs", "ts", "tsx"],
         root_markers: &["package.json", "tsconfig.json"],
         command: "node",
-        // The adapter runs in-process with the debugged program via
-        // --inspect-brk; we use the DAP-over-stdio bridge from vscode-js-debug
-        // when available, else fall back to `node --inspect`. The launcher
-        // resolves which at runtime.
+        // Spawned by the native stdio transport (dap/transport.rs); the
+        // launch config supplies the adapter invocation (`node --inspect` or
+        // a DAP-over-stdio bridge) via adapterCommand/adapterArgs. No
+        // external DAP client library is bundled.
         args: &[],
     },
     DapAdapterDef {
