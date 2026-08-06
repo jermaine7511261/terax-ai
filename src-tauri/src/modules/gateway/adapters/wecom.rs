@@ -12,7 +12,6 @@ use std::sync::{Arc, Mutex};
 use chrono::Utc;
 use futures_util::future::BoxFuture;
 use serde::{Deserialize, Serialize};
-use tokio::sync::mpsc;
 
 use crate::modules::gateway::adapter::{
     ChatTarget, EventTx, PlatformAdapter, SendReceipt, SendResult,

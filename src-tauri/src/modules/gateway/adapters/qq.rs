@@ -12,7 +12,6 @@ use std::sync::{Arc, Mutex};
 use chrono::Utc;
 use futures_util::future::BoxFuture;
 use futures_util::{SinkExt, StreamExt};
-use tokio::sync::mpsc;
 use tokio_tungstenite::tungstenite::http;
 
 use crate::modules::gateway::adapter::{
@@ -27,6 +26,7 @@ use serde::{Deserialize, Serialize};
 type OnebotWs = tokio_tungstenite::WebSocketStream<
     tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
 >;
+#[allow(dead_code)] // send-path sink alias; kept alongside OnebotWs
 type OnebotSink = futures_util::stream::SplitSink<
     OnebotWs,
     tokio_tungstenite::tungstenite::Message,

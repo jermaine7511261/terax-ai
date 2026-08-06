@@ -131,7 +131,7 @@ impl McpSession {
                 return Err(e);
             }
         };
-        *self.capabilities.write().unwrap() =
+        *self.capabilities.write().unwrap_or_else(|e| e.into_inner()) =
             result.get("capabilities").cloned().unwrap_or(Value::Null);
         self.notify(NOTIFY_INITIALIZED, None)?;
         self.set_status(McpSessionStatus::Connected);
@@ -168,21 +168,21 @@ impl McpSession {
     }
 
     pub fn status(&self) -> McpSessionStatus {
-        self.status.read().unwrap().clone()
+        self.status.read().unwrap_or_else(|e| e.into_inner()).clone()
     }
 
     // -- capability access --------------------------------------------------
 
     pub fn tools(&self) -> Vec<McpToolInfo> {
-        self.tools.read().unwrap().clone()
+        self.tools.read().unwrap_or_else(|e| e.into_inner()).clone()
     }
 
     pub fn resources(&self) -> Vec<McpResourceInfo> {
-        self.resources.read().unwrap().clone()
+        self.resources.read().unwrap_or_else(|e| e.into_inner()).clone()
     }
 
     pub fn prompts(&self) -> Vec<McpPromptInfo> {
-        self.prompts.read().unwrap().clone()
+        self.prompts.read().unwrap_or_else(|e| e.into_inner()).clone()
     }
 
     pub fn refresh_tools(&self) -> Result<usize, String> {
@@ -208,7 +208,7 @@ impl McpSession {
             })
             .collect();
         let count = tools.len();
-        *self.tools.write().unwrap() = tools;
+        *self.tools.write().unwrap_or_else(|e| e.into_inner()) = tools;
         Ok(count)
     }
 
@@ -239,7 +239,7 @@ impl McpSession {
             })
             .collect();
         let count = resources.len();
-        *self.resources.write().unwrap() = resources;
+        *self.resources.write().unwrap_or_else(|e| e.into_inner()) = resources;
         Ok(count)
     }
 
@@ -265,7 +265,7 @@ impl McpSession {
             })
             .collect();
         let count = prompts.len();
-        *self.prompts.write().unwrap() = prompts;
+        *self.prompts.write().unwrap_or_else(|e| e.into_inner()) = prompts;
         Ok(count)
     }
 
@@ -309,16 +309,16 @@ impl McpSession {
         let payload = serde_json::to_string(&request(Value::from(id), method, params))
             .map_err(|e| format!("mcp encode failed: {e}"))?;
         let (tx, rx) = mpsc::channel();
-        self.pending.lock().unwrap().insert(id, tx);
+        self.pending.lock().unwrap_or_else(|e| e.into_inner()).insert(id, tx);
         if let Err(e) = self.transport.send(&payload) {
-            self.pending.lock().unwrap().remove(&id);
+            self.pending.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
             return Err(e);
         }
         match rx.recv_timeout(timeout) {
             Ok(Ok(result)) => Ok(result),
             Ok(Err(rpc_err)) => Err(rpc_err.to_string()),
             Err(_) => {
-                self.pending.lock().unwrap().remove(&id);
+                self.pending.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
                 Err(format!("mcp request timed out: {method}"))
             }
         }
@@ -364,7 +364,7 @@ impl McpSession {
                 log::debug!("mcp {}: response with non-numeric id", self.server_id);
                 return;
             };
-            let sender = self.pending.lock().unwrap().remove(&id);
+            let sender = self.pending.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
             let Some(sender) = sender else {
                 log::debug!("mcp {}: response for unknown id {id}", self.server_id);
                 return;
@@ -426,7 +426,7 @@ impl McpSession {
     }
 
     fn fail(&self, reason: String) {
-        if self.status.read().unwrap().kind() == "error" {
+        if self.status.read().unwrap_or_else(|e| e.into_inner()).kind() == "error" {
             return;
         }
         log::error!("mcp session {}: {reason}", self.server_id);
@@ -435,7 +435,7 @@ impl McpSession {
     }
 
     fn drain_pending(&self, reason: &str) {
-        let pending = std::mem::take(&mut *self.pending.lock().unwrap());
+        let pending = std::mem::take(&mut *self.pending.lock().unwrap_or_else(|e| e.into_inner()));
         for (_, tx) in pending {
             let _ = tx.send(Err(RpcError {
                 code: ERR_INTERNAL,
@@ -448,7 +448,7 @@ impl McpSession {
     fn set_status(&self, status: McpSessionStatus) {
         let kind = status.kind().to_string();
         let message = status.message().map(str::to_string);
-        *self.status.write().unwrap() = status;
+        *self.status.write().unwrap_or_else(|e| e.into_inner()) = status;
         let _ = self.app.emit(
             EVENT_STATUS,
             json!({ "serverId": self.server_id, "status": kind, "error": message }),

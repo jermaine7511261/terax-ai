@@ -44,7 +44,7 @@ export function SshConnectDialog({ open, onOpenChange, onConnect }: Props) {
       setError(t("ssh.hostRequired"));
       return;
     }
-    let p: number | undefined = undefined;
+    let p: number | undefined ;
     const trimmedPort = port.trim();
     if (trimmedPort && trimmedPort !== "22") {
       p = Number(trimmedPort);

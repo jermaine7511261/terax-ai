@@ -229,7 +229,7 @@ impl McpTransport for StdioTransport {
         if self.closed.load(Ordering::Acquire) {
             return Err("mcp transport closed".to_string());
         }
-        let mut guard = self.stdin.lock().unwrap();
+        let mut guard = self.stdin.lock().unwrap_or_else(|e| e.into_inner());
         let stdin = guard.as_mut().ok_or("mcp stdin closed")?;
         let mut line = payload.as_bytes().to_vec();
         line.push(b'\n');
@@ -251,7 +251,7 @@ impl McpTransport for StdioTransport {
         if self.closed.swap(true, Ordering::AcqRel) {
             return;
         }
-        *self.stdin.lock().unwrap() = None;
+        *self.stdin.lock().unwrap_or_else(|e| e.into_inner()) = None;
         #[cfg(unix)]
         unsafe {
             libc::kill(-(self.child.id() as libc::pid_t), libc::SIGKILL);
@@ -312,7 +312,7 @@ impl SseTransport {
                                     if line == "\n" || line == "\r\n" {
                                         // Event boundary.
                                         if event_name == "endpoint" {
-                                            let mut ep = endpoint_w.lock().unwrap();
+                                            let mut ep = endpoint_w.lock().unwrap_or_else(|e| e.into_inner());
                                             *ep = Some(resolve_endpoint(&base, data.trim()));
                                             drop(ep);
                                         } else if (event_name == "message" || event_name.is_empty())
@@ -358,7 +358,7 @@ impl SseTransport {
 
 impl McpTransport for SseTransport {
     fn send(&self, payload: &str) -> Result<(), String> {
-        let endpoint = self.endpoint.lock().unwrap().clone();
+        let endpoint = self.endpoint.lock().unwrap_or_else(|e| e.into_inner()).clone();
         let url = endpoint.unwrap_or_else(|| self.base_url.clone());
         let mut req = self
             .client
@@ -386,7 +386,7 @@ impl McpTransport for SseTransport {
     }
 
     fn is_ready(&self) -> bool {
-        self.endpoint.lock().unwrap().is_some()
+        self.endpoint.lock().unwrap_or_else(|e| e.into_inner()).is_some()
     }
 
     fn close(&self) {

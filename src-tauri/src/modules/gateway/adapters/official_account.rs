@@ -13,7 +13,6 @@ use aes::cipher::{block_padding::Pkcs7, BlockDecryptMut, KeyIvInit};
 use chrono::Utc;
 use futures_util::future::BoxFuture;
 use serde::{Deserialize, Serialize};
-use tokio::sync::mpsc;
 
 use crate::modules::gateway::adapter::{
     ChatTarget, EventTx, PlatformAdapter, SendReceipt, SendResult,
@@ -66,6 +65,7 @@ impl OfficialAccountAdapter {
         }
     }
 
+    #[allow(dead_code)] // token refresh path; kept for future authenticated sends
     async fn get_access_token(&self) -> Result<String, String> {
         if let Some((tok, expires_at)) = &*self.inner.access_token.lock().unwrap_or_else(|e| e.into_inner()) {
             if Utc::now().timestamp() < *expires_at - 60 {

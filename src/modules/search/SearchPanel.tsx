@@ -102,6 +102,7 @@ export function SearchPanel({ root, onOpen }: Props) {
           placeholder={t("search.placeholder")}
           className="w-full min-w-0 bg-transparent text-[12px] outline-none placeholder:text-muted-foreground/60"
           spellCheck={false}
+          // biome-ignore lint/a11y/noAutofocus: search input intentionally focuses on open
           autoFocus
         />
         {query ? (

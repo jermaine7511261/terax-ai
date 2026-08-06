@@ -151,6 +151,7 @@ struct StreamFrame {
 }
 
 #[derive(Debug, Deserialize, Default)]
+#[allow(dead_code)] // serde-deserialized fields; retained for wire-compat
 struct StreamFrameHeaders {
     #[serde(rename = "topic", default)]
     topic: String,
@@ -162,6 +163,7 @@ struct StreamFrameHeaders {
 
 /// Server `body` of the `/meta/connect` bootstrap message.
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)] // serde-deserialized fields; retained for wire-compat
 struct ConnectBody {
     #[serde(default)]
     code: i64,

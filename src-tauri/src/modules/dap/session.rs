@@ -89,7 +89,7 @@ impl DapSession {
     }
 
     pub fn set_event_channel(&self, channel: Channel<DapEvent>) {
-        *self.on_event.write().unwrap() = Some(channel);
+        *self.on_event.write().unwrap_or_else(|e| e.into_inner()) = Some(channel);
     }
 
     /// Run `initialize` and wait for the adapter to be ready. The adapter
@@ -117,7 +117,7 @@ impl DapSession {
             self.fail(msg.clone());
             return Err(msg);
         }
-        *self.capabilities.write().unwrap() = resp.body.clone().unwrap_or(Value::Null);
+        *self.capabilities.write().unwrap_or_else(|e| e.into_inner()) = resp.body.clone().unwrap_or(Value::Null);
         self.set_status(DapSessionStatus::Initialized);
         log::info!("dap session {} initialized", self.id);
         Ok(())
@@ -149,16 +149,16 @@ impl DapSession {
         };
         let payload = serde_json::to_string(&req).map_err(|e| format!("dap encode failed: {e}"))?;
         let (tx, rx) = mpsc::channel();
-        self.pending.lock().unwrap().insert(seq, tx);
+        self.pending.lock().unwrap_or_else(|e| e.into_inner()).insert(seq, tx);
         if let Err(e) = self.transport.send_frame(&payload) {
-            self.pending.lock().unwrap().remove(&seq);
+            self.pending.lock().unwrap_or_else(|e| e.into_inner()).remove(&seq);
             return Err(e);
         }
         match rx.recv_timeout(timeout) {
             Ok(Ok(resp)) => Ok(resp),
             Ok(Err(e)) => Err(e),
             Err(_) => {
-                self.pending.lock().unwrap().remove(&seq);
+                self.pending.lock().unwrap_or_else(|e| e.into_inner()).remove(&seq);
                 Err(format!("dap request timed out: {command}"))
             }
         }
@@ -191,7 +191,7 @@ impl DapSession {
     }
 
     pub fn status(&self) -> DapSessionStatus {
-        self.status.read().unwrap().clone()
+        self.status.read().unwrap_or_else(|e| e.into_inner()).clone()
     }
 
     fn spawn_reader(self: &Arc<Self>) -> Result<(), String> {
@@ -260,7 +260,7 @@ impl DapSession {
             }
             _ => {}
         }
-        if let Some(ch) = self.on_event.read().unwrap().as_ref() {
+        if let Some(ch) = self.on_event.read().unwrap_or_else(|e| e.into_inner()).as_ref() {
             if ch.send(event.clone()).is_err() {
                 log::debug!("dap {}: event channel closed", self.id);
             }
@@ -268,7 +268,7 @@ impl DapSession {
     }
 
     fn fail(&self, reason: String) {
-        if self.status.read().unwrap().kind() == "error" {
+        if self.status.read().unwrap_or_else(|e| e.into_inner()).kind() == "error" {
             return;
         }
         log::error!("dap session {}: {reason}", self.id);
@@ -277,7 +277,7 @@ impl DapSession {
     }
 
     fn drain_pending(&self, reason: &str) {
-        let pending = std::mem::take(&mut *self.pending.lock().unwrap());
+        let pending = std::mem::take(&mut *self.pending.lock().unwrap_or_else(|e| e.into_inner()));
         for (_, tx) in pending {
             let _ = tx.send(Err(reason.to_string()));
         }
@@ -286,7 +286,7 @@ impl DapSession {
     fn set_status(&self, status: DapSessionStatus) {
         let kind = status.kind().to_string();
         let message = status.message().map(str::to_string);
-        *self.status.write().unwrap() = status;
+        *self.status.write().unwrap_or_else(|e| e.into_inner()) = status;
         let _ = self.app.emit(
             EVENT_STATUS,
             json!({ "sessionId": self.id, "status": kind, "error": message }),
@@ -337,7 +337,7 @@ impl DapSessionState {
     }
 
     pub fn close_all(&self) {
-        let sessions = std::mem::take(&mut *self.sessions.write().unwrap());
+        let sessions = std::mem::take(&mut *self.sessions.write().unwrap_or_else(|e| e.into_inner()));
         for (_, s) in sessions {
             s.close();
         }
@@ -350,7 +350,7 @@ pub async fn dap_session_create(
     state: State<'_, DapSessionState>,
     config: DapSessionConfig,
 ) -> Result<(), String> {
-    let mut configs = state.configs.write().unwrap();
+    let mut configs = state.configs.write().unwrap_or_else(|e| e.into_inner());
     if configs.contains_key(&config.id) {
         return Err(format!("dap session with id {} already exists", config.id));
     }
@@ -399,7 +399,7 @@ pub async fn dap_session_connect(
     let workspace = WorkspaceEnv::from_option(workspace);
     let cwd = authorize_spawn_cwd(&registry, root.as_deref(), &workspace)?;
 
-    if let Some(old) = state.sessions.write().unwrap().remove(&id) {
+    if let Some(old) = state.sessions.write().unwrap_or_else(|e| e.into_inner()).remove(&id) {
         old.close();
     }
 
@@ -460,7 +460,7 @@ pub async fn dap_session_connect(
     .await
     .map_err(|e| e.to_string())??;
 
-    state.sessions.write().unwrap().insert(id.clone(), session);
+    state.sessions.write().unwrap_or_else(|e| e.into_inner()).insert(id.clone(), session);
     log::info!("dap session {id} connected");
     Ok(())
 }
@@ -497,11 +497,11 @@ pub async fn dap_session_disconnect(
 
 #[tauri::command]
 pub fn dap_session_list(state: State<'_, DapSessionState>) -> Vec<DapSessionInfo> {
-    let configs: Vec<DapSessionConfig> = state.configs.read().unwrap().values().cloned().collect();
+    let configs: Vec<DapSessionConfig> = state.configs.read().unwrap_or_else(|e| e.into_inner()).values().cloned().collect();
     configs
         .iter()
         .map(|c| {
-            let session = state.sessions.read().unwrap().get(&c.id).cloned();
+            let session = state.sessions.read().unwrap_or_else(|e| e.into_inner()).get(&c.id).cloned();
             let (status, error) = match session {
                 Some(s) => {
                     let st = s.status();
@@ -529,8 +529,8 @@ pub fn dap_session_get(
     state: State<'_, DapSessionState>,
     id: String,
 ) -> Option<DapSessionInfo> {
-    let config = state.configs.read().unwrap().get(&id).cloned()?;
-    let session = state.sessions.read().unwrap().get(&id).cloned();
+    let config = state.configs.read().unwrap_or_else(|e| e.into_inner()).get(&id).cloned()?;
+    let session = state.sessions.read().unwrap_or_else(|e| e.into_inner()).get(&id).cloned();
     let (status, error) = match session {
         Some(s) => {
             let st = s.status();

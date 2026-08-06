@@ -49,7 +49,7 @@ pub struct McpServerState {
 
 impl McpServerState {
     pub fn shutdown_all(&self) {
-        let sessions = std::mem::take(&mut *self.sessions.write().unwrap());
+        let sessions = std::mem::take(&mut *self.sessions.write().unwrap_or_else(|e| e.into_inner()));
         for (_, s) in sessions {
             s.shutdown();
         }
@@ -65,7 +65,7 @@ impl McpServerState {
     }
 
     fn info_for(&self, config: &McpServerConfig) -> McpServerInfo {
-        let session = self.sessions.read().unwrap().get(&config.id).cloned();
+        let session = self.sessions.read().unwrap_or_else(|e| e.into_inner()).get(&config.id).cloned();
         let (status, error, tools, resources, prompts) = match session {
             Some(s) => {
                 let st = s.status();
@@ -107,7 +107,7 @@ pub async fn mcp_server_add(
     state: State<'_, McpServerState>,
     config: McpServerConfig,
 ) -> Result<(), String> {
-    let mut configs = state.configs.write().unwrap();
+    let mut configs = state.configs.write().unwrap_or_else(|e| e.into_inner());
     if configs.contains_key(&config.id) {
         return Err(format!("mcp server with id {} already exists", config.id));
     }
@@ -135,10 +135,10 @@ pub async fn mcp_server_add(
 /// Remove a configured server; disconnects it first if connected.
 #[tauri::command]
 pub async fn mcp_server_remove(state: State<'_, McpServerState>, id: String) -> Result<(), String> {
-    if let Some(s) = state.sessions.write().unwrap().remove(&id) {
+    if let Some(s) = state.sessions.write().unwrap_or_else(|e| e.into_inner()).remove(&id) {
         s.close();
     }
-    let mut configs = state.configs.write().unwrap();
+    let mut configs = state.configs.write().unwrap_or_else(|e| e.into_inner());
     if configs.remove(&id).is_none() {
         return Err(format!("mcp server {id} not found"));
     }
@@ -159,7 +159,7 @@ pub fn mcp_server_list(state: State<'_, McpServerState>) -> Vec<McpServerInfo> {
 
 #[tauri::command]
 pub fn mcp_server_get(state: State<'_, McpServerState>, id: String) -> Option<McpServerInfo> {
-    let config = state.configs.read().unwrap().get(&id).cloned()?;
+    let config = state.configs.read().unwrap_or_else(|e| e.into_inner()).get(&id).cloned()?;
     Some(state.info_for(&config))
 }
 
@@ -186,7 +186,7 @@ pub async fn mcp_server_connect(
     let cwd = authorize_spawn_cwd(&registry, root.as_deref(), &workspace)?;
 
     // Replace any existing session for this server.
-    if let Some(old) = state.sessions.write().unwrap().remove(&id) {
+    if let Some(old) = state.sessions.write().unwrap_or_else(|e| e.into_inner()).remove(&id) {
         old.close();
     }
 
@@ -234,7 +234,7 @@ pub async fn mcp_server_connect(
     .await
     .map_err(|e| e.to_string())??;
 
-    state.sessions.write().unwrap().insert(id.clone(), session);
+    state.sessions.write().unwrap_or_else(|e| e.into_inner()).insert(id.clone(), session);
     log::info!("mcp server {id} connected");
     Ok(())
 }

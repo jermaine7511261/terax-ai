@@ -15,6 +15,7 @@ const { emit, listen, storeMock, LazyStore } = vi.hoisted(() => {
   // LazyStore(...)` in the module under test yields the controllable mock.
   class LazyStore {
     constructor() {
+      // biome-ignore lint/correctness/noConstructorReturn: returns shared mock instance intentionally
       return storeMock;
     }
   }

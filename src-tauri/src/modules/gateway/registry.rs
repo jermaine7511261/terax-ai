@@ -228,7 +228,7 @@ impl GatewayRegistry {
         }
         let this = self.clone();
         tokio::spawn(async move {
-            let mut now_ms = || {
+            let now_ms = || {
                 std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
                     .map(|d| d.as_millis() as u64)

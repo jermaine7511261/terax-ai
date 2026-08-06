@@ -65,6 +65,7 @@ const BACKOFF_DELAY_SECONDS: u64 = 30;
 const MAX_CONSECUTIVE_FAILURES: u32 = 3;
 /// Pause after session expiry before retrying, mirroring Hermes' `weixin.py`
 /// (`"Session expired; pausing for 10 minutes"`, `await asyncio.sleep(600)`).
+#[allow(dead_code)] // retained for the session-expiry retry path
 const SESSION_EXPIRED_PAUSE_SECONDS: u64 = 600;
 
 /// Session-expired signal.

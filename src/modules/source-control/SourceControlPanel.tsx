@@ -365,6 +365,7 @@ function BranchDropdown({
                             }}
                           >
                             <input
+                              // biome-ignore lint/a11y/noAutofocus: rename input intentionally focuses on open
                               autoFocus
                               value={renameName}
                               onChange={(event) =>
@@ -508,6 +509,7 @@ function BranchDropdown({
                   }}
                 >
                   <input
+                    // biome-ignore lint/a11y/noAutofocus: input intentionally focuses on open
                     autoFocus
                     value={newBranchName}
                     onChange={(event) => setNewBranchName(event.target.value)}

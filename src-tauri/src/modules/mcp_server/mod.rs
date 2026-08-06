@@ -80,7 +80,7 @@ pub fn run_server(workdir: &Path) {
 
 fn handle_request(req: ServerRequest, workdir: &Path) -> JsonRpcResponse {
     match req {
-        ServerRequest::Initialize { params } => {
+        ServerRequest::Initialize { params: _ } => {
             let resp = serde_json::json!({
                 "protocolVersion": "2024-11-05",
                 "capabilities": {

@@ -414,6 +414,7 @@ const RenderedMessage = memo(function RenderedMessage({
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               rows={Math.max(2, draft.split("\n").length)}
+              // biome-ignore lint/a11y/noAutofocus: chat input intentionally focuses on open
               autoFocus
               className="w-full rounded-md border border-border/50 bg-card/60 p-2 text-sm leading-relaxed focus:outline-none focus:ring-1 focus:ring-ring"
             />

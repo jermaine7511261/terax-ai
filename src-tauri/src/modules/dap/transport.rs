@@ -169,7 +169,7 @@ impl DapTransport for StdioDapTransport {
         if self.closed.load(Ordering::Acquire) {
             return Err("dap transport closed".to_string());
         }
-        let mut guard = self.stdin.lock().unwrap();
+        let mut guard = self.stdin.lock().unwrap_or_else(|e| e.into_inner());
         let stdin = guard.as_mut().ok_or("dap stdin closed")?;
         stdin
             .write_all(&encode_frame(payload))
@@ -189,7 +189,7 @@ impl DapTransport for StdioDapTransport {
         if self.closed.swap(true, Ordering::AcqRel) {
             return;
         }
-        *self.stdin.lock().unwrap() = None;
+        *self.stdin.lock().unwrap_or_else(|e| e.into_inner()) = None;
         #[cfg(unix)]
         unsafe {
             libc::kill(-(self.child.id() as libc::pid_t), libc::SIGKILL);

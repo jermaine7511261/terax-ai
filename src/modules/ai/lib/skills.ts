@@ -1,4 +1,4 @@
-import { native } from "./native";
+import { native, type DirEntry, type ReadResult } from "./native";
 import { normalizeHandle, type Snippet } from "./snippets";
 
 /**
@@ -103,7 +103,7 @@ export async function scanSkillsDir(
 ): Promise<Snippet[]> {
   if (!workspaceRoot) return [];
   const root = workspaceRoot.replace(/\/$/, "");
-  let entries;
+  let entries: DirEntry[];
   try {
     entries = await native.readDir(`${root}/skills`);
   } catch {
@@ -124,7 +124,7 @@ export async function scanSkillsDir(
 }
 
 async function readSkillFile(path: string): Promise<Snippet | null> {
-  let result;
+  let result: ReadResult;
   try {
     result = await native.readFile(path);
   } catch {
