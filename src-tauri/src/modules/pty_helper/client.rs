@@ -169,6 +169,7 @@ pub fn send_frame(client: &HelperClient, frame: &Frame) -> Result<(), String> {
 pub async fn pty_helper_open(
     app: tauri::AppHandle,
     state: tauri::State<'_, HelperClientState>,
+    registry: tauri::State<'_, crate::modules::workspace::WorkspaceRegistry>,
     cols: u16,
     rows: u16,
     cwd: Option<String>,
@@ -187,10 +188,19 @@ pub async fn pty_helper_open(
             id,
             HelperSessionHandlers { on_data, on_exit },
         );
-    let workspace_enc = match crate::modules::workspace::WorkspaceEnv::from_option(workspace) {
+    let workspace = crate::modules::workspace::WorkspaceEnv::from_option(workspace);
+    let workspace_enc = match &workspace {
         crate::modules::workspace::WorkspaceEnv::Wsl { distro } => Some(format!("wsl:{distro}")),
         _ => None,
     };
+    // Same workspace-authorization gate as the in-process `pty_open`: a cwd
+    // outside an authorized root is refused (fall back to home) rather than
+    // spawning a shell in an arbitrary directory. Mirrors `pty/mod.rs`.
+    let cwd = crate::modules::workspace::user_spawn_cwd_or_home(
+        &registry,
+        cwd.as_deref(),
+        &workspace,
+    );
     let req = OpenReq {
         id,
         cols,

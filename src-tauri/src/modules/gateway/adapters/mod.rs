@@ -21,8 +21,10 @@ use crate::modules::gateway::registry::GatewayRegistry;
 use tauri::Manager;
 
 /// Directory holding persisted gateway credentials as one JSON file per
-/// platform. Mirrors Hermes' file-backed credential store (more reliable than
-/// OS keyring on Windows, where Credential Manager may be unavailable).
+/// platform. This is a deliberate file-backed store (more reliable than the OS
+/// keyring on Windows, where Credential Manager may be unavailable) — it is
+/// *not* encrypted at rest. The directory is locked down to owner-only
+/// permissions on Unix to limit exposure.
 fn creds_dir(app: &tauri::AppHandle) -> std::path::PathBuf {
     app.path()
         .app_local_data_dir()
@@ -34,15 +36,31 @@ fn creds_file(app: &tauri::AppHandle, id: PlatformId) -> std::path::PathBuf {
     creds_dir(app).join(format!("{}.json", id.as_str()))
 }
 
-/// Persist a platform's credentials to a file in the app data dir (in addition
-/// to the OS keychain), so configured platforms survive restarts even when the
-/// keyring is unavailable.
+/// Persist a platform's credentials to a plaintext JSON file in the app data
+/// dir (in addition to the OS keychain). This file-backed store is a deliberate
+/// reliability fallback for Windows (where the keyring can be unavailable) and
+/// survives restarts on every OS. The credentials are stored in plaintext and
+/// protected only by the app-local data directory; on Unix the directory is
+/// chmod 0700.
 pub fn persist_creds_to_file(app: &tauri::AppHandle, id: PlatformId, config_json: &str) {
     let dir = creds_dir(app);
     if std::fs::create_dir_all(&dir).is_err() {
         return;
     }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700));
+    }
     let _ = std::fs::write(creds_file(app, id), config_json);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(
+            creds_file(app, id),
+            std::fs::Permissions::from_mode(0o600),
+        );
+    }
 }
 
 /// Read a platform's credentials from the file store if present.
@@ -94,9 +112,10 @@ pub fn build_adapter(id: PlatformId, config_json: &str) -> Result<Box<dyn Platfo
     })
 }
 
-/// Re-register every platform from its persisted keychain credentials. Called
-/// at startup so configured platforms survive app restarts (credentials never
-/// touch disk unencrypted).
+/// Re-register every platform from its persisted file-backed credentials.
+/// Called at startup so configured platforms survive app restarts. The store is
+/// plaintext (deliberate file-backed fallback for Windows keyring reliability);
+/// on Unix it is locked to owner-only via `persist_creds_to_file`.
 pub fn restore_from_keychain(registry: &GatewayRegistry, app: &tauri::AppHandle) {
     const PLATFORMS: [PlatformId; 6] = [
         PlatformId::DingTalk,
