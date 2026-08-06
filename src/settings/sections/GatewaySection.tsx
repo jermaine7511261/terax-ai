@@ -4,6 +4,21 @@ import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useI18n, type TranslationKey } from "@/lib/i18n";
+import {
+  gatewayAuthorize,
+  gatewayAutoApprove,
+  gatewayCallbackUrls,
+  gatewayConfigure,
+  gatewayConnect,
+  gatewayDisconnect,
+  gatewayPlatforms,
+  gatewayRevoke,
+  gatewaySend,
+  gatewaySessions,
+  gatewayWeixinPersist,
+  type PlatformStatus,
+  type SessionInfo,
+} from "@/modules/gateway/api";
 import { type JSX, useCallback, useEffect, useState } from "react";
 
 type QrFrame =
@@ -16,29 +31,6 @@ type QrFlow = {
   qrUrl: string | null;
   statusLabel: string;
   error: string | null;
-};
-
-type SessionInfo = {
-  session_key: string;
-  platform: string;
-  chat_type: string;
-  chat_id: string;
-  authorized: boolean;
-  auto_approve: boolean;
-  awaiting_approval: boolean;
-  last_active_ms: number;
-};
-
-type PlatformStatus = {
-  id: string;
-  label: string;
-  configured: boolean;
-  connected: boolean;
-};
-
-type CallbackUrlInfo = {
-  id: string;
-  url: string | null;
 };
 
 type FieldDef = { key: string; labelKey: string; secret?: boolean };
@@ -87,10 +79,10 @@ export function GatewaySection(): JSX.Element {
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const refresh = useCallback(() => {
-    void invoke<PlatformStatus[]>("gateway_platforms").then(setPlatforms);
+    void gatewayPlatforms().then(setPlatforms);
   }, []);
   const refreshCallbackUrls = useCallback(() => {
-    void invoke<CallbackUrlInfo[]>("gateway_callback_urls").then((list) => {
+    void gatewayCallbackUrls().then((list) => {
       const map: Record<string, string> = {};
       for (const item of list) {
         if (item.url) map[item.id] = item.url;
@@ -105,7 +97,7 @@ export function GatewaySection(): JSX.Element {
 
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
   const refreshSessions = useCallback(() => {
-    void invoke<SessionInfo[]>("gateway_sessions").then(setSessions);
+    void gatewaySessions().then(setSessions);
   }, []);
   useEffect(() => {
     refreshSessions();
@@ -140,19 +132,16 @@ export function GatewaySection(): JSX.Element {
     setValues((prev) => ({ ...prev, [id]: { ...prev[id], [key]: v } }));
 
   const save = async (id: string) => {
-    await invoke("gateway_configure", {
-      platform: id,
-      configJson: JSON.stringify(values[id] ?? {}),
-    });
+    await gatewayConfigure(id, JSON.stringify(values[id] ?? {}));
     refresh();
   };
   const connect = (id: string) => {
-    void invoke("gateway_connect", { platform: id })
+    void gatewayConnect(id)
       .then(refresh)
       .then(refreshCallbackUrls);
   };
   const disconnect = (id: string) => {
-    void invoke("gateway_disconnect", { platform: id })
+    void gatewayDisconnect(id)
       .then(refresh)
       .then(refreshCallbackUrls);
   };
@@ -196,10 +185,10 @@ export function GatewaySection(): JSX.Element {
           }));
         } else if (frame.kind === "confirmed") {
           // Persist the fresh credentials so the new token survives restarts.
-          void invoke("gateway_weixin_persist", {
-            accountId: frame.account_id,
+          void gatewayWeixinPersist({
+            account_id: frame.account_id,
             token: frame.token,
-            baseUrl: frame.base_url,
+            base_url: frame.base_url,
           }).catch((err) => {
             setReloginFlow((s) => ({ ...s, error: String(err) }));
           });
@@ -255,12 +244,7 @@ export function GatewaySection(): JSX.Element {
     const chatId = (testChatId[id] ?? "").trim();
     const text = (testText[id] ?? "").trim();
     if (!chatId || !text) return;
-    void invoke("gateway_send", {
-      platform: id,
-      chatId,
-      text,
-      group: testGroup[id] ?? false,
-    });
+    void gatewaySend(id, chatId, text, testGroup[id] ?? false);
   };
 
   return (
@@ -548,7 +532,7 @@ export function GatewaySection(): JSX.Element {
                   size="sm"
                   variant="outline"
                   onClick={() =>
-                    void invoke("gateway_authorize", { session_key: s.session_key })
+                    void gatewayAuthorize(s.session_key)
                       .then(refreshSessions)
                       .catch((err) => {
                         console.error("[gateway] authorize failed:", s.session_key, err);
@@ -562,7 +546,7 @@ export function GatewaySection(): JSX.Element {
                   size="sm"
                   variant="outline"
                   onClick={() =>
-                    void invoke("gateway_revoke", { session_key: s.session_key }).then(
+                    void gatewayRevoke(s.session_key).then(
                       refreshSessions,
                     )
                   }
@@ -574,10 +558,7 @@ export function GatewaySection(): JSX.Element {
                 size="sm"
                 variant="ghost"
                 onClick={() =>
-                  void invoke("gateway_auto_approve", {
-                    session_key: s.session_key,
-                    value: !s.auto_approve,
-                  }).then(refreshSessions)
+                  void gatewayAutoApprove(s.session_key, !s.auto_approve).then(refreshSessions)
                 }
               >
                 {s.auto_approve

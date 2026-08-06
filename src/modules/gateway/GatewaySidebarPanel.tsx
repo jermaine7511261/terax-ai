@@ -1,15 +1,13 @@
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { useI18n } from "@/lib/i18n";
-import { invoke } from "@tauri-apps/api/core";
+import {
+  gatewayConnect,
+  gatewayDisconnect,
+  gatewayPlatforms,
+  type PlatformStatus,
+} from "./api";
 import { useEffect, useState } from "react";
-
-type PlatformStatus = {
-  id: string;
-  label: string;
-  configured: boolean;
-  connected: boolean;
-};
 
 /**
  * Sidebar IM-gateway view: lists connected platforms with their state and
@@ -22,7 +20,7 @@ export function GatewaySidebarPanel() {
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const refresh = () => {
-    void invoke<PlatformStatus[]>("gateway_platforms").then(setPlatforms);
+    void gatewayPlatforms().then(setPlatforms);
   };
 
   useEffect(() => {
@@ -32,7 +30,7 @@ export function GatewaySidebarPanel() {
   const connect = async (id: string) => {
     setBusyId(id);
     try {
-      await invoke("gateway_connect", { platform: id });
+      await gatewayConnect(id);
       refresh();
     } finally {
       setBusyId(null);
@@ -42,7 +40,7 @@ export function GatewaySidebarPanel() {
   const disconnect = async (id: string) => {
     setBusyId(id);
     try {
-      await invoke("gateway_disconnect", { platform: id });
+      await gatewayDisconnect(id);
       refresh();
     } finally {
       setBusyId(null);
