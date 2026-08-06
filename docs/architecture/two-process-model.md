@@ -97,7 +97,7 @@ Yamet 是两个进程：Rust 后端（`src-tauri/`）与 webview 前端（`src/`
 ### 工作区（`src-tauri/src/modules/workspace.rs`）
 
 - `workspace_authorize` / `workspace_current_dir`：spawn/git/AI 的 cwd 授权注册表
-- `wsl_list_distros` / `wsl_default_distro` / `wsl_home`：WSL 桥
+- `wsl_list_distros` / `wsl_home`：WSL 桥
 
 ### 网络（`src-tauri/src/modules/net.rs`）
 

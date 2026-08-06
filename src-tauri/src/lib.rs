@@ -461,7 +461,6 @@ pub fn run() {
             shell::shell_bg_list,
             shell::agent_probe,
             workspace::wsl_list_distros,
-            workspace::wsl_default_distro,
             workspace::wsl_home,
             workspace::workspace_authorize,
             workspace::workspace_current_dir,
@@ -525,6 +524,10 @@ pub fn run() {
                     if let Some(state) = app.try_state::<dap::DapSessionState>() {
                         state.close_all();
                     }
+                    // Ask the detached PTY helper to clean up and exit now, so a
+                    // long-lived helper doesn't linger until its 10-min orphan
+                    // timeout after the app has closed.
+                    pty_helper::client::shutdown_helper(app);
                 }
                 // macOS delivers "Open With" files here, not as argv (cold and
                 // warm start, several at once). Seed the drain-once state and
