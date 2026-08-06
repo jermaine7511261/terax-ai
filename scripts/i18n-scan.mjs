@@ -86,10 +86,9 @@ const scan = (p) => {
     // crash is inside i18n/theme it must still render, so it uses hardcoded
     // bilingual text by design.
     if (base === "ErrorBoundary.tsx") return;
-    // KNOWN: terminal paste-confirm toast (rendererPool) and the Settings
-    // language-name option are hardcoded but not yet i18n-ized; tracked for a
-    // follow-up pass. (This whitelist keeps the gate usable today.)
-    if (base === "rendererPool.ts") return;
+    // Language-name self-designations in the language picker are conventionally
+    // written in the language's own name (中文（简体）/ English) and never
+    // translated, so they are exempt.
     if (base === "GeneralSection.tsx" && /中文（简体）/.test(line)) return;
     // Skip lines that already route through t(...) / tStatic(...).
     if (/t\(\s*["'`]/.test(line)) return;
