@@ -1,4 +1,5 @@
 import { usePreferencesStore } from "@/modules/settings/preferences";
+import { basename } from "@/lib/path";
 import { currentWorkspaceEnv } from "@/modules/workspace";
 import type { Extension } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
@@ -41,9 +42,7 @@ const sessions = new Map<string, Managed>();
 const creating = new Map<string, Promise<Managed | null>>();
 const crashTimes = new Map<string, number[]>();
 
-function basename(path: string): string {
-  return path.split(/[\\/]/).pop() ?? path;
-}
+
 
 function crashedOut(key: string): boolean {
   const now = Date.now();

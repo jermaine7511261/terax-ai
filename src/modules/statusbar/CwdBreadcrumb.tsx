@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import { basename } from "@/lib/path";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -40,10 +41,6 @@ function dirname(path: string): string {
   return path.slice(0, i);
 }
 
-function basename(path: string): string {
-  const i = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
-  return i === -1 ? path : path.slice(i + 1);
-}
 
 export function CwdBreadcrumb({ cwd, filePath, home, onCd }: Props) {
   // File mode: dir segments navigate; filename is the terminal leaf.

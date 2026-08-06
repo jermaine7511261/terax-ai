@@ -15,6 +15,7 @@ import {
   ReasoningTrigger,
 } from "@/components/ai-elements/reasoning";
 import { Tool } from "@/components/ai-elements/tool";
+import { basename } from "@/lib/path";
 import { useI18n } from "@/lib/i18n";
 import {
   Collapsible,
@@ -575,10 +576,6 @@ function readPathFromPart(p: AnyPart): string | null {
   return typeof path === "string" && path.length > 0 ? path : null;
 }
 
-function basename(p: string): string {
-  const i = Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\"));
-  return i >= 0 ? p.slice(i + 1) : p;
-}
 
 const ReadGroup = memo(function ReadGroup({ parts }: { parts: AnyPart[] }) {
   const { t } = useI18n();
