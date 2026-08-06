@@ -75,6 +75,27 @@ export function useSpacesBoot({
           await saveActiveId(DEFAULT_SPACE_ID);
           setActiveSpaceForNewTabs(DEFAULT_SPACE_ID);
           useSpaces.getState().hydrate([meta], DEFAULT_SPACE_ID, {}, recent);
+          // First launch: land on a real terminal instead of an empty chat tab,
+          // so the "terminal-first, AI-native" positioning is visible from
+          // second zero. The cold tab spawns its shell in the workspace root
+          // when first activated (see `newTabInSpace` in useTabs).
+          const tabId = allocId();
+          const leafId = allocId();
+          replaceTabs(
+            [
+              {
+                id: tabId,
+                kind: "terminal",
+                spaceId: DEFAULT_SPACE_ID,
+                cold: true,
+                title: root?.split(/[\\/]/).filter(Boolean).pop() ?? "shell",
+                cwd: root ?? undefined,
+                paneTree: { kind: "leaf", id: leafId, cwd: root ?? undefined },
+                activeLeafId: leafId,
+              },
+            ],
+            tabId,
+          );
           return;
         }
 
