@@ -66,9 +66,14 @@ pub async fn fs_read_file(
     workspace: Option<WorkspaceEnv>,
     force: Option<bool>,
     source: Option<String>,
-    registry: tauri::State<'_, WorkspaceRegistry>,
+    app: tauri::AppHandle,
 ) -> Result<ReadResult, String> {
-    fs_read_file_impl(path, workspace, force, source, Some(&registry))
+    tauri::async_runtime::spawn_blocking(move || {
+        let registry = app.state::<WorkspaceRegistry>();
+        fs_read_file_impl(path, workspace, force, source, Some(&registry))
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// Pure core of `fs_read_file`, testable without a Tauri app context. The
@@ -196,37 +201,40 @@ pub async fn fs_write_file(
     source: Option<String>,
     app: tauri::AppHandle,
 ) -> Result<u64, String> {
-    let workspace = WorkspaceEnv::from_option(workspace);
-    let target = resolve_path(&path, &workspace);
-    // Defense-in-depth: AI writes must land inside an authorized workspace root.
-    if source.as_deref() == Some("ai") {
-        let registry = app.state::<WorkspaceRegistry>();
-        super::enforce_ai_workspace_authorization(&target, &source, &registry).map_err(|e| {
-            log::warn!("{e}");
-            e
+    tauri::async_runtime::spawn_blocking(move || {
+        let workspace = WorkspaceEnv::from_option(workspace);
+        let target = resolve_path(&path, &workspace);
+        // Defense-in-depth: AI writes must land inside an authorized workspace root.
+        if source.as_deref() == Some("ai") {
+            let registry = app.state::<WorkspaceRegistry>();
+            super::enforce_ai_workspace_authorization(&target, &source, &registry).map_err(|e| {
+                log::warn!("{e}");
+                e
+            })?;
+        }
+        let original_permissions = fs::metadata(&target).ok().map(|m| m.permissions());
+        write_atomic(&target, content.as_bytes()).map_err(|e| {
+            log::warn!("fs_write_file({}) failed: {e}", target.display());
+            e.to_string()
         })?;
-    }
-    let original_permissions = fs::metadata(&target).ok().map(|m| m.permissions());
-    write_atomic(&target, content.as_bytes()).map_err(|e| {
-        log::warn!("fs_write_file({}) failed: {e}", target.display());
-        e.to_string()
-    })?;
 
-    if let Some(perms) = original_permissions {
-        let _ = fs::set_permissions(&target, perms);
-    }
-    let mtime = fs::metadata(&target)
-        .map(|m| mtime_millis(&m))
-        .unwrap_or(0);
-    let _ = app.emit(
-        "fs:file-written",
-        FileWrittenEvent {
-            path: path.clone(),
-            source,
-        },
-    );
-
-    Ok(mtime)
+        if let Some(perms) = original_permissions {
+            let _ = fs::set_permissions(&target, perms);
+        }
+        let mtime = fs::metadata(&target)
+            .map(|m| mtime_millis(&m))
+            .unwrap_or(0);
+        let _ = app.emit(
+            "fs:file-written",
+            FileWrittenEvent {
+                path: path.clone(),
+                source,
+            },
+        );
+        Ok(mtime)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -234,9 +242,14 @@ pub async fn fs_canonicalize(
     path: String,
     workspace: Option<WorkspaceEnv>,
     source: Option<String>,
-    registry: tauri::State<'_, WorkspaceRegistry>,
+    app: tauri::AppHandle,
 ) -> Result<String, String> {
-    fs_canonicalize_impl(path, workspace, source, Some(&registry))
+    tauri::async_runtime::spawn_blocking(move || {
+        let registry = app.state::<WorkspaceRegistry>();
+        fs_canonicalize_impl(path, workspace, source, Some(&registry))
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 pub fn fs_canonicalize_impl(
@@ -262,9 +275,14 @@ pub async fn fs_stat(
     path: String,
     workspace: Option<WorkspaceEnv>,
     source: Option<String>,
-    registry: tauri::State<'_, WorkspaceRegistry>,
+    app: tauri::AppHandle,
 ) -> Result<FileStat, String> {
-    fs_stat_impl(path, workspace, source, Some(&registry))
+    tauri::async_runtime::spawn_blocking(move || {
+        let registry = app.state::<WorkspaceRegistry>();
+        fs_stat_impl(path, workspace, source, Some(&registry))
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 pub fn fs_stat_impl(
