@@ -92,7 +92,7 @@ export function ProviderKeyCard({
               size={9}
               strokeWidth={2}
             />
-            Connected
+            {t("settingsModels.connected")}
           </Badge>
         ) : null}
         <button
@@ -100,7 +100,7 @@ export function ProviderKeyCard({
           onClick={() => void openUrl(provider.consoleUrl)}
           className="ml-auto inline-flex items-center gap-0.5 text-[10.5px] text-muted-foreground transition-colors hover:text-foreground"
         >
-          Get key
+          {t("settingsModels.getKey")}
           <HugeiconsIcon
             icon={ArrowUpRight01Icon}
             size={11}
@@ -173,7 +173,7 @@ export function ProviderKeyCard({
               className="h-8 gap-1 px-3 text-[11px]"
             >
               {saving ? <Spinner className="size-3" /> : null}
-              Save
+              {t("settingsModels.save")}
             </Button>
           </div>
           {error ? (

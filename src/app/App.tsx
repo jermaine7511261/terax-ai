@@ -8,6 +8,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { consumeLaunchFiles, getLaunchDir } from "@/lib/launchDir";
+import { tStatic } from "@/lib/i18n";
 import { quoteShellArg } from "@/lib/shellQuote";
 import { usePresence } from "@/lib/usePresence";
 import { useZoom } from "@/lib/useZoom";
@@ -1293,7 +1294,7 @@ export default function App() {
         const url = `data:text/plain;charset=utf-8,${encodeURIComponent(content)}`;
         newPreviewTab(url);
       } catch (e) {
-        toast.error("Failed to open remote file", { description: String(e) });
+        toast.error(tStatic("remote.openFailed"), { description: String(e) });
       }
     },
     [newPreviewTab],

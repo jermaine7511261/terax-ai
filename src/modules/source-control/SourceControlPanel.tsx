@@ -42,6 +42,7 @@ import {
   native,
 } from "@/modules/ai/lib/native";
 import { useI18n } from "@/lib/i18n";
+import type { Interpolations, TranslationKey } from "@/lib/i18n";
 import {
   copyToClipboard,
   revealInFinder,
@@ -136,8 +137,11 @@ function entryPathLabel(entry: SourceControlFileEntry): string {
   return dirname(entry.path);
 }
 
-function upstreamBadgeLabel(upstream: string | null | undefined): string {
-  if (!upstream) return "No upstream";
+function upstreamBadgeLabel(
+  upstream: string | null | undefined,
+  t: (key: TranslationKey, params?: Interpolations) => string,
+): string {
+  if (!upstream) return t("git.noUpstream");
   return upstream;
 }
 
@@ -612,9 +616,9 @@ export const SourceControlPanel = memo(function SourceControlPanel({
 
   const isRefreshing = scm.panelState === "loading";
   const repoLabel = useMemo(() => {
-    if (!scm.status) return "Source Control";
-    return scm.status.isDetached ? "detached" : scm.status.branch;
-  }, [scm.status]);
+    if (!scm.status) return t("git.sourceControl");
+    return scm.status.isDetached ? t("git.detached") : scm.status.branch;
+  }, [scm.status, t]);
 
   const commitShortcut = IS_MAC ? "⌘↩" : "Ctrl+Enter";
   const generateShortcut = IS_MAC ? "⌘G" : "Ctrl+G";
@@ -623,22 +627,22 @@ export const SourceControlPanel = memo(function SourceControlPanel({
     scm.commitMessage.trim().length > 0 &&
     !scm.actionBusy;
   const commitDisabledReason = scm.actionBusy
-    ? "Wait for the current Git action to finish."
+    ? t("git.commitBusy")
     : scm.stagedEntries.length === 0
-      ? "Stage changes to enable commit."
+      ? t("git.commitNeedStage")
       : scm.commitMessage.trim().length === 0
-        ? "Enter a commit message to enable commit."
+        ? t("git.commitNeedMessage")
         : null;
   const commitHint = canCommit
-    ? `Commit with ${commitShortcut}.`
-    : (commitDisabledReason ?? `Commit with ${commitShortcut}.`);
-  const pushHint = scm.pushHint ?? "Push is unavailable right now.";
+    ? t("git.commitWithShortcut", { shortcut: commitShortcut })
+    : (commitDisabledReason ?? t("git.commitWithShortcut", { shortcut: commitShortcut }));
+  const pushHint = scm.pushHint ?? t("git.pushUnavailable");
   const pushDisabledReason = scm.actionBusy
-    ? "Wait for the current Git action to finish."
+    ? t("git.commitBusy")
     : pushHint;
   const stagedCount = scm.stagedEntries.length;
   const changedCount = scm.fileEntries.length;
-  const pushStatusLabel = upstreamBadgeLabel(scm.status?.upstream);
+  const pushStatusLabel = upstreamBadgeLabel(scm.status?.upstream, t);
   const hasUpstream = !!scm.status?.upstream;
   const isDiverged =
     !!scm.status && scm.status.ahead > 0 && scm.status.behind > 0;

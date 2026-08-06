@@ -740,7 +740,9 @@ export const FileExplorer = memo(
                     <InlineInput
                       initial=""
                       placeholder={
-                        pendingAtRoot.kind === "dir" ? "New folder" : "New file"
+                        pendingAtRoot.kind === "dir"
+                          ? tStatic("explorer.newFolder")
+                          : tStatic("explorer.newFile")
                       }
                       onCommit={tree.commitCreate}
                       onCancel={tree.cancelCreate}

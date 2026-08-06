@@ -10,9 +10,15 @@ const prefsState = vi.hoisted(() => ({
   editorAutoSave: false,
   editorAutoSaveDelay: 1000,
 }));
-const prefsMock = vi.hoisted(() => ({
-  usePreferencesStore: (sel: (s: typeof prefsState) => unknown) => sel(prefsState),
-}));
+const prefsMock = vi.hoisted(() => {
+  const usePreferencesStore = ((sel: (s: typeof prefsState) => unknown) =>
+    sel(prefsState)) as unknown as {
+    (sel: (s: typeof prefsState) => unknown): unknown;
+    getState: () => typeof prefsState;
+  };
+  usePreferencesStore.getState = () => prefsState;
+  return { usePreferencesStore };
+});
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: invokeMock }));
 vi.mock("@/modules/workspace", () => workspaceMock);
@@ -139,7 +145,10 @@ describe("useDocument dirty / save", () => {
     await act(async () => {
       expect(await result.current.save()).toBe(false);
     });
-    expect(toastMock.warning).toHaveBeenCalledWith("File changed on disk", expect.anything());
+    expect(toastMock.warning).toHaveBeenCalledWith(
+      "磁盘上的文件已更改",
+      expect.anything(),
+    );
     expect(invokeMock).not.toHaveBeenCalledWith("fs_write_file", expect.anything());
   });
 

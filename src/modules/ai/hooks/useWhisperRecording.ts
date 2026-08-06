@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { tStatic } from "@/lib/i18n";
 import { useChatStore } from "../store/chatStore";
 import { usePreferencesStore } from "@/modules/settings/preferences";
 import { transcribeAudio, type SttOptions } from "../lib/stt";
@@ -106,7 +107,7 @@ export function useWhisperRecording({
       setState("recording");
     } catch (e) {
       console.error("stt.getUserMedia", e);
-      toast.error("Microphone access failed");
+      toast.error(tStatic("ai.micAccessFailed"));
       teardownStream();
       setState("idle");
     }

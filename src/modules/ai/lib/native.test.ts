@@ -31,7 +31,11 @@ describe("native workspace/fs wrappers", () => {
   it("readFile / writeFile forward path and content", async () => {
     mockInvoke.mockResolvedValue({ kind: "text", content: "x", size: 1 });
     await native.readFile("/a");
-    expect(mockInvoke).toHaveBeenCalledWith("fs_read_file", { path: "/a", workspace: "default" });
+    expect(mockInvoke).toHaveBeenCalledWith("fs_read_file", {
+      path: "/a",
+      source: "ai",
+      workspace: "default",
+    });
 
     mockInvoke.mockResolvedValue(undefined);
     await native.writeFile("/a", "hi");
@@ -48,6 +52,7 @@ describe("native workspace/fs wrappers", () => {
     await native.readDir("/a");
     expect(mockInvoke).toHaveBeenCalledWith("fs_read_dir", {
       path: "/a",
+      source: "ai",
       showHidden: false,
       workspace: "default",
     });
@@ -62,6 +67,7 @@ describe("native workspace/fs wrappers", () => {
       glob: null,
       caseInsensitive: null,
       maxResults: null,
+      source: "ai",
       workspace: "default",
     });
   });

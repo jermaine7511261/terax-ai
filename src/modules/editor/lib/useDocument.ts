@@ -1,6 +1,7 @@
 import { notifyDocumentSaved } from "@/modules/lsp";
 import { usePreferencesStore } from "@/modules/settings/preferences";
 import { currentWorkspaceEnv } from "@/modules/workspace";
+import { tStatic } from "@/lib/i18n";
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -84,10 +85,13 @@ export function useDocument({ path, onDirtyChange }: Options) {
       }).catch(() => null);
       if (stat && stat.mtime !== known) {
         const name = path.split(/[\\/]/).pop() ?? path;
-        toast.warning("File changed on disk", {
+        toast.warning(tStatic("editor.fileChangedOnDisk"), {
           id: `save-conflict:${path}`,
-          description: `${name} was modified by another program while you had unsaved changes. Overwrite to keep your version.`,
-          action: { label: "Overwrite", onClick: () => void writeToDisk() },
+          description: tStatic("editor.fileChangedDesc", { name }),
+          action: {
+            label: tStatic("editor.overwrite"),
+            onClick: () => void writeToDisk(),
+          },
         });
         return false;
       }
