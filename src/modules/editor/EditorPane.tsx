@@ -43,11 +43,10 @@ import {
 } from "./lib/autocomplete/inlineExtension";
 import { diagnosticsReporter } from "./lib/diagnosticsReporter";
 import { useDiagnosticsStore } from "./lib/diagnosticsStore";
-import { breakpointGutter } from "@/modules/debug/lib/gutter";
+import { breakpointGutter } from "@/modules/dap/lib/breakpointGutter";
 import {
   buildSharedExtensions,
   DEFAULT_INDENT,
-  debugCompartment,
   indentCompartment,
   indentExtension,
   languageCompartment,
@@ -346,7 +345,7 @@ export const EditorPane = memo(
         indentCompartment.of(DEFAULT_INDENT),
         languageCompartment.of([]),
         lspCompartment.of([]),
-        debugCompartment.of(breakpointGutter(() => pathRef.current)),
+        breakpointGutter(() => pathRef.current),
         diagnosticsReporter(() => pathRef.current),
         // Before inlineCompletion so an open popup wins Tab over the ghost.
         Prec.highest(keymap.of([{ key: "Tab", run: acceptCompletion }])),

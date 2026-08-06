@@ -347,9 +347,9 @@ pub fn run() {
         .manage(secrets::SecretsState::default())
         .manage(fs::watch::FsWatchState::default())
         .manage(history::HistoryState::default())
-        .manage(mcp::McpState::default())
+        .manage(mcp::McpServerState::default())
         .manage(lsp::LspState::default())
-        .manage(dap::DapState::default())
+        .manage(dap::DapSessionState::default())
         .manage(pty_helper::HelperClientState::default())
         .manage(ssh::TunnelsState::default())
         .manage(fs::grep::ContentSearchState::default())
@@ -404,11 +404,13 @@ pub fn run() {
             lsp::lsp_spawn,
             lsp::lsp_send,
             lsp::lsp_kill,
-            dap::dap_launch,
-            dap::dap_attach,
-            dap::dap_send,
-            dap::dap_kill,
-            dap::dap_list,
+            // DAP native integration commands
+            dap::session::dap_session_create,
+            dap::session::dap_session_connect,
+            dap::session::dap_session_disconnect,
+            dap::session::dap_session_list,
+            dap::session::dap_session_get,
+            dap::session::dap_request_send,
             fs::search::fs_search,
             fs::search::fs_list_files,
             fs::grep::fs_grep,
@@ -491,11 +493,16 @@ pub fn run() {
             history::history_commands,
             history::history_record,
             history::history_list,
-            mcp::mcp_connect,
-            mcp::mcp_tools_list,
-            mcp::mcp_call,
-            mcp::mcp_disconnect,
-            mcp::mcp_status,
+            // MCP native integration commands
+            mcp::server::mcp_server_add,
+            mcp::server::mcp_server_remove,
+            mcp::server::mcp_server_list,
+            mcp::server::mcp_server_get,
+            mcp::server::mcp_server_connect,
+            mcp::server::mcp_server_disconnect,
+            mcp::server::mcp_server_refresh,
+            mcp::server::mcp_tool_call,
+            mcp::server::mcp_resource_read,
             window::toggle_devtools,
             scheduler::scheduler_list,
             scheduler::scheduler_upsert,
@@ -512,8 +519,11 @@ pub fn run() {
                     if let Some(state) = app.try_state::<lsp::LspState>() {
                         state.kill_all();
                     }
-                    if let Some(state) = app.try_state::<dap::DapState>() {
-                        state.kill_all();
+                    if let Some(state) = app.try_state::<mcp::McpServerState>() {
+                        state.shutdown_all();
+                    }
+                    if let Some(state) = app.try_state::<dap::DapSessionState>() {
+                        state.close_all();
                     }
                 }
                 // macOS delivers "Open With" files here, not as argv (cold and

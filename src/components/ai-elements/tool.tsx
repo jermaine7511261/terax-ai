@@ -26,7 +26,7 @@ import {
   ToolsIcon,
 } from "@hugeicons/core-free-icons";
 import { useChatStore } from "@/modules/ai/store/chatStore";
-import { useMcpStore } from "@/modules/ai/store/mcpStore";
+import { useMcpStore } from "@/modules/mcp";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { DynamicToolUIPart, ToolUIPart } from "ai";
 import type { ComponentProps, ReactNode } from "react";
@@ -178,6 +178,27 @@ const HEAVY_CONTENT_TOOLS = new Set([
   "todo_write",
 ]);
 
+/**
+ * Look up the MCP server name that a namespaced `mcp_<server>_<tool>` call
+ * belongs to, for the tool-card source label. Mirrors the sanitization used
+ * by `buildMcpTools` in `@/modules/mcp`.
+ */
+function mcpServerNameForTool(toolName: string): string | null {
+  const key = (serverId: string, tool: string) =>
+    `mcp_${serverId}_${tool}`
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]+/g, "_")
+      .replace(/_+/g, "_")
+      .replace(/^_|_$/g, "")
+      .slice(0, 60);
+  for (const s of useMcpStore.getState().servers) {
+    for (const t of s.tools) {
+      if (key(s.id, t.name) === toolName) return s.name;
+    }
+  }
+  return null;
+}
+
 const ToolImpl = ({
   className,
   toolName,
@@ -192,7 +213,7 @@ const ToolImpl = ({
   const meta = TOOL_META[toolName];
   const Icon = meta?.icon ?? ToolsIcon;
   const label = isMcp
-    ? `mcp · ${useMcpStore.getState().toolServerByKey[toolName] ?? "server"}`
+    ? `mcp · ${mcpServerNameForTool(toolName) ?? "server"}`
     : (meta?.label ?? toolName);
   const summary = deriveSummary(toolName, input);
   const isError = state === "output-error";

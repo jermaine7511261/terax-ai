@@ -172,7 +172,11 @@ pub async fn sftp_read(target: SshTarget, path: String) -> Result<String, String
 
     let dir = tempfile::tempdir().map_err(|e| format!("sftp tempdir: {e}"))?;
     let local = dir.path().join("yamet-remote");
-    let script = format!("get {quoted} {}\nquit\n", local.display());
+    // Quote the local temp path too: a Windows user dir containing a space
+    // (e.g. C:\Users\John Doe\...) would otherwise be split by sftp's batch
+    // tokenizer.
+    let local_quoted = quote_batch(&local.display().to_string());
+    let script = format!("get {quoted} {local_quoted}\nquit\n");
     tokio::task::spawn_blocking(move || run_batch(&target, &script))
         .await
         .map_err(|e| e.to_string())??;

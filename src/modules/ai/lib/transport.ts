@@ -9,7 +9,7 @@ import {
   formatSessionMemory,
   getSessionMemory,
 } from "../store/memoryStore";
-import { useMcpStore } from "../store/mcpStore";
+import { useMcpStore } from "@/modules/mcp";
 
 export const YAMET_MD_MAX_BYTES = 32 * 1024;
 type MemoryCacheEntry = { content: string | null; mtime: number };

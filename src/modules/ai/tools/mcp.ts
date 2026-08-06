@@ -1,53 +1,69 @@
-import { tool, type FlexibleSchema, type Tool } from "ai";
-import {
-  jsonSchemaToZod,
-  mcpCall,
-  sanitizeMcpToolName,
-} from "../lib/mcp";
-import { redactSensitive } from "../lib/redact";
-import { useMcpStore } from "../store/mcpStore";
+import { jsonSchema, tool, type Tool } from "ai";
+import { mcpToolCall } from "@/modules/mcp";
+import { useMcpStore } from "@/modules/mcp";
 
 /**
- * Build the dynamic tool registry from the live MCP store.
- *
- * Every MCP tool is treated as untrusted:
- *  - `needsApproval: true` — the AI SDK pauses and the UI surfaces the
- *    existing approval card (same flow as built-in mutating tools).
- *  - `execute` forwards the (already zod-validated) args to the backend
- *    JSON-RPC `tools/call` and redacts the result before it reaches the
- *    conversation, mirroring session-persistence redaction.
- *
- * Synchronous: reads `useMcpStore.getState()` at tool-build time, so the
- * transport must `await refreshMcpTools()` before each run (see transport.ts).
+ * Registers tools from every connected MCP server into the AI tool surface.
+ * Tool names are namespaced (`mcp_<server>_<tool>`) and sanitized to the
+ * SDK's allowed charset. Execution routes through the native Rust MCP client.
  */
-export function buildMcpTools(): Record<string, Tool<unknown, unknown>> {
-  const { tools } = useMcpStore.getState();
-  const out: Record<string, Tool<unknown, unknown>> = {};
-  for (const t of tools) {
-    const key = sanitizeMcpToolName(t.server_id, t.name);
-    const description = [
-      t.description?.trim() || `Tool "${t.name}" from MCP server.`,
-      `Source: MCP server "${t.server_name}" (requires approval).`,
-    ]
-      .filter(Boolean)
-      .join("\n\n");
-    out[key] = tool({
-      description,
-      // Remote schemas are JSON Schema; the converter already falls back to
-      // a permissive object, so cast to the SDK's flexible-schema shape.
-      inputSchema: jsonSchemaToZod(t.input_schema) as FlexibleSchema<unknown>,
-      needsApproval: true,
-      execute: async (args: unknown) => {
-        const raw = await mcpCall(t.server_id, t.name, args);
-        // Redact secrets inside stringly results before they persist.
-        if (typeof raw === "string") return redactSensitive(raw);
-        try {
-          return JSON.parse(redactSensitive(JSON.stringify(raw ?? null)));
-        } catch {
-          return raw;
-        }
-      },
-    }) as Tool<unknown, unknown>;
+export function buildMcpTools(): Record<string, Tool> {
+  const out: Record<string, Tool> = {};
+  const servers = useMcpStore.getState().servers;
+  for (const server of servers) {
+    if (server.status !== "connected") continue;
+    for (const t of server.tools) {
+      const name = sanitizeToolName(`mcp_${server.id}_${t.name}`);
+      if (!name || out[name]) continue;
+      const schema =
+        t.inputSchema && typeof t.inputSchema === "object"
+          ? t.inputSchema
+          : { type: "object", properties: {} };
+      try {
+        out[name] = tool({
+          description:
+            t.description || `MCP tool ${t.name} (server: ${server.name})`,
+          inputSchema: jsonSchema(schema as never),
+          execute: async (args) => {
+            const res = await mcpToolCall(server.id, t.name, args);
+            return formatMcpResult(res);
+          },
+        });
+      } catch {
+        // Malformed input schema; skip the tool rather than breaking the run.
+      }
+    }
   }
   return out;
+}
+
+function sanitizeToolName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_|_$/g, "")
+    .slice(0, 60);
+}
+
+function formatMcpResult(res: unknown): string {
+  if (!res || typeof res !== "object") return String(res);
+  const r = res as {
+    content?: unknown[];
+    isError?: boolean;
+  };
+  const parts = (r.content ?? []).map((p) => {
+    if (!p || typeof p !== "object") return String(p);
+    const part = p as Record<string, unknown>;
+    if (typeof part.text === "string") return part.text;
+    if ("image" in part) return "[image]";
+    if ("resource" in part) {
+      const uri = (part.resource as { uri?: string } | undefined)?.uri ?? "";
+      return `[resource: ${uri}]`;
+    }
+    return JSON.stringify(p);
+  });
+  const text = parts.join("\n").trim();
+  if (r.isError) return `[MCP error] ${text || JSON.stringify(res)}`;
+  return text || JSON.stringify(res);
 }

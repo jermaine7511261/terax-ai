@@ -18,7 +18,7 @@ import type { SshTarget } from "@/modules/tabs/lib/useTabs";
 // Lazy: the debug & remote sidebar panels are only needed when their view is
 // opened; keep them out of the eager startup graph (bundle budget).
 const DebugPanel = lazy(() =>
-  import("@/modules/debug").then((m) => ({ default: m.DebugPanel })),
+  import("@/modules/dap").then((m) => ({ default: m.DebugPanel })),
 );
 const RemotePanel = lazy(() =>
   import("@/modules/remote").then((m) => ({ default: m.RemotePanel })),
@@ -1400,7 +1400,7 @@ export default function App() {
                       <SearchPanel root={explorerRoot} onOpen={openContentHit} />
                     ) : sidebarView === "debug" ? (
                       <Suspense fallback={null}>
-                        <DebugPanel root={explorerRoot} onOpen={openContentHit} />
+                        <DebugPanel rootPath={explorerRoot} />
                       </Suspense>
                     ) : sidebarView === "remote" ? (
                       <Suspense fallback={null}>

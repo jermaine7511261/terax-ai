@@ -24,7 +24,7 @@ import { AgentsSection } from "./sections/AgentsSection";
 import { EditorSection } from "./sections/EditorSection";
 import { GatewaySection } from "./sections/GatewaySection";
 import { GeneralSection } from "./sections/GeneralSection";
-import { McpSection } from "./sections/McpSection";
+import { IntegrationsSection } from "./sections/IntegrationsSection";
 import { ModelsSection } from "./sections/ModelsSection";
 import { ShortcutsSection } from "./sections/ShortcutsSection";
 import { SkillsSection } from "./sections/SkillsSection";
@@ -41,7 +41,7 @@ const TABS: {
   { id: "shortcuts", icon: KeyboardIcon, component: ShortcutsSection },
   { id: "models", icon: AiScanIcon, component: ModelsSection },
   { id: "skills", icon: ToolsIcon, component: SkillsSection },
-  { id: "mcp", icon: ServerStack02Icon, component: McpSection },
+  { id: "integrations", icon: ServerStack02Icon, component: IntegrationsSection },
   { id: "agents", icon: UserMultiple02Icon, component: AgentsSection },
   { id: "gateway", icon: CloudIcon, component: GatewaySection },
   { id: "about", icon: InformationCircleIcon, component: AboutSection },
@@ -54,7 +54,7 @@ const VALID_TABS: SettingsTab[] = [
   "shortcuts",
   "models",
   "skills",
-  "mcp",
+  "integrations",
   "agents",
   "gateway",
   "about",

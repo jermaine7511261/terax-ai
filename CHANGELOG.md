@@ -6,6 +6,7 @@ Yamet 的所有重要变更都记录于此。版本遵循项目规则：**功能
 
 ### 新增
 ### 新增
+- **第十一轮（0.1.12）** 原生组件整合（以 0.1.12 为基座叠加 LSP/PTY/DAP/MCP 四大原生组件增强）：DAP 重构为完整 session+transport 模型（stdio/tcp 传输、`dap_session_create/connect/disconnect/list/get` + `dap_request_send`，前端 `modules/dap` 全新 DebugPanel + breakpointGutter 双向同步）；MCP 原生化（stdio/SSE 完整 client + server 生命周期，`mcp_server_add/remove/list/get/connect/disconnect/refresh` + `mcp_tool_call/mcp_resource_read`，前端 `modules/mcp` 全新 store + McpServersGroup）；复用 `lsp/framing.rs` 公共 Content-Length 分帧；设置页新增「集成」标签（IntegrationsSection 统一管理 DAP 适配器 + MCP 服务器）；AI 子系统 MCP 工具迁移到新原生 store（`@/modules/mcp`），删除旧 `modules/debug`/旧 `ai/lib/mcp`/旧 `ai/store/mcpStore`。
 - **第十一轮（0.1.12）** SSH 健壮性修复：`SshTarget.identity_file` 接受前端 `identityFile`（camelCase）与后端 `identity_file` 两种 wire 形式（`rename`+`alias`），私钥不再被静默丢弃（原 MUST）；`sftp`/`ssh -N` 后台命令对 host/user 用 `clean_component` 校验，防 `-oProxyCommand=...` 选项注入；含空格/引号的远程路径经 batch 单引号转义；`sftp_read` 先 `ls -la` 预检 4 MiB 上限再下载（避免 OOM）；`sftp -b -` 与后台 `ssh -N` 加 `BatchMode=yes`（无 TTY 下首次连接新主机不挂死）；远程面板去掉恒真隧道 filter。
 - **第十一轮（0.1.12）** DAP 调试器（Debug Adapter Protocol）：Rust 后端 modules/dap/（适配器注册表 debugpy/node-inspect/lldb-dap/gdb/dlv、复用 lsp/framing.rs 分帧、请求-响应 id 配对 + 30s 超时、reverse request 分发、孤儿响应转发现前端、fire-and-forget launch 适配 debugpy 延迟响应语义）+ 前端 modules/debug/ 调试面板（程序路径/适配器选择/启动停止/状态指示/单步/调用栈/变量树/Debug 输出），侧栏新增「调试」视图；debugpy 端到端验证通过（断点命中/调用栈/变量）。
 - **第十一轮（0.1.12）** DAP 编辑器断点：CodeMirror 行内断点 gutter（红点 + 暂停高亮），编辑器断点 ↔ DAP `setBreakpoints` 双向同步；`.yamet/launch.json` / `launch.json` / `.vscode/launch.json` 配置解析与下拉选择。
