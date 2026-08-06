@@ -124,7 +124,7 @@ export const zhMessages = {
     ai: "AI Agent",
     aiDesc: "自带 API 密钥或完全本地模型，可驱动终端、编辑文件、管理 Git。",
     aiKey: "配置 AI 密钥",
-    aiKeyDesc: "在设置 → AI 中粘贴 API 密钥，或指向本地端点（LM Studio / Ollama）。密钥存于系统钥匙串。",
+    aiKeyDesc: "在设置 → 模型中粘贴 API 密钥，或指向本地端点（LM Studio / Ollama）。密钥存于系统钥匙串。",
     getStarted: "开始使用",
     skip: "跳过",
     capabilities: "调试、补全与远程",
@@ -1471,7 +1471,7 @@ export const enMessages = {
       "Bring your own API keys or run fully local models — drive the terminal, edit files, manage Git.",
     aiKey: "Configure an AI key",
     aiKeyDesc:
-      "Paste an API key in Settings → AI, or point to a local endpoint (LM Studio / Ollama). Keys live in the OS keychain.",
+      "Paste an API key in Settings → Models, or point to a local endpoint (LM Studio / Ollama). Keys live in the OS keychain.",
     getStarted: "Get started",
     skip: "Skip",
     capabilities: "Debug, autocomplete & remote",

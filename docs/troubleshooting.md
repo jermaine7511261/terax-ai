@@ -27,7 +27,7 @@
 
 - **DAP 调试**：若提示「未找到调试适配器」，请先安装对应适配器：Python 用 `pip install debugpy`、Node 用 `npm install -g` 对应调试器。在侧栏「调试」视图「创建示例配置」会生成 `.yamet/launch.json`。
 - **LSP 补全**：启用语言服务器见状态栏的语言徽标（启用/安装入口）。
-- **AI 不可用**：确认已在 设置 → AI 配置 API 密钥或本地端点（LM Studio / Ollama）。密钥存于系统钥匙串。
+- **AI 不可用**：确认已在 设置 → 模型 配置 API 密钥或本地端点（LM Studio / Ollama）。密钥存于系统钥匙串。
 - **远程 / SFTP**：在侧栏「远程」视图填写 `user@host`，隧道用 `-L`（本地转发）/ `-R`（远程转发）。
 
 ## 其他

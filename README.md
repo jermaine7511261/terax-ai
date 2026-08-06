@@ -100,7 +100,7 @@ Yamet 是一个开源、轻量的终端（ADE，agentic development environment�
 
 ## 配置 AI
 
-1. 打开**设置 → AI**。
+1. 打开**设置 → 模型**。
 2. 选择提供商并粘贴 API 密钥。本地推理则将 Yamet 指向你的 LM Studio / MLX / Ollama 端点。
 3. 密钥经 `keyring` 写入操作系统钥匙串，永不着盘或进 localStorage。
 
