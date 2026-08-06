@@ -15,6 +15,8 @@ pub mod qq;
 pub mod wecom;
 pub mod weixin;
 
+mod creds_encrypt;
+
 use crate::modules::gateway::adapter::PlatformAdapter;
 use crate::modules::gateway::platform::PlatformId;
 use crate::modules::gateway::registry::GatewayRegistry;
@@ -36,12 +38,12 @@ fn creds_file(app: &tauri::AppHandle, id: PlatformId) -> std::path::PathBuf {
     creds_dir(app).join(format!("{}.json", id.as_str()))
 }
 
-/// Persist a platform's credentials to a plaintext JSON file in the app data
-/// dir (in addition to the OS keychain). This file-backed store is a deliberate
+/// Persist a platform's credentials to a JSON file in the app data dir (in
+/// addition to the OS keychain). This file-backed store is a deliberate
 /// reliability fallback for Windows (where the keyring can be unavailable) and
-/// survives restarts on every OS. The credentials are stored in plaintext and
-/// protected only by the app-local data directory; on Unix the directory is
-/// chmod 0700.
+/// survives restarts on every OS. At rest the file is encrypted with DPAPI on
+/// Windows (bound to the current user + machine) and protected by owner-only
+/// 0700/0600 permissions on Unix.
 pub fn persist_creds_to_file(app: &tauri::AppHandle, id: PlatformId, config_json: &str) {
     let dir = creds_dir(app);
     if std::fs::create_dir_all(&dir).is_err() {
@@ -52,7 +54,8 @@ pub fn persist_creds_to_file(app: &tauri::AppHandle, id: PlatformId, config_json
         use std::os::unix::fs::PermissionsExt;
         let _ = std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700));
     }
-    let _ = std::fs::write(creds_file(app, id), config_json);
+    let bytes = creds_encrypt::encrypt(config_json.as_bytes());
+    let _ = std::fs::write(creds_file(app, id), bytes);
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -63,9 +66,19 @@ pub fn persist_creds_to_file(app: &tauri::AppHandle, id: PlatformId, config_json
     }
 }
 
-/// Read a platform's credentials from the file store if present.
+/// Read a platform's credentials from the file store if present. On Windows the
+/// stored blob is DPAPI-decrypted; if it was written plaintext by an older
+/// build (no DPAPI), we transparently fall back to reading it as-is so existing
+/// installs keep working.
 pub fn read_creds_from_file(app: &tauri::AppHandle, id: PlatformId) -> Option<String> {
-    std::fs::read_to_string(creds_file(app, id)).ok()
+    let bytes = std::fs::read(creds_file(app, id)).ok()?;
+    // Prefer DPAPI decrypt; fall back to raw UTF-8 (legacy plaintext file).
+    if let Some(plain) = creds_encrypt::decrypt(&bytes) {
+        if let Ok(s) = String::from_utf8(plain) {
+            return Some(s);
+        }
+    }
+    String::from_utf8(bytes).ok()
 }
 
 pub fn register_all(registry: &GatewayRegistry) {

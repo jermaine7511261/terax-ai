@@ -11,9 +11,10 @@ use super::registry::GatewayRegistry;
 
 /// Reconfigure a platform from a JSON credentials blob. Rebuilds and
 /// re-registers the adapter, persists the credentials to the OS keychain
-/// (service `yamet-ai`), and additionally to a plaintext file-backed store
-/// (`gateway-creds/<platform>.json`, owner-only on Unix) that survives restarts
-/// even when the Windows keyring is unavailable.
+/// (service `yamet-ai`), and additionally to a file-backed store
+/// (`gateway-creds/<platform>.json`, DPAPI-encrypted on Windows / owner-only
+/// 0700 on Unix) that survives restarts even when the Windows keyring is
+/// unavailable.
 #[tauri::command]
 pub async fn gateway_configure(
     app: tauri::AppHandle,

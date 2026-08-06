@@ -71,11 +71,13 @@ API 密钥经 `secrets_*` 命令存储（`src-tauri/src/modules/secrets.rs`）�
 服务常量：`yamet-ai`。API 密钥绝不进 `localStorage`，绝不进日志。
 
 例外：**IM 网关凭据**（`gateway:*`）在写入钥匙串之外，还会经 `persist_creds_to_file`
-以明文 JSON 存到应用本地数据目录 `gateway-creds/<platform>.json`。这是有意的
-file-backed 兜底（Windows 凭据管理器可能不可用，文件存储跨重启更可靠），
-不是 OS 级加密。在 Unix 上该目录 `chmod 0700`、文件 `0600` 仅属主可读，
-以限制暴露面。若该目录中的凭据已被攻破的渲染进程读到，见上文「密钥路径拒绝名单」
-的读侧守卫。
+存到应用本地数据目录 `gateway-creds/<platform>.json`。这是有意的 file-backed 兜底
+（Windows 凭据管理器可能不可用，文件存储跨重启更可靠）。静态加密策略：
+- **Windows**：文件内容经 **DPAPI**（`CryptProtectData`/`CryptUnprotectData`）加密，
+  绑定当前用户 + 机器，默认 ACL 下同机其它进程也无法读出明文。
+- **Unix**：明文 JSON，但目录 `chmod 0700`、文件 `0600` 仅属主可读（Linux 密钥
+  文件同此惯例）。
+若该目录中的凭据已被攻破的渲染进程读到，见上文「密钥路径拒绝名单」的读侧守卫。
 
 ## OSC 信任门控
 

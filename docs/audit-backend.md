@@ -9,6 +9,23 @@
 
 ---
 
+## ⏱ 修复状态（2026-08-06 全量修复后更新）
+
+以下原报告发现已在「深度审查全量修复」中处理完毕，**旧结论仅作历史背景，勿据此误判安全基线**：
+
+| 原发现 | 严重度 | 修复状态 | 修复提交 |
+|---|---|---|---|
+| P0-1 后端读面零门禁 | P0 | ✅ 已修复 | `e0acc9e`（`fs/policy.rs` 拒绝名单 + 6 读命令 `source` 门禁 + `native.ts` 读路径带 `source:"ai"`） |
+| P0-3 helper PTY 绕过 cwd 授权 | P0 | ✅ 已修复 | `fec941b`（`pty_helper/client.rs` `pty_helper_open` 走 `user_spawn_cwd_or_home`） |
+| P2-2 shutdown_helper 死代码 | P2 | ✅ 已修复 | `c891a01`（`lib.rs` `RunEvent::Exit` 调用） |
+| pty_helper/protocol.rs `expect`（release abort 面） | 中低 | ✅ 已修复 | `b2d22d5`（8 处 `serde_json::to_vec(...).expect` → `Result`；现存 `expect` 均仅限 `#[cfg(test)]`） |
+| pty/mod.rs 线程 spawn `expect` | 中低 | ✅ 已修复 | `b2d22d5`（3 处 → `if let Err` 记日志） |
+| 死依赖 `@ai-sdk/{openai,anthropic,...}` | 低 | ✅ 已修复 | 此前轮次移除，仅剩两个活依赖（`openai-compatible`/`react`） |
+
+> P0-2（gateway 凭据明文落盘）仍在处理中，见下方「P0-2 补充」。
+
+---
+
 ## 一、安全模型执行：文档声明 vs 真实实现（核心发现）
 
 ### P0-1　后端"读面"完全无门禁，拒绝名单只在前端、读路径被完全绕过
