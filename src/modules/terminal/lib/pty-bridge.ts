@@ -14,6 +14,16 @@ export type PtySession = {
   write: (data: string) => Promise<void>;
   resize: (cols: number, rows: number) => Promise<void>;
   close: () => Promise<void>;
+  /**
+   * Page the mirrored scrollback from the backend. `count` lines ending at
+   * (exclusive) absolute `end`; `end == null` means the tail. Returns
+   * `[lines, absoluteStart, total]`. Lets callers lazily load very large
+   * output without holding the whole stream in frontend memory.
+   */
+  bufferLines: (
+    count: number,
+    end?: number | null,
+  ) => Promise<[string[], number, number]>;
 };
 
 export async function openPty(
@@ -76,6 +86,7 @@ export async function attachPty(
         releaseHandlers();
       }
     },
+    bufferLines: (c, e) => bufferLinesOf(id, c, e),
   };
 }
 
@@ -141,6 +152,7 @@ async function openPtyViaHelper(
         releaseHandlers();
       }
     },
+    bufferLines: (c, e) => bufferLinesOf(id, c, e),
   };
 }
 
@@ -219,5 +231,15 @@ async function openPtyInProcess(
         releaseHandlers();
       }
     },
+    bufferLines: (c, e) => bufferLinesOf(id, c, e),
   };
+}
+
+/** Page a session's mirrored scrollback (in-process sessions only). */
+async function bufferLinesOf(
+  id: number,
+  count: number,
+  end?: number | null,
+): Promise<[string[], number, number]> {
+  return invoke("pty_buffer_lines", { id, count, end: end ?? null });
 }

@@ -377,6 +377,7 @@ pub fn run() {
             pty::pty_close_all,
             pty::pty_has_foreground_process,
             pty::pty_has_foreground_job,
+            pty::pty_buffer_lines,
             pty::pty_shell_name,
             pty::pty_list_shells,
             pty_helper::pty_helper_start,

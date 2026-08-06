@@ -94,6 +94,9 @@ pub struct Session {
     // Set by the waiter once the child exits, so pty_open can reap a shell
     // that died before it was registered.
     pub(crate) exited: Arc<AtomicBool>,
+    /// Mirrored scrollback for `pty_buffer_lines` paging. Written by the
+    /// flusher thread on every chunk; read by the buffer command.
+    pub buffer: Arc<super::buffer::RollingBuffer>,
 }
 
 impl Drop for Session {
@@ -244,6 +247,7 @@ pub fn spawn_with_sink(
         writer: writer.clone(),
         master: Mutex::new(pair.master),
         exited: exited.clone(),
+        buffer: Arc::new(super::buffer::RollingBuffer::default()),
     });
 
     let pending: Arc<(Mutex<Vec<u8>>, Condvar)> = Arc::new((
@@ -318,6 +322,7 @@ pub fn spawn_with_sink(
     let sink_f = sink.clone();
     let pending_f = pending.clone();
     let done_f = done.clone();
+    let buffer_f = session.buffer.clone();
     thread::Builder::new()
         .name("yamet-pty-flusher".into())
         .spawn(move || {
@@ -339,6 +344,8 @@ pub fn spawn_with_sink(
                 if chunk.is_empty() {
                     continue;
                 }
+                // Mirror into the scrollback ring for later paging.
+                buffer_f.push(&chunk);
                 if !sink_f.output(&chunk) {
                     log::debug!("pty flusher exiting, sink gone");
                     break;

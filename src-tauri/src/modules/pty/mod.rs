@@ -1,4 +1,5 @@
 mod agent_detect;
+mod buffer;
 mod da_filter;
 pub(crate) mod session;
 pub(crate) mod shell_init;
@@ -237,6 +238,25 @@ pub fn pty_has_foreground_job(state: tauri::State<PtyState>, id: u32) -> Result<
     {
         Ok(shell_has_children(shell_pid))
     }
+}
+
+/// Page the mirrored scrollback of a PTY session. `count` lines ending at
+/// (exclusive) absolute `end`; `end == None` means the tail. Lets the frontend
+/// lazily load very large output without holding the whole stream in memory.
+#[tauri::command]
+pub fn pty_buffer_lines(
+    state: tauri::State<PtyState>,
+    id: u32,
+    count: Option<usize>,
+    end: Option<u64>,
+) -> Result<(Vec<String>, u64, u64), String> {
+    let sessions = state.sessions.read().unwrap_or_else(|e| e.into_inner());
+    let session = sessions.get(&id).ok_or_else(|| {
+        log::warn!("pty_buffer_lines: unknown session id={id}");
+        "no session".to_string()
+    })?;
+    let n = count.unwrap_or(500).clamp(1, 5000);
+    Ok(session.buffer.page(n, end))
 }
 
 // pgrep -P exits 0 when shell_pid has at least one child, 1 when none.
