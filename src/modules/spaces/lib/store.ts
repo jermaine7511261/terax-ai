@@ -36,7 +36,15 @@ export type LoadedSpaces = {
 };
 
 export async function loadAll(): Promise<LoadedSpaces> {
-  const entries = await store.entries();
+  let entries: Array<[string, unknown]>;
+  try {
+    entries = await store.entries();
+  } catch {
+    // Store file corrupt / unreadable (crash mid-write, disk error). Fall back
+    // to an empty default rather than failing startup and losing the whole
+    // workspace — matches the per-entry corruption skip in hydrateTabs.
+    return { spaces: [], activeId: null, recent: [], states: new Map() };
+  }
   let spaces: SpaceMeta[] = [];
   let activeId: string | null = null;
   let recent: string[] = [];

@@ -2,6 +2,7 @@ use ignore::WalkBuilder;
 use nucleo_matcher::pattern::{CaseMatching, Normalization, Pattern};
 use nucleo_matcher::{Config, Matcher, Utf32Str};
 use serde::Serialize;
+use tauri::Manager;
 
 use super::to_canon;
 use crate::modules::workspace::{resolve_path, WorkspaceEnv};
@@ -45,24 +46,29 @@ const PRUNE_DIRS: &[&str] = &[
 ];
 
 #[tauri::command]
-pub fn fs_search(
+pub async fn fs_search(
     root: String,
     query: String,
     limit: Option<usize>,
     workspace: Option<WorkspaceEnv>,
     show_hidden: Option<bool>,
     source: Option<String>,
-    registry: tauri::State<'_, crate::modules::workspace::WorkspaceRegistry>,
+    app: tauri::AppHandle,
 ) -> Result<SearchResult, String> {
-    fs_search_impl(
-        root,
-        query,
-        limit,
-        workspace,
-        show_hidden,
-        source,
-        Some(&registry),
-    )
+    tauri::async_runtime::spawn_blocking(move || {
+        let registry = app.state::<crate::modules::workspace::WorkspaceRegistry>();
+        fs_search_impl(
+            root,
+            query,
+            limit,
+            workspace,
+            show_hidden,
+            source,
+            Some(&registry),
+        )
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// Pure core of `fs_search`, testable without a Tauri app context (registry is
@@ -96,6 +102,18 @@ pub fn fs_search_impl(
     }
     if !root_path.is_dir() {
         return Err(format!("not a directory: {root}"));
+    }
+
+    // Serve from cache when the root tree is unchanged since the last search.
+    // Best-effort accelerator: on any miss/mismatch we fall through to a full
+    // walk below, so correctness never depends on the cache.
+    if let Some((cached_hits, cached_truncated)) =
+        super::index_cache::search_cache().get(&root_path, q)
+    {
+        return Ok(SearchResult {
+            hits: cached_hits,
+            truncated: cached_truncated,
+        });
     }
 
     let mut cands: Vec<SearchHit> = Vec::new();
@@ -151,6 +169,7 @@ pub fn fs_search_impl(
     }
 
     let hits = rank_fuzzy(cands, q, cap);
+    super::index_cache::search_cache().put(&root_path, q, hits.clone(), truncated);
     Ok(SearchResult { hits, truncated })
 }
 
@@ -185,16 +204,21 @@ pub struct ListFilesResult {
 }
 
 #[tauri::command]
-pub fn fs_list_files(
+pub async fn fs_list_files(
     root: String,
     limit: Option<usize>,
     max_depth: Option<usize>,
     workspace: Option<WorkspaceEnv>,
     show_hidden: Option<bool>,
     source: Option<String>,
-    registry: tauri::State<'_, crate::modules::workspace::WorkspaceRegistry>,
+    app: tauri::AppHandle,
 ) -> Result<ListFilesResult, String> {
-    fs_list_files_impl(root, limit, max_depth, workspace, show_hidden, source, Some(&registry))
+    tauri::async_runtime::spawn_blocking(move || {
+        let registry = app.state::<crate::modules::workspace::WorkspaceRegistry>();
+        fs_list_files_impl(root, limit, max_depth, workspace, show_hidden, source, Some(&registry))
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// Pure core of `fs_list_files`, testable without a Tauri app context (registry

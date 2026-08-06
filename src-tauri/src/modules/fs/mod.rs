@@ -1,5 +1,6 @@
 pub mod file;
 pub mod grep;
+pub mod index_cache;
 pub mod mutate;
 pub mod policy;
 pub mod search;
