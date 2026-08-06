@@ -47,6 +47,8 @@ export function SearchPanel({ root, onOpen }: Props) {
   const { t } = useI18n();
   const [query, setQuery] = useState("");
   const [replace, setReplace] = useState("");
+  const [useRegex, setUseRegex] = useState(false);
+  const [caseSensitive, setCaseSensitive] = useState(false);
   const { results: hits, loading } = useContentSearch(root, query, true);
 
   const byFile = useMemo(() => {
@@ -64,16 +66,21 @@ export function SearchPanel({ root, onOpen }: Props) {
 
   const doReplaceAll = async (): Promise<void> => {
     if (!canReplace) return;
+    // Build the search expression: literal (escaped) or regex, with optional
+    // case-insensitive flag. All matches are replaced (global).
+    const flags = caseSensitive ? "g" : "gi";
+    const source = useRegex ? query : query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp(source, flags);
     const files = [...new Set(hits.map((h) => h.path))];
     let count = 0;
     for (const f of files) {
       try {
         const r = await native.readFile(f);
         if (r.kind !== "text") continue;
-        const next = r.content.split(query).join(replace);
+        const next = r.content.replace(re, replace);
         if (next === r.content) continue;
         await native.writeFile(f, next);
-        count += r.content.split(query).length - 1;
+        count += (r.content.match(re) ?? []).length;
       } catch {
         // Skip unreadable/unwritable files; report the rest.
       }
@@ -124,6 +131,34 @@ export function SearchPanel({ root, onOpen }: Props) {
           className="w-full min-w-0 bg-transparent text-[12px] outline-none placeholder:text-muted-foreground/60"
           spellCheck={false}
         />
+        <button
+          type="button"
+          title={t("search.useRegex")}
+          aria-pressed={useRegex}
+          onClick={() => setUseRegex((v) => !v)}
+          className={cn(
+            "shrink-0 rounded-md px-1.5 py-0.5 font-mono text-[10.5px] transition-colors",
+            useRegex
+              ? "bg-primary/20 text-primary"
+              : "text-muted-foreground/60 hover:bg-foreground/10",
+          )}
+        >
+          .*
+        </button>
+        <button
+          type="button"
+          title={t("search.caseSensitive")}
+          aria-pressed={caseSensitive}
+          onClick={() => setCaseSensitive((v) => !v)}
+          className={cn(
+            "shrink-0 rounded-md px-1.5 py-0.5 font-mono text-[10.5px] transition-colors",
+            caseSensitive
+              ? "bg-primary/20 text-primary"
+              : "text-muted-foreground/60 hover:bg-foreground/10",
+          )}
+        >
+          Aa
+        </button>
         <button
           type="button"
           disabled={!canReplace}

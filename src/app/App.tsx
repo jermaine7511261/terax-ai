@@ -242,6 +242,7 @@ export default function App() {
       const switched = await switchWorkspace(env);
       if (switched && activeSpaceId) {
         useSpaces.getState().setEnv(activeSpaceId, env);
+        useSpaces.getState().pushRecent(activeSpaceId);
       }
     },
     [switchWorkspace, activeSpaceId],

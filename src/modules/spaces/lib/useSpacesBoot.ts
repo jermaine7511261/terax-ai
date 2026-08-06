@@ -52,7 +52,7 @@ export function useSpacesBoot({
 
     void (async () => {
       try {
-        const { spaces, activeId, states } = await loadAll();
+        const { spaces, activeId, states, recent } = await loadAll();
 
         if (spaces.length === 0) {
           const root = launchCwd ?? home ?? null;
@@ -74,7 +74,7 @@ export function useSpacesBoot({
           await saveSpacesList([meta]);
           await saveActiveId(DEFAULT_SPACE_ID);
           setActiveSpaceForNewTabs(DEFAULT_SPACE_ID);
-          useSpaces.getState().hydrate([meta], DEFAULT_SPACE_ID);
+          useSpaces.getState().hydrate([meta], DEFAULT_SPACE_ID, {}, recent);
           return;
         }
 

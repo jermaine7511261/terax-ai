@@ -21,7 +21,9 @@ export type SpaceState = {
 const STORE_PATH = "yamet-spaces.json";
 const KEY_SPACES = "spaces";
 const KEY_ACTIVE = "activeId";
+const KEY_RECENT = "recent";
 const STATE_PREFIX = "state:";
+const RECENT_LIMIT = 8;
 const stateKey = (id: string) => `${STATE_PREFIX}${id}`;
 
 const store = new LazyStore(STORE_PATH, { defaults: {}, autoSave: 500 });
@@ -29,6 +31,7 @@ const store = new LazyStore(STORE_PATH, { defaults: {}, autoSave: 500 });
 export type LoadedSpaces = {
   spaces: SpaceMeta[];
   activeId: string | null;
+  recent: string[];
   states: Map<string, SpaceState>;
 };
 
@@ -36,15 +39,17 @@ export async function loadAll(): Promise<LoadedSpaces> {
   const entries = await store.entries();
   let spaces: SpaceMeta[] = [];
   let activeId: string | null = null;
+  let recent: string[] = [];
   const states = new Map<string, SpaceState>();
   for (const [k, v] of entries) {
     if (k === KEY_SPACES) spaces = (v as SpaceMeta[]) ?? [];
     else if (k === KEY_ACTIVE) activeId = (v as string | null) ?? null;
+    else if (k === KEY_RECENT) recent = (v as string[]) ?? [];
     else if (k.startsWith(STATE_PREFIX)) {
       states.set(k.slice(STATE_PREFIX.length), v as SpaceState);
     }
   }
-  return { spaces, activeId, states };
+  return { spaces, activeId, recent, states };
 }
 
 export async function saveSpacesList(spaces: SpaceMeta[]): Promise<void> {
@@ -53,6 +58,19 @@ export async function saveSpacesList(spaces: SpaceMeta[]): Promise<void> {
 
 export async function saveActiveId(id: string | null): Promise<void> {
   await store.set(KEY_ACTIVE, id);
+}
+
+export async function saveRecent(list: string[]): Promise<void> {
+  await store.set(KEY_RECENT, list.slice(0, RECENT_LIMIT));
+}
+
+/**
+ * Insert an id at the front of a recently-opened list: deduped, capped at
+ * RECENT_LIMIT, most recent first. Pure so it is trivially testable and so the
+ * zustand store can reuse it for both push and set.
+ */
+export function recentWith(list: string[], id: string): string[] {
+  return [id, ...list.filter((x) => x !== id)].slice(0, RECENT_LIMIT);
 }
 
 export async function saveState(id: string, state: SpaceState): Promise<void> {

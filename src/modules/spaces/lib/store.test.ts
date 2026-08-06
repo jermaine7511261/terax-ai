@@ -25,7 +25,9 @@ import {
   deleteSpaceData,
   loadAll,
   newSpaceId,
+  recentWith,
   saveActiveId,
+  saveRecent,
   saveSpacesList,
   saveState,
   type SpaceMeta,
@@ -84,5 +86,39 @@ describe("loadAll / save helpers", () => {
     await deleteSpaceData("sp-1");
     const loaded = await loadAll();
     expect(loaded.states.has("sp-1")).toBe(false);
+  });
+});
+
+describe("recentWith", () => {
+  it("prepends an id and dedupes", () => {
+    expect(recentWith(["a", "b"], "c")).toEqual(["c", "a", "b"]);
+    expect(recentWith(["a", "b"], "a")).toEqual(["a", "b"]);
+  });
+
+  it("caps the list at 8, most recent first", () => {
+    let list: string[] = [];
+    for (let i = 0; i < 10; i++) list = recentWith(list, `id-${i}`);
+    expect(list.length).toBe(8);
+    expect(list[0]).toBe("id-9");
+    expect(list[7]).toBe("id-2");
+  });
+});
+
+describe("recent persistence", () => {
+  it("returns an empty recent list when nothing is stored", async () => {
+    const loaded = await loadAll();
+    expect(loaded.recent).toEqual([]);
+  });
+
+  it("round-trips the recent list", async () => {
+    await saveRecent(["sp-1", "sp-2"]);
+    const loaded = await loadAll();
+    expect(loaded.recent).toEqual(["sp-1", "sp-2"]);
+  });
+
+  it("caps saved recent at 8", async () => {
+    await saveRecent(["a", "b", "c", "d", "e", "f", "g", "h", "i"]);
+    const loaded = await loadAll();
+    expect(loaded.recent).toEqual(["a", "b", "c", "d", "e", "f", "g", "h"]);
   });
 });

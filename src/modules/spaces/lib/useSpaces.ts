@@ -7,7 +7,9 @@ import {
 import {
   deleteSpaceData,
   newSpaceId,
+  recentWith,
   saveActiveId,
+  saveRecent,
   saveSpacesList,
   type SpaceMeta,
 } from "./store";
@@ -22,6 +24,7 @@ type CreateInput = {
 type State = {
   spaces: SpaceMeta[];
   activeId: string | null;
+  recent: string[];
   hydrated: boolean;
   // Per-space active tab index loaded from disk, so persistence preserves it
   // for spaces the user never visits this session.
@@ -30,6 +33,7 @@ type State = {
     spaces: SpaceMeta[],
     activeId: string | null,
     initialActiveIndex?: Record<string, number>,
+    recent?: string[],
   ) => void;
   create: (input: CreateInput) => SpaceMeta;
   rename: (id: string, name: string) => void;
@@ -39,16 +43,19 @@ type State = {
   reorder: (orderedIds: string[]) => void;
   remove: (id: string) => string | null;
   setActive: (id: string) => void;
+  pushRecent: (id: string) => void;
+  setRecent: (list: string[]) => void;
 };
 
 export const useSpaces = create<State>((set, get) => ({
   spaces: [],
   activeId: null,
+  recent: [],
   hydrated: false,
   initialActiveIndex: {},
 
-  hydrate: (spaces, activeId, initialActiveIndex = {}) => {
-    set({ spaces, activeId, initialActiveIndex, hydrated: true });
+  hydrate: (spaces, activeId, initialActiveIndex = {}, recent = []) => {
+    set({ spaces, activeId, recent, initialActiveIndex, hydrated: true });
   },
 
   create: (input) => {
@@ -136,5 +143,18 @@ export const useSpaces = create<State>((set, get) => ({
     if (get().activeId === id) return;
     set({ activeId: id });
     void saveActiveId(id);
+  },
+
+  pushRecent: (id) => {
+    if (!id) return;
+    const recent = recentWith(get().recent, id);
+    set({ recent });
+    void saveRecent(recent);
+  },
+
+  setRecent: (list) => {
+    const recent = [...new Set(list)].slice(0, 8);
+    set({ recent });
+    void saveRecent(recent);
   },
 }));

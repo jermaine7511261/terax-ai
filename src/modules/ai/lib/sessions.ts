@@ -79,3 +79,50 @@ export function deriveTitle(messages: UIMessage[]): string {
   }
   return "New chat";
 }
+
+/** Flatten a message's text parts into markdown content; empty when it has none. */
+function messageToMarkdown(m: UIMessage): string {
+  const blocks: string[] = [];
+  for (const p of m.parts) {
+    if (p.type !== "text") continue;
+    const text = (p as { text: string }).text.trim();
+    if (text) blocks.push(text);
+  }
+  if (blocks.length === 0) return "";
+  return `### ${m.role}\n\n${blocks.join("\n\n")}`;
+}
+
+/**
+ * Export every stored AI session as a single Markdown document: one section
+ * per session (title or id, timestamps, then each message's role + content).
+ */
+export async function exportSessionsAsMarkdown(): Promise<string> {
+  const { sessions } = await loadAll();
+  const sections: string[] = [];
+  for (const s of sessions) {
+    const title = s.title || s.id;
+    const messages = (await loadMessages(s.id)) ?? [];
+    const body = messages.map(messageToMarkdown).filter(Boolean);
+    sections.push(
+      [
+        `# ${title}`,
+        "",
+        `- id: ${s.id}`,
+        `- created: ${new Date(s.createdAt).toISOString()}`,
+        `- updated: ${new Date(s.updatedAt).toISOString()}`,
+        "",
+        body.length > 0 ? body.join("\n\n") : "_No messages._",
+      ].join("\n"),
+    );
+  }
+  return sections.join("\n\n---\n\n");
+}
+
+/** Delete every stored session's messages and reset the session list. */
+export async function clearAllSessions(): Promise<void> {
+  const { sessions } = await loadAll();
+  for (const s of sessions) {
+    await deleteSessionData(s.id);
+  }
+  await saveSessionsList([]);
+}
