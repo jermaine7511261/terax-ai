@@ -288,7 +288,18 @@ export default function App() {
     const meta = useSpaces
       .getState()
       .spaces.find((s) => s.id === activeSpaceId);
-    if (meta) void adoptWorkspaceEnv(meta.env);
+    if (meta) {
+      void adoptWorkspaceEnv(meta.env);
+      // Register the space's root with the backend authorization registry so
+      // AI file ops inside the selected workspace are authorized even before a
+      // terminal in that space has reported a cwd (which is what normally
+      // triggers `workspaceAuthorize`). This prevents "outside the authorized
+      // workspace" for a freshly selected workspace whose root isn't the launch
+      // dir or the OS home.
+      if (meta.root) {
+        void native.workspaceAuthorize(meta.root).catch(() => {});
+      }
+    }
     const inSpace = tabsRef.current.filter((t) => t.spaceId === activeSpaceId);
     if (inSpace.length === 0) return;
     // Keep the active tab if it already belongs to the newly active space (a
@@ -760,6 +771,15 @@ export default function App() {
         activeTab.cwd ??
         null)
       : null;
+
+  // Status-bar cwd: prefer the active terminal leaf's cwd, else fall back to
+  // the active workspace's root. This prevents "no directory" from showing
+  // when a workspace is selected but the active tab isn't a terminal (e.g. an
+  // editor tab), or a terminal hasn't reported a cwd yet.
+  const activeSpaceRoot = useSpaces(
+    (s) => s.spaces.find((sp) => sp.id === (s.activeId ?? DEFAULT_SPACE_ID))?.root ?? null,
+  );
+  const activeCwdForStatusbar = activeTerminalLeafCwd ?? activeSpaceRoot ?? null;
 
   const activeFilePath = (() => {
     if (activeTab?.kind === "editor") return activeTab.path;
@@ -1507,7 +1527,7 @@ export default function App() {
 
           {!zenMode && (
             <StatusBar
-              cwd={activeCwd}
+              cwd={activeCwdForStatusbar}
               filePath={activeFilePath}
               home={home}
               onCd={sendCd}
