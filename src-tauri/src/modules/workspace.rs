@@ -30,6 +30,8 @@ impl WorkspaceRegistry {
         Ok(canonical)
     }
 
+    /// Whether `target` sits under any authorized root. Prefix match — a target
+    /// equal to a root OR any of its descendants/subdirectories is authorized.
     pub fn is_authorized(&self, target: &Path) -> bool {
         let set = self.roots.lock().unwrap_or_else(|e| e.into_inner());
         set.iter().any(|root| target.starts_with(root))

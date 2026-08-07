@@ -12,11 +12,18 @@ use std::path::Path;
 use crate::modules::workspace::WorkspaceRegistry;
 
 /// Defense-in-depth for the AI write path: the frontend `security.ts` denylist
-/// is the first gate; this is the second, authoritative one. AI-sourced
-/// mutations (`source == "ai"`) must resolve to a path under an authorized
-/// workspace root. The user's own editor/explorer writes pass
-/// `source == "editor"`/null and are not gated here (they carry their own
-/// trust), so this must not break normal editing.
+/// is the first gate; this is the second, backend layer. AI-sourced mutations
+/// (`source == "ai"`) must (a) not target a sensitive/denylisted path
+/// (`policy::check_readable`, symmetric with the read path) and (b) resolve to
+/// a path under an authorized workspace root. The user's own editor/explorer
+/// writes pass `source == "editor"`/null and are not gated here (they carry
+/// their own trust), so this must not break normal editing.
+///
+/// NOTE on trust model: the AI layer already has shell execution privilege
+/// (`shell_run_command`), so this gate is defense-in-depth rather than a
+/// security boundary — its real value is as a boundary for a future restricted
+/// (shell-less) agent tool surface. `source` is client-supplied and not
+/// cryptographically authenticated; see the round-17 requirements doc.
 pub(crate) fn enforce_ai_workspace_authorization(
     target: &Path,
     source: &Option<String>,
@@ -25,6 +32,15 @@ pub(crate) fn enforce_ai_workspace_authorization(
     if source.as_deref() != Some("ai") {
         return Ok(());
     }
+    // Defense-in-depth, symmetric with the read path: an AI-sourced write must
+    // not target a sensitive/denylisted path either (e.g. `.env`, `~/.ssh/…`,
+    // private keys), even when the target sits inside an authorized workspace.
+    // Without this, an AI write to `~/.bashrc` (home is authorized) would bypass
+    // the secret-basename list that the read side already enforces.
+    policy::check_readable(&target.to_string_lossy()).map_err(|e| {
+        log::warn!("{e}");
+        e
+    })?;
     // The file may not exist yet (new file / deep dir chain), so canonicalize
     // the nearest existing ancestor and require that it sits under an
     // authorized root.
@@ -83,6 +99,70 @@ fn strip_verbatim(s: &str) -> String {
 mod tests {
     use super::strip_verbatim;
     use proptest::prelude::*;
+
+    #[test]
+    fn ai_write_to_sensitive_path_is_refused_even_inside_workspace() {
+        use crate::modules::workspace::WorkspaceRegistry;
+        let registry = WorkspaceRegistry::default();
+        let ws = tempfile::tempdir().unwrap();
+        registry.authorize(ws.path()).unwrap();
+
+        // An AI write to a secret-basename file (`.env`) inside an authorized
+        // workspace must be refused by the sensitive-list check (P1-1), even
+        // though the workspace auth itself would allow it.
+        let env_path = ws.path().join(".env");
+        assert!(
+            super::enforce_ai_workspace_authorization(&env_path, &Some("ai".into()), &registry)
+                .is_err(),
+            "AI write to .env must be refused (sensitive-list gate)"
+        );
+        // A private key / protected-dir path too.
+        let key_path = ws.path().join("id_ed25519");
+        assert!(
+            super::enforce_ai_workspace_authorization(&key_path, &Some("ai".into()), &registry)
+                .is_err(),
+            "AI write to id_ed25519 must be refused"
+        );
+    }
+
+    #[test]
+    fn ai_write_to_normal_workspace_file_is_allowed() {
+        use crate::modules::workspace::WorkspaceRegistry;
+        let registry = WorkspaceRegistry::default();
+        let ws = tempfile::tempdir().unwrap();
+        registry.authorize(ws.path()).unwrap();
+
+        let normal = ws.path().join("main.rs");
+        assert!(
+            super::enforce_ai_workspace_authorization(&normal, &Some("ai".into()), &registry)
+                .is_ok(),
+            "AI write to a normal file inside the workspace must be allowed"
+        );
+    }
+
+    #[test]
+    fn user_write_to_sensitive_path_is_not_gated() {
+        use crate::modules::workspace::WorkspaceRegistry;
+        let registry = WorkspaceRegistry::default();
+        let ws = tempfile::tempdir().unwrap();
+        registry.authorize(ws.path()).unwrap();
+
+        // Editor/explorer writes (source != "ai") to any path are not gated.
+        let env_path = ws.path().join(".env");
+        assert!(
+            super::enforce_ai_workspace_authorization(
+                &env_path,
+                &Some("editor".into()),
+                &registry,
+            )
+            .is_ok(),
+            "user write to .env must not be gated"
+        );
+        assert!(
+            super::enforce_ai_workspace_authorization(&env_path, &None, &registry).is_ok(),
+            "null-source write to .env must not be gated"
+        );
+    }
 
     #[test]
     fn strips_drive_verbatim_prefix() {
