@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke, type Channel } from "@tauri-apps/api/core";
 
 /**
  * Typed IPC surface for the IM gateway commands. Centralizes the command-name
