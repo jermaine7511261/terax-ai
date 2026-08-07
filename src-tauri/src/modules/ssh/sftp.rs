@@ -12,6 +12,7 @@ use super::target::SshTarget;
 use crate::modules::ssh::target::clean_component;
 
 const READ_BYTE_CAP: usize = 4 * 1024 * 1024;
+const WRITE_BYTE_CAP: usize = 4 * 1024 * 1024;
 
 /// Quote a path for an sftp batch command so names with spaces/special chars
 /// survive tokenization. `sftp` batch mode does not do shell quoting, so we
@@ -185,6 +186,31 @@ pub async fn sftp_read(target: SshTarget, path: String) -> Result<String, String
         return Err("sftp: remote file exceeds 4 MiB read cap".into());
     }
     Ok(content)
+}
+
+#[tauri::command]
+pub async fn sftp_write(
+    target: SshTarget,
+    path: String,
+    content: String,
+) -> Result<(), String> {
+    if content.len() > WRITE_BYTE_CAP {
+        return Err(format!(
+            "sftp: content is {} bytes, exceeds {} MiB write cap",
+            content.len(),
+            WRITE_BYTE_CAP / (1024 * 1024)
+        ));
+    }
+    let quoted = sanitize_remote_path(&path)?;
+    let dir = tempfile::tempdir().map_err(|e| format!("sftp tempdir: {e}"))?;
+    let local = dir.path().join("yamet-remote-write");
+    std::fs::write(&local, content.as_bytes()).map_err(|e| format!("sftp write local: {e}"))?;
+    let local_quoted = quote_batch(&local.display().to_string());
+    let script = format!("put {local_quoted} {quoted}\nquit\n");
+    tokio::task::spawn_blocking(move || run_batch(&target, &script))
+        .await
+        .map_err(|e| e.to_string())??;
+    Ok(())
 }
 
 #[cfg(test)]

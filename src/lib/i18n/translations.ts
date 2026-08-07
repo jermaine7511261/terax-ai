@@ -200,6 +200,11 @@ export const zhMessages = {
     stopTunnel: "停止隧道",
     connectHint: "输入 user@host 连接远程会话，浏览远程文件并管理端口转发",
     openFailed: "远程文件打开失败",
+    editTitle: "编辑远程文件",
+    save: "保存",
+    saving: "保存中…",
+    saved: "已保存",
+    saveFailed: "保存失败",
   },
   tabs: {
     close: "关闭标签页",
@@ -1552,6 +1557,11 @@ export const enMessages = {
     stopTunnel: "Stop tunnel",
     connectHint: "Enter user@host to connect, browse remote files, and manage port forwarding",
     openFailed: "Failed to open remote file",
+    editTitle: "Edit remote file",
+    save: "Save",
+    saving: "Saving…",
+    saved: "Saved",
+    saveFailed: "Failed to save",
   },
   tabs: {
     close: "Close Tab",

@@ -10,6 +10,6 @@ pub mod sftp;
 pub mod target;
 pub mod tunnels;
 
-pub use sftp::{sftp_list, sftp_read};
+pub use sftp::{sftp_list, sftp_read, sftp_write};
 pub use target::{build_command, SshTarget};
 pub use tunnels::{ssh_tunnel_kill, ssh_tunnel_list, ssh_tunnel_start, TunnelsState};

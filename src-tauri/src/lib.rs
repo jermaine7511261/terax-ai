@@ -383,6 +383,7 @@ pub fn run() {
             pty_helper::pty_helper_start,
             ssh::sftp::sftp_list,
             ssh::sftp::sftp_read,
+            ssh::sftp::sftp_write,
             ssh::tunnels::ssh_tunnel_start,
             ssh::tunnels::ssh_tunnel_list,
             ssh::tunnels::ssh_tunnel_kill,

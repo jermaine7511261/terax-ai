@@ -24,6 +24,11 @@ const DebugPanel = lazy(() =>
 const RemotePanel = lazy(() =>
   import("@/modules/remote").then((m) => ({ default: m.RemotePanel })),
 );
+const RemoteEditorDialog = lazy(() =>
+  import("@/modules/remote/RemoteEditorDialog").then((m) => ({
+    default: m.RemoteEditorDialog,
+  })),
+);
 const McpSidebarPanel = lazy(() =>
   import("@/modules/mcp").then((m) => ({ default: m.McpSidebarPanel })),
 );
@@ -300,6 +305,11 @@ export default function App() {
   ]);
 
   const [switcherOpen, setSwitcherOpen] = useState(false);
+  const [remoteEdit, setRemoteEdit] = useState<{
+    target: SshTarget;
+    path: string;
+    content: string;
+  } | null>(null);
 
   const spaceTabs = useMemo(
     () => tabs.filter((t) => t.spaceId === (activeSpaceId ?? DEFAULT_SPACE_ID)),
@@ -1295,15 +1305,14 @@ export default function App() {
     async (target: SshTarget, path: string) => {
       try {
         const content = await invoke<string>("sftp_read", { target, path });
-        // Remote files aren't on disk, so render them through the preview pane
-        // via a data URL. Markdown renders; other text shows raw.
-        const url = `data:text/plain;charset=utf-8,${encodeURIComponent(content)}`;
-        newPreviewTab(url);
+        // Open the remote file in the editable dialog instead of a read-only
+        // preview; Save writes back via `sftp_write`.
+        setRemoteEdit({ target, path, content });
       } catch (e) {
         toast.error(tStatic("remote.openFailed"), { description: String(e) });
       }
     },
-    [newPreviewTab],
+    [],
   );
 
   const insertHistoryCommand = useMemo(
@@ -1413,6 +1422,19 @@ export default function App() {
                     ) : sidebarView === "remote" ? (
                       <Suspense fallback={null}>
                         <RemotePanel onOpenRemoteFile={openRemoteFile} />
+                    {remoteEdit && (
+                      <Suspense fallback={null}>
+                        <RemoteEditorDialog
+                          target={remoteEdit.target}
+                          path={remoteEdit.path}
+                          initialContent={remoteEdit.content}
+                          open
+                          onOpenChange={(open) => {
+                            if (!open) setRemoteEdit(null);
+                          }}
+                        />
+                      </Suspense>
+                    )}
                       </Suspense>
                     ) : sidebarView === "mcp" ? (
                       <Suspense fallback={null}>
