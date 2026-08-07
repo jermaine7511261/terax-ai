@@ -219,10 +219,15 @@ const ToolImpl = ({
   const isError = state === "output-error";
   const open = defaultOpen ?? isError;
   const isHeavy = HEAVY_CONTENT_TOOLS.has(toolName);
-  // For heavy tools, only show details on error — never the streamed input
-  // body, which is huge and re-renders per token.
-  const showInputBody = !isHeavy && Boolean(input);
-  const showOutputBody = !isHeavy && output !== undefined;
+  // During streaming, heavy tools skip rendering their input/output body
+  // to avoid per-token re-renders (the memo comparison uses deriveSummary
+  // for cheap diff checks). Once the tool reaches a terminal state, show
+  // the body so the user can expand the card and see what was written or
+  // edited (old/new content for edit, content for write_file).
+  const isTerminal =
+    state === "output-available" || state === "output-error";
+  const showInputBody = (!isHeavy || isTerminal) && Boolean(input);
+  const showOutputBody = (!isHeavy || isTerminal) && output !== undefined;
   const hasDetails =
     showInputBody || showOutputBody || Boolean(errorText);
 

@@ -7,6 +7,7 @@ import {
   sendMessage,
 } from "../store/chatRuntime";
 import { AiChatView } from "./AiChat";
+import { TodoStrip } from "./TodoStrip";
 
 /**
  * Full-screen chat view, rendered as the default home tab. Conversation and
@@ -72,6 +73,7 @@ function ChatBody({ sessionId }: { sessionId: string }) {
           />
         )}
       </div>
+      <TodoStrip sessionId={sessionId} />
     </div>
   );
 }
