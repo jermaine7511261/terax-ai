@@ -1109,6 +1109,7 @@ export const zhMessages = {
       error: "错误",
     },
     adapterMissing: "未找到调试适配器「{command}」。请先安装它，再重试。",
+    adapterMissingBanner: "调试适配器缺失",
   },
   settingsAbout: {
     about: "关于",
@@ -2489,6 +2490,7 @@ export const enMessages = {
       error: "error",
     },
     adapterMissing: "Debug adapter \"{command}\" not found. Install it and retry.",
+    adapterMissingBanner: "Adapter missing",
   },
   settingsAbout: {
     about: "About",

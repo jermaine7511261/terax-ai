@@ -6,6 +6,7 @@ import {
   FolderGitTwoIcon,
   FolderTreeIcon,
   GlobeIcon,
+  GitBranchIcon,
   Plug01Icon,
   Search01Icon,
 } from "@hugeicons/core-free-icons";
@@ -42,6 +43,7 @@ export function SidebarRail({ activeView, onSelectView, changedCount }: Props) {
     { id: "remote", label: t("sidebar.remote"), icon: GlobeIcon },
     { id: "mcp", label: t("sidebar.mcp"), icon: Plug01Icon },
     { id: "gateway", label: t("sidebar.gateway"), icon: Chat01Icon },
+    { id: "git-history", label: t("sidebar.gitHistory"), icon: GitBranchIcon },
   ];
 
   return (

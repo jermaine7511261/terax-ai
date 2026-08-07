@@ -19,6 +19,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useEffect, useId, useState, type ReactNode } from "react";
+import { toast } from "sonner";
 
 export function McpServersGroup() {
   const { t } = useI18n();
@@ -172,7 +173,7 @@ function AddMcpServerDialog({
       setArgs("");
       setUrl("");
     } catch (e) {
-      console.error("[yamet] mcp add failed", e);
+      toast.error(String(e instanceof Error ? e.message : e));
     }
   };
 

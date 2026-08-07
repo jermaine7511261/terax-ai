@@ -43,6 +43,7 @@ import {
 } from "../config";
 import type { ResizeDir } from "../lib/miniWindowGeometry";
 import type { SessionMeta } from "../lib/sessions";
+import { exportSessionsAsMarkdown, clearAllSessions } from "../lib/sessions";
 import { useMiniWindowGeometry } from "../lib/useMiniWindowGeometry";
 import { useAgentsStore } from "../store/agentsStore";
 import {
@@ -757,6 +758,30 @@ function HistoryPanel({
           placeholder={t("ai.historySearch")}
           className="min-w-0 flex-1 bg-transparent text-[12px] outline-none placeholder:text-muted-foreground/60"
         />
+        <button
+          type="button"
+          onClick={() => exportSessionsAsMarkdown().then((md) => {
+            const blob = new Blob([md], { type: "text/markdown" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "yamet-sessions.md";
+            a.click();
+            URL.revokeObjectURL(url);
+          })}
+          title="Export all"
+          className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        >
+          <svg viewBox="0 0 24 24" width={11} height={11} fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12m-4-4 4 4 4-4M4 20h16"/></svg>
+        </button>
+        <button
+          type="button"
+          onClick={() => { clearAllSessions(); onSwitch(""); }}
+          title="Clear all"
+          className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-red-500/10 hover:text-red-500"
+        >
+          <svg viewBox="0 0 24 24" width={11} height={11} fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18M8 6V4h8v2m2 0v14H6V6"/></svg>
+        </button>
         <button
           type="button"
           onClick={onClose}

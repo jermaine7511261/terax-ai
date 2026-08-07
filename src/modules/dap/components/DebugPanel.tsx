@@ -44,6 +44,8 @@ export function DebugPanel({ rootPath }: { rootPath: string | null }) {
   const connected =
     activeSession != null && activeSession.status !== "inactive" && activeSession.status !== "error";
   const stopped = activeSession?.status === "stopped";
+  const adapterMissing =
+    activeSession?.error != null && /adapter_missing/.test(activeSession.error);
 
   useEffect(() => {
     void refresh();
@@ -286,6 +288,12 @@ export function DebugPanel({ rootPath }: { rootPath: string | null }) {
       )}
 
       {/* body */}
+      {adapterMissing && (
+        <div className="flex items-center gap-2 border-b border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-600 dark:text-amber-400">
+          <span className="font-medium">{t("settingsDap.adapterMissingBanner")}</span>
+          <span className="text-muted-foreground">{activeSession?.error}</span>
+        </div>
+      )}
       <div className="grid min-h-0 flex-1 grid-cols-[1fr_1.2fr_1.6fr]">
         <div className="flex min-h-0 flex-col border-r border-border/50">
           <SectionTitle>{t("settingsDap.threads")}</SectionTitle>
