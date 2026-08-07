@@ -30,7 +30,7 @@ vi.mock("./languageDefinitions", () => ({
   LANGUAGES: langFixture,
 }));
 
-vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: vi.fn() }));
+vi.mock("@/platform", () => ({ openUrl: vi.fn() }));
 
 import { markdownCodeLanguages, urlAt } from "./markdownExtras";
 

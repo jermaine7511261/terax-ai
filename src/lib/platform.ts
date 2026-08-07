@@ -1,8 +1,8 @@
-import { platform } from "@tauri-apps/plugin-os";
+import { getOsPlatform } from "@/platform";
 
 const PLATFORM = (() => {
   try {
-    return platform();
+    return getOsPlatform();
   } catch {
     return "";
   }

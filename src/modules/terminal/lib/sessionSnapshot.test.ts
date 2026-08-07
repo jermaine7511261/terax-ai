@@ -9,11 +9,11 @@ vi.mock("@/modules/ai/lib/native", () => ({
   },
 }));
 
-vi.mock("@tauri-apps/api/path", () => ({
+vi.mock("@/platform", () => ({
   homeDir: vi.fn().mockResolvedValue("C:\\Users\\test"),
 }));
 
-import { homeDir } from "@tauri-apps/api/path";
+import { homeDir } from "@/platform";
 import { native } from "@/modules/ai/lib/native";
 import {
   clearBusyMarker,

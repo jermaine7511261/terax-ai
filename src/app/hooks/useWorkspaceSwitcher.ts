@@ -5,8 +5,8 @@ import {
   useRef,
   useState,
 } from "react";
-import { open as openDialog } from "@tauri-apps/plugin-dialog";
-import { homeDir } from "@tauri-apps/api/path";
+import { openDialog } from "@/platform";
+import { homeDir } from "@/platform";
 import { native } from "@/modules/ai/lib/native";
 import {
   loadPreferences,

@@ -3,7 +3,7 @@ import "../styles/globals.css";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { USE_CUSTOM_WINDOW_CONTROLS } from "@/lib/platform";
 import { ThemeProvider } from "@/modules/theme";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { getCurrentWindow } from "@/platform";
 import ReactDOM from "react-dom/client";
 import { SettingsApp } from "./SettingsApp";
 

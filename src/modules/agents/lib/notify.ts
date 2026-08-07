@@ -1,8 +1,8 @@
 import {
-  isPermissionGranted,
-  requestPermission,
+  isNotificationGranted,
+  requestNotificationPermission,
   sendNotification,
-} from "@tauri-apps/plugin-notification";
+} from "@/platform";
 
 let granted = false;
 
@@ -10,8 +10,8 @@ async function ensurePermission(): Promise<boolean> {
   // Cache only the positive result: a transient denial (e.g. the OS prompt
   // dismissed while unfocused) must not disable notifications for the session.
   if (granted) return true;
-  let ok = await isPermissionGranted();
-  if (!ok) ok = (await requestPermission()) === "granted";
+  let ok = await isNotificationGranted();
+  if (!ok) ok = await requestNotificationPermission();
   granted = ok;
   return ok;
 }

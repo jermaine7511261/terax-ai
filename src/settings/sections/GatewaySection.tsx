@@ -1,5 +1,5 @@
 import { Channel } from "@/platform";
-import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { getCurrentWebviewWindow } from "@/platform";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useI18n, type TranslationKey } from "@/lib/i18n";

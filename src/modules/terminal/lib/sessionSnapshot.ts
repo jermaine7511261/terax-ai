@@ -8,7 +8,7 @@
 // All failures are silent: no snapshot support degrades to a plain new shell.
 
 import { native } from "@/modules/ai/lib/native";
-import { homeDir } from "@tauri-apps/api/path";
+import { homeDir } from "@/platform";
 
 let cachedHome: string | null = null;
 

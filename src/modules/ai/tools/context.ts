@@ -1,4 +1,4 @@
-import { homeDir } from "@tauri-apps/api/path";
+import { homeDir } from "@/platform";
 
 let cachedHome: string | null = null;
 void homeDir()

@@ -1,6 +1,4 @@
-import { getVersion } from "@tauri-apps/api/app";
-import { relaunch } from "@tauri-apps/plugin-process";
-import { check, type Update } from "@tauri-apps/plugin-updater";
+import { getAppVersion, relaunchApp, check, type Update } from "@/platform";
 import { useCallback, useEffect, useState } from "react";
 import { IS_LINUX } from "@/lib/platform";
 
@@ -50,7 +48,7 @@ function isNewer(remote: string, current: string): boolean {
 async function checkLinuxRelease(): Promise<ManualUpdateInfo | null> {
   if (!GITHUB_LATEST_RELEASE) return null;
   const [current, res] = await Promise.all([
-    getVersion(),
+    getAppVersion(),
     fetch(GITHUB_LATEST_RELEASE, {
       headers: { Accept: "application/vnd.github+json" },
     }),
@@ -142,7 +140,7 @@ export function useUpdater({ autoCheck = true }: HookOptions = {}) {
           setStatus({ kind: "ready" });
         }
       });
-      await relaunch();
+      await relaunchApp();
     } catch (err) {
       setStatus({ kind: "error", message: String(err) });
     }

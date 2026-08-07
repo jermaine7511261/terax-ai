@@ -1,8 +1,8 @@
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/lib/i18n";
 import { useUpdater } from "@/modules/updater";
-import { getName, getVersion } from "@tauri-apps/api/app";
-import { arch, platform } from "@tauri-apps/plugin-os";
+import { getAppName, getAppVersion } from "@/platform";
+import { getOsArch, getOsPlatform } from "@/platform";
 import { useEffect, useState } from "react";
 import { SectionHeader } from "../components/SectionHeader";
 
@@ -48,11 +48,11 @@ export function AboutSection() {
   };
 
   useEffect(() => {
-    void getVersion().then(setVersion);
-    void getName().then(setName);
+    void getAppVersion().then(setVersion);
+    void getAppName().then(setName);
     try {
-      const p = platform();
-      const a = arch();
+      const p = getOsPlatform();
+      const a = getOsArch();
       const platformLabel = PLATFORM_LABEL[p] ?? p;
       setBuild(`${platformLabel} · ${a}`);
     } catch {

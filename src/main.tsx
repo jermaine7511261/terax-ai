@@ -1,7 +1,7 @@
 import "./styles/globals.css";
 
 import { invoke } from "@/platform";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { getCurrentWindow } from "@/platform";
 import ReactDOM from "react-dom/client";
 import App from "./app/App";
 import { ErrorBoundary } from "./components/ErrorBoundary";

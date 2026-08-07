@@ -7,7 +7,7 @@ import {
   SquareIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { getCurrentWindow } from "@/platform";
 import { useEffect, useState } from "react";
 
 type Props = {

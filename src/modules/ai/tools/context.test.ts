@@ -4,7 +4,7 @@ import { resolvePath } from "./context";
 // The module resolves `cachedHome` from homeDir() at import time. Mock it to a
 // known value so `~` expansion branches are deterministic. The "home not
 // available" case is exercised in a separate test via vi.resetModules().
-vi.mock("@tauri-apps/api/path", () => ({
+vi.mock("@/platform", () => ({
   homeDir: () => Promise.resolve("/home/user"),
 }));
 
@@ -47,7 +47,7 @@ describe("resolvePath", () => {
 
     it("throws when the home directory is not available yet", async () => {
       vi.resetModules();
-      vi.doMock("@tauri-apps/api/path", () => ({
+      vi.doMock("@/platform", () => ({
         homeDir: () => Promise.reject(new Error("no home")),
       }));
       const mod = await import("./context");

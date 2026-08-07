@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { listen } from "@/platform";
 import {
-  isPermissionGranted,
-  requestPermission,
+  isNotificationGranted,
+  requestNotificationPermission,
   sendNotification,
-} from "@tauri-apps/plugin-notification";
+} from "@/platform";
 import { firePendingReviewForSession } from "@/modules/agents/lib/review";
 import { usePreferencesStore } from "@/modules/settings/preferences";
 import { onKeysChanged } from "@/modules/settings/store";
@@ -127,9 +127,9 @@ export function useAiBootstrap(): {
         }
       } else {
         void (async () => {
-          let granted = await isPermissionGranted();
+          let granted = await isNotificationGranted();
           if (!granted) {
-            granted = (await requestPermission()) === "granted";
+            granted = await requestNotificationPermission();
           }
           if (granted) {
             sendNotification({

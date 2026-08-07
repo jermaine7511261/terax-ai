@@ -1,5 +1,5 @@
 import { invoke } from "@/platform";
-import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { getCurrentWebview } from "@/platform";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { currentWorkspaceEnv } from "@/modules/workspace";

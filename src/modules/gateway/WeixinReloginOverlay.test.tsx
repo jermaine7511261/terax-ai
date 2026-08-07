@@ -14,9 +14,13 @@ const { listenMock, invokeMock } = vi.hoisted(() => ({
   invokeMock: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock("@tauri-apps/api/webviewWindow", () => ({
-  getCurrentWebviewWindow: () => ({ listen: listenMock }),
-}));
+vi.mock("@/platform", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/platform")>();
+  return {
+    ...actual,
+    getCurrentWebviewWindow: () => ({ listen: listenMock }),
+  };
+});
 
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: (...args: unknown[]) => invokeMock(...args),

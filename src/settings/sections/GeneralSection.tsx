@@ -40,7 +40,7 @@ import {
   TERMINAL_SCROLLBACK_PRESETS,
 } from "@/modules/settings/store";
 import { useTheme } from "@/modules/theme";
-import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { openDialog } from "@/platform";
 import {
   ComputerIcon,
   Moon02Icon,
@@ -48,7 +48,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { invoke } from "@/platform";
-import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
+import { autostartDisable, autostartEnable, autostartIsEnabled } from "@/platform";
 import { useEffect, useState } from "react";
 import { SectionHeader } from "../components/SectionHeader";
 import { SettingRow } from "../components/SettingRow";
@@ -100,7 +100,7 @@ export function GeneralSection() {
 
   useEffect(() => {
     let alive = true;
-    void isEnabled()
+    void autostartIsEnabled()
       .then((on) => {
         if (!alive) return;
         if (on !== usePreferencesStore.getState().autostart) {
@@ -124,8 +124,8 @@ export function GeneralSection() {
 
   const onToggleAutostart = async (next: boolean) => {
     try {
-      if (next) await enable();
-      else await disable();
+      if (next) await autostartEnable();
+      else await autostartDisable();
       await setAutostart(next);
     } catch (e) {
       console.error("autostart toggle failed", e);

@@ -28,7 +28,7 @@ vi.mock("../store/planStore", () => ({
 
 // `./context` resolves `homeDir()` at import time; give it a known value so the
 // `~` expansion path in resolvePath is deterministic.
-vi.mock("@tauri-apps/api/path", () => ({
+vi.mock("@/platform", () => ({
   homeDir: () => Promise.resolve("/home/user"),
 }));
 

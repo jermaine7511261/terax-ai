@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 import { useI18n } from "@/lib/i18n";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { openUrl } from "@/platform";
 import { useState } from "react";
 import { useUpdater } from "./useUpdater";
 

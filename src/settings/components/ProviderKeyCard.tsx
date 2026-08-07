@@ -16,7 +16,7 @@ import {
   ViewOffSlashIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { openUrl } from "@/platform";
 import { useEffect, useState } from "react";
 import { ProviderIcon } from "./ProviderIcon";
 

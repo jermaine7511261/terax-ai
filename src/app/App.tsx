@@ -121,7 +121,7 @@ import { WeixinReloginOverlay } from "@/modules/gateway/WeixinReloginOverlay";
 import { useWorkspaceEnvStore, type WorkspaceEnv } from "@/modules/workspace";
 import { convertFileSrc, invoke } from "@/platform";
 import { listen } from "@/platform";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { getCurrentWindow } from "@/platform";
 import type { SearchAddon } from "@xterm/addon-search";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CloseDialogs } from "./components/CloseDialogs";

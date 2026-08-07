@@ -1,5 +1,5 @@
 import { invoke } from "@/platform";
-import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { getCurrentWebviewWindow } from "@/platform";
 import { currentWorkspaceEnv } from "@/modules/workspace";
 
 const FS_CHANGED_EVENT = "fs:changed";
