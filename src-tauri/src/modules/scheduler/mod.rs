@@ -75,32 +75,60 @@ impl SchedulerState {
     /// window; updates `last_fired_at` and persists.
     pub fn tick(&self) -> Vec<FiredTask> {
         let now: DateTime<Local> = Local::now();
+        // Snapshot the enabled tasks under a read lock, then compute the
+        // expensive `next_trigger` scan OUTSIDE any lock. An unsatisfiable cron
+        // expression scans up to a 5-year horizon minute-by-minute (~2.6M
+        // iterations); doing that while holding the write lock would block
+        // scheduler_upsert/list/delete/toggle for the duration. This keeps the
+        // write lock held only briefly, to apply last_fired_at updates.
+        let snapshot: Vec<(String, String, String, String, String, i64)> = {
+            let tasks = self.tasks.read().unwrap_or_else(|e| e.into_inner());
+            tasks
+                .iter()
+                .filter(|t| t.enabled)
+                .map(|t| {
+                    (
+                        t.id.clone(),
+                        t.name.clone(),
+                        t.prompt.clone(),
+                        t.target.clone(),
+                        t.cron.clone(),
+                        t.last_fired_at.unwrap_or(0),
+                    )
+                })
+                .collect()
+        };
+
         let mut fired = Vec::new();
-        {
-            let mut tasks = self.tasks.write().unwrap_or_else(|e| e.into_inner());
-            for task in tasks.iter_mut() {
-                if !task.enabled {
-                    continue;
-                }
-                let Ok(cron) = parse_cron(&task.cron) else {
-                    continue;
-                };
-                let Some(next) = next_trigger(&cron, now) else {
-                    continue;
-                };
-                let delta = (next - now).num_seconds();
-                if (0..=TICK_WINDOW_SECS).contains(&delta) {
-                    task.last_fired_at = Some(now.timestamp());
-                    fired.push(FiredTask {
-                        id: task.id.clone(),
-                        name: task.name.clone(),
-                        prompt: task.prompt.clone(),
-                        target: task.target.clone(),
-                    });
-                }
+        let mut to_update: Vec<String> = Vec::new();
+        for (id, name, prompt, target, cron_str, _last) in snapshot {
+            let Ok(cron) = parse_cron(&cron_str) else {
+                continue;
+            };
+            let Some(next) = next_trigger(&cron, now) else {
+                continue;
+            };
+            let delta = (next - now).num_seconds();
+            if (0..=TICK_WINDOW_SECS).contains(&delta) {
+                fired.push(FiredTask {
+                    id: id.clone(),
+                    name,
+                    prompt,
+                    target,
+                });
+                to_update.push(id);
             }
         }
-        if !fired.is_empty() {
+
+        if !to_update.is_empty() {
+            {
+                let mut tasks = self.tasks.write().unwrap_or_else(|e| e.into_inner());
+                for task in tasks.iter_mut() {
+                    if to_update.contains(&task.id) {
+                        task.last_fired_at = Some(now.timestamp());
+                    }
+                }
+            }
             self.save();
         }
         fired
