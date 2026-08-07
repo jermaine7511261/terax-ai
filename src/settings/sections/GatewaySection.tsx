@@ -1,4 +1,3 @@
-import { invoke } from "@tauri-apps/api/core";
 import { Channel } from "@tauri-apps/api/core";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { Button } from "@/components/ui/button";
@@ -16,15 +15,12 @@ import {
   gatewaySend,
   gatewaySessions,
   gatewayWeixinPersist,
+  gatewayWeixinQrLogin,
   type PlatformStatus,
+  type QrFrame,
   type SessionInfo,
 } from "@/modules/gateway/api";
 import { type JSX, useCallback, useEffect, useState } from "react";
-
-type QrFrame =
-  | { kind: "qr"; svg_data_url: string }
-  | { kind: "status"; status: string }
-  | { kind: "confirmed"; account_id: string; token: string; base_url: string };
 
 type QrFlow = {
   running: boolean;
@@ -232,7 +228,7 @@ export function GatewaySection(): JSX.Element {
       }
     };
     try {
-      await invoke("gateway_weixin_qr_login", { onFrame: ch });
+      await gatewayWeixinQrLogin(ch);
       refresh();
     } catch (e) {
       setQrFlow((s) => ({ ...s, running: false, error: String(e) }));

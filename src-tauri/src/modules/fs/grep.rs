@@ -8,6 +8,7 @@ use grep_searcher::sinks::UTF8;
 use grep_searcher::{BinaryDetection, SearcherBuilder};
 use ignore::{WalkBuilder, WalkState};
 use serde::Serialize;
+use tauri::Manager;
 
 use super::to_canon;
 use crate::modules::workspace::{resolve_path, WorkspaceEnv};
@@ -171,7 +172,7 @@ fn search_tree(
 
 #[tauri::command]
 #[allow(clippy::too_many_arguments)]
-pub fn fs_grep(
+pub async fn fs_grep(
     pattern: String,
     root: String,
     glob: Option<Vec<String>>,
@@ -179,9 +180,23 @@ pub fn fs_grep(
     max_results: Option<usize>,
     workspace: Option<WorkspaceEnv>,
     source: Option<String>,
-    registry: tauri::State<'_, crate::modules::workspace::WorkspaceRegistry>,
+    app: tauri::AppHandle,
 ) -> Result<GrepResponse, String> {
-    fs_grep_impl(pattern, root, glob, case_insensitive, max_results, workspace, source, Some(&registry))
+    tauri::async_runtime::spawn_blocking(move || {
+        let registry = app.state::<crate::modules::workspace::WorkspaceRegistry>();
+        fs_grep_impl(
+            pattern,
+            root,
+            glob,
+            case_insensitive,
+            max_results,
+            workspace,
+            source,
+            Some(&registry),
+        )
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// Pure core of `fs_grep`, testable without a Tauri app context (registry is
@@ -237,43 +252,48 @@ pub fn fs_grep_impl(
 /// Interactive content search for the command palette. Treats the query as a
 /// literal (smart-case), and self-cancels when a newer query arrives.
 #[tauri::command]
-pub fn fs_grep_interactive(
-    state: tauri::State<'_, ContentSearchState>,
+pub async fn fs_grep_interactive(
+    app: tauri::AppHandle,
     pattern: String,
     root: String,
     max_results: Option<usize>,
     workspace: Option<WorkspaceEnv>,
 ) -> Result<GrepResponse, String> {
-    if pattern.trim().is_empty() {
-        return Err("empty pattern".into());
-    }
-    let my_gen = state.generation.fetch_add(1, Ordering::SeqCst) + 1;
+    tauri::async_runtime::spawn_blocking(move || {
+        if pattern.trim().is_empty() {
+            return Err("empty pattern".into());
+        }
+        let state = app.state::<ContentSearchState>();
+        let my_gen = state.generation.fetch_add(1, Ordering::SeqCst) + 1;
 
-    let workspace = WorkspaceEnv::from_option(workspace);
-    let root_path = resolve_path(&root, &workspace);
-    if !root_path.is_dir() {
-        return Err(format!("not a directory: {root}"));
-    }
-    let cap = max_results
-        .unwrap_or(DEFAULT_MAX_RESULTS)
-        .clamp(1, HARD_MAX_RESULTS);
+        let workspace = WorkspaceEnv::from_option(workspace);
+        let root_path = resolve_path(&root, &workspace);
+        if !root_path.is_dir() {
+            return Err(format!("not a directory: {root}"));
+        }
+        let cap = max_results
+            .unwrap_or(DEFAULT_MAX_RESULTS)
+            .clamp(1, HARD_MAX_RESULTS);
 
-    let matcher = RegexMatcherBuilder::new()
-        .case_smart(true)
-        .line_terminator(Some(b'\n'))
-        .build(&escape_literal(&pattern))
-        .map_err(|e| format!("bad pattern: {e}"))?;
+        let matcher = RegexMatcherBuilder::new()
+            .case_smart(true)
+            .line_terminator(Some(b'\n'))
+            .build(&escape_literal(&pattern))
+            .map_err(|e| format!("bad pattern: {e}"))?;
 
-    let cancel = || state.generation.load(Ordering::SeqCst) != my_gen;
-    Ok(search_tree(
-        &root_path,
-        &root,
-        &workspace,
-        &matcher,
-        &None,
-        cap,
-        &cancel,
-    ))
+        let cancel = || state.generation.load(Ordering::SeqCst) != my_gen;
+        Ok(search_tree(
+            &root_path,
+            &root,
+            &workspace,
+            &matcher,
+            &None,
+            cap,
+            &cancel,
+        ))
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[derive(Serialize)]
@@ -289,15 +309,20 @@ pub struct GlobResponse {
 }
 
 #[tauri::command]
-pub fn fs_glob(
+pub async fn fs_glob(
     pattern: String,
     root: String,
     max_results: Option<usize>,
     workspace: Option<WorkspaceEnv>,
     source: Option<String>,
-    registry: tauri::State<'_, crate::modules::workspace::WorkspaceRegistry>,
+    app: tauri::AppHandle,
 ) -> Result<GlobResponse, String> {
-    fs_glob_impl(pattern, root, max_results, workspace, source, Some(&registry))
+    tauri::async_runtime::spawn_blocking(move || {
+        let registry = app.state::<crate::modules::workspace::WorkspaceRegistry>();
+        fs_glob_impl(pattern, root, max_results, workspace, source, Some(&registry))
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// Pure core of `fs_glob`, testable without a Tauri app context.
