@@ -57,6 +57,7 @@ import {
 import { usePlanStore } from "../store/planStore";
 import { AiChatView } from "./AiChat";
 import { PlanDiffReview } from "./PlanDiffReview";
+import { ActivityStrip } from "./ActivityStrip";
 import { TodoStrip } from "./TodoStrip";
 
 const SUGGESTIONS = [
@@ -243,6 +244,7 @@ function Body({
       />
 
       <PlanModeStrip />
+      <ActivityStrip />
 
       <div className="flex min-h-0 flex-1 flex-col">
         {showHistory ? (

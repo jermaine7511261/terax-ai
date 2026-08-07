@@ -4,6 +4,7 @@ import { usePreferencesStore } from "@/modules/settings/preferences";
 import { runSubagent } from "../agents/runSubagent";
 import { SUBAGENTS, type SubagentType } from "../agents/registry";
 import { useChatStore } from "../store/chatStore";
+import { newActivityId, useAgentActivityStore } from "../store/agentActivityStore";
 import type { ToolContext } from "./context";
 
 const TYPE_KEYS = Object.keys(SUBAGENTS) as [SubagentType, ...SubagentType[]];
@@ -44,6 +45,12 @@ Read-only types (explore / code-review / security / general) auto-execute. Writa
         const { apiKeys, selectedModelId, customEndpointKeys, patchAgentMeta } =
           useChatStore.getState();
         const customEndpoints = usePreferencesStore.getState().customEndpoints;
+        const actId = newActivityId();
+        const store = useAgentActivityStore.getState();
+        store.start({
+          id: actId, kind: "subagent", type, prompt,
+          status: "running", step: null, startedAt: Date.now(),
+        });
         try {
           const r = await runSubagent({
             type,
@@ -53,8 +60,12 @@ Read-only types (explore / code-review / security / general) auto-execute. Writa
             customEndpoints,
             customEndpointKeys,
             toolContext: ctx,
-            onStep: (label) => patchAgentMeta({ step: label }),
+            onStep: (label) => {
+              patchAgentMeta({ step: label });
+              store.updateStep(actId, label);
+            },
           });
+          store.finish(actId, r.summary, r.stepCount);
           return {
             type,
             description,
@@ -63,6 +74,7 @@ Read-only types (explore / code-review / security / general) auto-execute. Writa
             durationMs: r.durationMs,
           };
         } catch (e) {
+          store.fail(actId, String(e));
           return { error: String(e), type };
         }
       },
