@@ -52,6 +52,7 @@ import {
   useChatStore,
   useSelectionAskAi,
 } from "@/modules/ai";
+
 import { AiComposerProvider } from "@/modules/ai/lib/composer";
 import { native } from "@/modules/ai/lib/native";
 import { CommandPalette, createCommandItems } from "@/modules/command-palette";
@@ -73,7 +74,7 @@ import { setLspNavigator } from "@/modules/lsp";
 import type { PreviewPaneHandle } from "@/modules/preview";
 import { openSettingsWindow } from "@/modules/settings/openSettingsWindow";
 import { usePreferencesStore } from "@/modules/settings/preferences";
-import { setHasOnboarded } from "@/modules/settings/store";
+
 import {
   type ShortcutHandlers,
   type ShortcutId,
@@ -140,6 +141,8 @@ import {
   setupGatewayResponseListener,
 } from "@/modules/gateway/bridge";
 import { useAppCloseGuard } from "./hooks/useAppCloseGuard";
+import { useOnboarding } from "./hooks/useOnboarding";
+import { useRestoreSelectedModel } from "./hooks/useRestoreSelectedModel";
 import { useTabCloseGuards } from "./hooks/useTabCloseGuards";
 import { useWorkspaceSwitcher } from "./hooks/useWorkspaceSwitcher";
 
@@ -342,20 +345,9 @@ export default function App() {
 
   const [newEditorOpen, setNewEditorOpen] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
-  const [onboardingOpen, setOnboardingOpen] = useState(false);
-  const prefsHydrated = usePreferencesStore((s) => s.hydrated);
-  const hasOnboarded = usePreferencesStore((s) => s.hasOnboarded);
-  // Show the first-run welcome once prefs are hydrated and the user hasn't
-  // dismissed it before. Persist via setHasOnboarded so it never reappears.
-  useEffect(() => {
-    if (!prefsHydrated || hasOnboarded) return;
-    const t = setTimeout(() => setOnboardingOpen(true), 400);
-    return () => clearTimeout(t);
-  }, [prefsHydrated, hasOnboarded]);
-  const completeOnboarding = useCallback(() => {
-    setOnboardingOpen(false);
-    void setHasOnboarded();
-  }, []);
+  const { open: onboardingOpen, complete: completeOnboarding, setOpen: setOnboardingOpen } =
+    useOnboarding();
+  useRestoreSelectedModel();
   const [paletteInitialMode, setPaletteInitialMode] = useState<
     "commands" | "content"
   >("commands");

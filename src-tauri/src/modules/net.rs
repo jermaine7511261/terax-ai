@@ -319,6 +319,40 @@ fn header_map_to_strings(headers: &HeaderMap) -> HashMap<String, String> {
 
 const MAX_RESPONSE_BYTES: usize = 64 * 1024 * 1024;
 
+/// Global budget for in-flight response bodies across concurrent
+/// `ai_http_request` calls. Each request reserves its worst-case quota
+/// (MAX_RESPONSE_BYTES) up front; when the budget is exhausted, new requests
+/// are refused instead of stacking 64 MiB buffers until OOM.
+const MAX_INFLIGHT_RESPONSE_BYTES: usize = 256 * 1024 * 1024;
+static INFLIGHT_RESPONSE_BYTES: std::sync::atomic::AtomicUsize =
+    std::sync::atomic::AtomicUsize::new(0);
+
+/// RAII reservation of the per-request response quota. Created before the
+/// body is read and released on drop, so every exit path (success, error,
+/// timeout) frees the reservation.
+struct ResponseQuotaGuard;
+
+impl ResponseQuotaGuard {
+    fn acquire() -> Result<Self, String> {
+        use std::sync::atomic::Ordering;
+        let prev =
+            INFLIGHT_RESPONSE_BYTES.fetch_add(MAX_RESPONSE_BYTES, Ordering::Relaxed);
+        if prev + MAX_RESPONSE_BYTES > MAX_INFLIGHT_RESPONSE_BYTES {
+            INFLIGHT_RESPONSE_BYTES.fetch_sub(MAX_RESPONSE_BYTES, Ordering::Relaxed);
+            return Err(format!(
+                "too many concurrent large responses in flight ({prev} bytes reserved)"
+            ));
+        }
+        Ok(Self)
+    }
+}
+
+impl Drop for ResponseQuotaGuard {
+    fn drop(&mut self) {
+        INFLIGHT_RESPONSE_BYTES.fetch_sub(MAX_RESPONSE_BYTES, std::sync::atomic::Ordering::Relaxed);
+    }
+}
+
 /// Read the response body, enforcing a hard size cap so a misbehaving
 /// provider cannot exhaust memory (ai_http_request feeds the AI layer).
 async fn read_body_limited(resp: reqwest::Response) -> Result<Vec<u8>, String> {
@@ -363,6 +397,8 @@ pub async fn ai_http_request(
     let client = build_safe_client(allow_private, &[(host, safe_ips)])?;
 
     let req = build_request(&client, &method, parsed, headers, body)?;
+    // Reserve in-flight quota before the request; released on drop.
+    let _quota = ResponseQuotaGuard::acquire()?;
     let resp = tokio::time::timeout(
         std::time::Duration::from_secs(60),
         req.send(),
@@ -647,5 +683,24 @@ mod tests {
                 "expected {hop} to be rejected"
             );
         }
+    }
+
+    #[test]
+    fn response_quota_rejects_when_exhausted_and_releases_on_drop() {
+        use std::sync::atomic::Ordering;
+        // Budget allows 4 concurrent reservations; the 5th must be refused.
+        INFLIGHT_RESPONSE_BYTES.store(0, Ordering::SeqCst);
+        let g1 = ResponseQuotaGuard::acquire().unwrap();
+        let _g2 = ResponseQuotaGuard::acquire().unwrap();
+        let _g3 = ResponseQuotaGuard::acquire().unwrap();
+        let _g4 = ResponseQuotaGuard::acquire().unwrap();
+        assert!(ResponseQuotaGuard::acquire().is_err());
+
+        // Dropping one reservation frees a slot for a new request.
+        drop(g1);
+        let _g5 = ResponseQuotaGuard::acquire().unwrap();
+
+        // Restore for other tests.
+        INFLIGHT_RESPONSE_BYTES.store(0, Ordering::SeqCst);
     }
 }

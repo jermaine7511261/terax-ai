@@ -57,6 +57,35 @@ if (blockStart < 0) {
   if (missing.length) {
     fail(`YAMET.md 未覆盖以下已注册命令: ${missing.join(", ")}`);
   }
+
+  // 4. Frontend invoke() command names must be registered in generate_handler!.
+  //    Signature-level contract: a renamed Rust command or a typo'd invoke()
+  //    string on the frontend fails here instead of silently 404-ing at runtime.
+  const walkTs = (dir, out = []) => {
+    for (const ent of readdirSync(dir, { withFileTypes: true })) {
+      const p = join(dir, ent.name);
+      if (ent.isDirectory()) walkTs(p, out);
+      else if (ent.name.endsWith(".ts") || ent.name.endsWith(".tsx")) out.push(p);
+    }
+    return out;
+  };
+  const invokeRe =
+    /\binvoke(?:<[^>]+>)?\(\s*["'`]([a-z_][a-z0-9_]*)(?:\.[a-z_][a-z0-9_]*)?["'`]/g;
+  const used = new Set();
+  for (const f of walkTs(join(root, "src"))) {
+    const lines = readFileSync(f, "utf8").split(/\r?\n/);
+    for (const line of lines) {
+      const t = line.trim();
+      // Skip comment lines — doc examples like `invoke("fs_watch")` are not
+      // real call sites.
+      if (t.startsWith("//") || t.startsWith("*") || t.startsWith("/*")) continue;
+      for (const m of t.matchAll(invokeRe)) used.add(m[1]);
+    }
+  }
+  const unknownInvokes = [...used].filter((cmd) => !unique.includes(cmd)).sort();
+  if (unknownInvokes.length) {
+    fail(`前端 invoke() 调用了未注册的命令: ${unknownInvokes.join(", ")}`);
+  }
 }
 
 // ---- 2. src/modules/* directories in YAMET.md ----

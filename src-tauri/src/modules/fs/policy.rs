@@ -137,12 +137,17 @@ fn is_under_protected(cmp: &str, dir: &str) -> bool {
 
 /// Test a basename against the secret patterns.
 fn secret_basename_match(base: &str) -> bool {
+    // Compile the static pattern list once; the AI read/write path calls this
+    // on every guarded path, so per-call `Regex::new` would be pure waste.
+    static PATTERNS: std::sync::OnceLock<Vec<regex::Regex>> = std::sync::OnceLock::new();
+    let patterns = PATTERNS.get_or_init(|| {
+        SECRET_BASENAME_PATTERNS
+            .iter()
+            .map(|re| regex::Regex::new(re).expect("static secret basename pattern"))
+            .collect()
+    });
     let lowered = base.to_lowercase();
-    SECRET_BASENAME_PATTERNS.iter().any(|re| {
-        regex::Regex::new(re)
-            .map(|r| r.is_match(&lowered))
-            .unwrap_or(false)
-    })
+    patterns.iter().any(|r| r.is_match(&lowered))
 }
 
 fn basename(p: &str) -> &str {

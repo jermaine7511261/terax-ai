@@ -6,12 +6,17 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 // the module graph loads under plain node and so approval/agent logic can be
 // asserted against controlled fakes.
 
-const { setProjectAutoApprove, setRecentModelIds, setFavoriteModelIds } =
-  vi.hoisted(() => ({
-    setProjectAutoApprove: vi.fn(async () => {}),
-    setRecentModelIds: vi.fn(async () => {}),
-    setFavoriteModelIds: vi.fn(async () => {}),
-  }));
+const {
+  setProjectAutoApprove,
+  setRecentModelIds,
+  setFavoriteModelIds,
+  setSelectedModelId,
+} = vi.hoisted(() => ({
+  setProjectAutoApprove: vi.fn(async () => {}),
+  setRecentModelIds: vi.fn(async () => {}),
+  setFavoriteModelIds: vi.fn(async () => {}),
+  setSelectedModelId: vi.fn(async () => {}),
+}));
 
 const { invoke } = vi.hoisted(() => ({
   invoke: vi.fn(async () => null),
@@ -42,6 +47,7 @@ vi.mock("@/modules/settings/store", () => ({
   setProjectAutoApprove,
   setRecentModelIds,
   setFavoriteModelIds,
+  setSelectedModelId,
 }));
 
 vi.mock("@/modules/settings/preferences", () => ({ usePreferencesStore }));

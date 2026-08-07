@@ -26,7 +26,6 @@ import {
 import {
   type CustomEndpoint,
   compatModelIdForEndpoint,
-  DEFAULT_MODEL_ID,
   getAutocompleteEligibleModels,
   getCompatModelInfo,
   getModel,
@@ -89,6 +88,13 @@ import { openUrl } from "@/platform";
 import { useEffect, useMemo, useState } from "react";
 import { ProviderIcon } from "../components/ProviderIcon";
 import { ProviderKeyCard } from "../components/ProviderKeyCard";
+import {
+  createEndpointDraft,
+  isProviderConfigured,
+  nextModelIdAfterEndpointRemoval,
+  patchEndpoint,
+  splitProviders,
+} from "./modelsLib";
 import { SectionHeader } from "../components/SectionHeader";
 
 type KeysMap = Record<ProviderId, string | null>;
@@ -188,13 +194,7 @@ export function ModelsSection() {
     // an empty draft. The render closure can be stale if the store hydrates
     // after mount; getState() is always current.
     const current = usePreferencesStore.getState().customEndpoints;
-    const ep: CustomEndpoint = {
-      id: crypto.randomUUID().slice(0, 8),
-      name: "",
-      baseURL: "",
-      modelId: "",
-      contextLimit: 128_000,
-    };
+    const ep = createEndpointDraft();
     await setCustomEndpoints([...current, ep]);
   };
 
@@ -202,9 +202,7 @@ export function ModelsSection() {
     id: string,
     patch: Partial<CustomEndpoint>,
   ) => {
-    await setCustomEndpoints(
-      customEndpoints.map((e) => (e.id === id ? { ...e, ...patch } : e)),
-    );
+    await setCustomEndpoints(patchEndpoint(customEndpoints, id, patch));
   };
 
   const removeCustomEndpoint = async (id: string) => {
@@ -233,13 +231,12 @@ export function ModelsSection() {
     // endpoint when one remains, else the default model.
     const remaining = customEndpoints.filter((e) => e.id !== id);
     const { selectedModelId, setSelectedModelId } = useChatStore.getState();
-    if (selectedModelId === deadModelId) {
-      setSelectedModelId(
-        remaining[0]
-          ? compatModelIdForEndpoint(remaining[0].id)
-          : DEFAULT_MODEL_ID,
-      );
-    }
+    const next = nextModelIdAfterEndpointRemoval(
+      selectedModelId,
+      deadModelId,
+      remaining,
+    );
+    if (next !== selectedModelId) setSelectedModelId(next);
 
     await setCustomEndpoints(remaining);
   };
@@ -275,15 +272,18 @@ export function ModelsSection() {
     }
   };
 
-  const isConfigured = (id: ProviderId): boolean => {
-    if (id === "openrouter") return !!keys?.[id] && !!openrouterModelId.trim();
-    if (!isLocalProvider(id)) return !!keys?.[id];
-    const cfg = localConfig(id);
-    if (!cfg) return false;
-    if (id === "openai-compatible")
-      return !!cfg.baseURL.trim() && !!cfg.modelId.trim();
-    return !!cfg.modelId.trim();
-  };
+  const isConfigured = (id: ProviderId): boolean =>
+    isProviderConfigured(
+      id,
+      {
+        keys,
+        openrouterModelId,
+        compatBaseURL,
+        localModelId:
+          id === "openai-compatible" ? compatModelId : llamaCppModelId,
+      },
+      isLocalProvider,
+    );
 
   if (!keys) {
     return (
@@ -296,14 +296,8 @@ export function ModelsSection() {
   const configuredIds = new Set(
     PROVIDERS.filter((p) => isConfigured(p.id)).map((p) => p.id),
   );
-  const visibleIds = new Set<ProviderId>(configuredIds);
-  for (const id of adding) visibleIds.add(id);
-  const visibleProviders = PROVIDERS.filter(
-    (p) => p.id !== "openai-compatible" && visibleIds.has(p.id),
-  );
-  const addableProviders = PROVIDERS.filter(
-    (p) => p.id !== "openai-compatible" && !visibleIds.has(p.id),
-  );
+  const { visible: visibleProviders, addable: addableProviders } =
+    splitProviders(PROVIDERS, configuredIds, adding);
 
   const removeProvider = (id: ProviderId) => {
     if (id === "openrouter") {

@@ -122,6 +122,15 @@ fn run_blocking(
         "no stderr pipe".to_string()
     })?;
 
+    // Windows: assign the child to a kill-on-close Job right after spawn and
+    // hold the handle until the child is reaped. Grandchildren the shell
+    // spawns during the wait window (e.g. `pnpm dev`'s children) are inside
+    // the job from the start, so a timeout can terminate the WHOLE tree with
+    // TerminateJobObject instead of leaving orphans. Creating the job only in
+    // the timeout branch would miss everything spawned before that moment.
+    #[cfg(windows)]
+    let job = crate::modules::proc::job::ProcessJob::create_for(child.id());
+
     let stdout_handle = thread::spawn(move || drain(&mut stdout_pipe));
     let stderr_handle = thread::spawn(move || drain(&mut stderr_pipe));
 
@@ -142,18 +151,14 @@ fn run_blocking(
             }
             #[cfg(windows)]
             {
-                // Assign the child to a kill-on-close Job and hold the handle so
-                // TerminateJobObject kills the WHOLE process tree (grandchildren
-                // spawned by the shell), not just the direct process. Keeping the
-                // handle alive here is essential — the previous code created the
-                // job with `let _`, dropping it immediately and defeating the
-                // orphan guard.
-                let job = crate::modules::proc::job::ProcessJob::create_for(child.id());
-                if let Ok(job) = job {
+                // The job was created at spawn time and held; terminate it to
+                // take down the whole tree. If job creation failed (e.g. the
+                // child was already inside a non-nestable job), fall back to
+                // killing just the direct process.
+                if let Ok(job) = &job {
                     let _ = job.terminate();
-                } else {
-                    let _ = child.kill();
                 }
+                let _ = child.kill();
             }
             let _ = child.kill();
             let _ = child.wait();

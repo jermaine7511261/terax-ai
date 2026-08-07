@@ -43,7 +43,6 @@ import {
   native,
 } from "@/modules/ai/lib/native";
 import { useI18n } from "@/lib/i18n";
-import type { Interpolations, TranslationKey } from "@/lib/i18n";
 import {
   copyToClipboard,
   revealInFinder,
@@ -86,6 +85,12 @@ import {
 import type { SourceControlSummary } from "./useSourceControl";
 import { CleanTreeHint, DivergedBanner, PanelCenter } from "./SourceControlBits";
 import {
+  checkboxValue,
+  entryPathLabel,
+  statusAccent,
+  upstreamBadgeLabel,
+} from "./lib/format";
+import {
   useSourceControlPanel,
   type CheckState,
   type SourceControlFileEntry,
@@ -120,49 +125,6 @@ type RowDescriptor =
   | { kind: "list-header"; key: string; count: number }
   | { kind: "entry"; key: string; entry: SourceControlFileEntry };
 
-
-function dirname(path: string): string {
-  const normalized = path.replace(/\\/g, "/");
-  const index = normalized.lastIndexOf("/");
-  if (index <= 0) return "";
-  return normalized.slice(0, index);
-}
-
-function entryPathLabel(entry: SourceControlFileEntry): string {
-  if (entry.originalPath) return `${entry.originalPath} → ${entry.path}`;
-  return dirname(entry.path);
-}
-
-function upstreamBadgeLabel(
-  upstream: string | null | undefined,
-  t: (key: TranslationKey, params?: Interpolations) => string,
-): string {
-  if (!upstream) return t("git.noUpstream");
-  return upstream;
-}
-
-function statusAccent(code: string): string {
-  switch (code) {
-    case "A":
-      return "bg-emerald-500/85";
-    case "U":
-      return "bg-teal-500/85";
-    case "M":
-      return "bg-amber-500/85";
-    case "D":
-      return "bg-rose-500/85";
-    case "R":
-      return "bg-sky-500/85";
-    default:
-      return "bg-muted-foreground/40";
-  }
-}
-
-function checkboxValue(state: CheckState): boolean | "indeterminate" {
-  if (state === "checked") return true;
-  if (state === "indeterminate") return "indeterminate";
-  return false;
-}
 
 function BranchDropdown({
   repoRoot,

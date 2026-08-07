@@ -253,7 +253,7 @@ export interface IClipboardAdapter {
 
 /**
  * File system watcher.
- * Tauri: invoke("fs_watch") / invoke("fs_unwatch").
+ * Tauri: invoke("fs_watch_add") / invoke("fs_watch_remove"), events "fs:changed".
  * Web:   WebSocket-based or polling.
  */
 export interface IWatchAdapter {

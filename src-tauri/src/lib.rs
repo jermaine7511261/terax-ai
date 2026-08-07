@@ -364,6 +364,7 @@ pub fn run() {
         .manage(LaunchDir(Mutex::new(cli_dir)))
         .manage(LaunchFiles(Mutex::new(launch.files)))
         .invoke_handler(tauri::generate_handler![
+            // --- PTY / SSH ---
             pty_helper::client::pty_helper_open,
             pty_helper::client::pty_helper_attach,
             pty_helper::client::pty_helper_write,
@@ -388,6 +389,7 @@ pub fn run() {
             ssh::tunnels::ssh_tunnel_start,
             ssh::tunnels::ssh_tunnel_list,
             ssh::tunnels::ssh_tunnel_kill,
+            // --- 文件系统 fs ---
             fs::tree::list_subdirs,
             fs::tree::fs_read_dir,
             fs::file::fs_read_file,
@@ -401,6 +403,7 @@ pub fn run() {
             fs::mutate::fs_copy,
             fs::watch::fs_watch_add,
             fs::watch::fs_watch_remove,
+            // --- LSP / DAP ---
             lsp::lsp_detect,
             lsp::lsp_host_pid,
             lsp::lsp_resolve_root,
@@ -414,11 +417,13 @@ pub fn run() {
             dap::session::dap_session_list,
             dap::session::dap_session_get,
             dap::session::dap_request_send,
+            // --- 搜索 ---
             fs::search::fs_search,
             fs::search::fs_list_files,
             fs::grep::fs_grep,
             fs::grep::fs_grep_interactive,
             fs::grep::fs_glob,
+            // --- git ---
             git::commands::git_resolve_repo,
             git::commands::git_panel_snapshot,
             git::commands::git_status,
@@ -470,12 +475,14 @@ pub fn run() {
             get_launch_dir,
             get_launch_files,
             open_settings_window,
+            // --- agent / secrets ---
             agent::agent_enable_hooks,
             agent::agent_hooks_status,
             secrets::secrets_get,
             secrets::secrets_set,
             secrets::secrets_delete,
             secrets::secrets_get_all,
+            // --- IM gateway ---
             gateway::commands::gateway_platforms,
             gateway::commands::gateway_configure,
             gateway::commands::gateway_connect,
@@ -488,6 +495,7 @@ pub fn run() {
             gateway::commands::gateway_auto_approve,
             gateway::commands::gateway_callback_urls,
             gateway::commands::gateway_weixin_persist,
+            // --- AI 网络代理 / 历史 ---
             net::lm_ping,
             net::ai_http_request,
             net::ai_http_stream,
@@ -495,7 +503,7 @@ pub fn run() {
             history::history_commands,
             history::history_record,
             history::history_list,
-            // MCP native integration commands
+            // --- MCP / 窗口 / 调度 ---
             mcp::server::mcp_server_add,
             mcp::server::mcp_server_remove,
             mcp::server::mcp_server_list,

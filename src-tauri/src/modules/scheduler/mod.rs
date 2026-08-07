@@ -68,7 +68,9 @@ impl SchedulerState {
         };
         let json = serde_json::to_string(&*self.tasks.read().unwrap_or_else(|e| e.into_inner())).unwrap_or_default();
         let _ = std::fs::create_dir_all(path.parent().unwrap_or(PathBuf::new().as_path()));
-        let _ = std::fs::write(path, json);
+        // Atomic write (tmp + rename) so a crash mid-write can't leave a
+        // truncated scheduler.json that silently drops every task on next load.
+        let _ = atomic_write(&path, json.as_bytes());
     }
 
     /// Fire every enabled task whose next trigger falls inside the tick
@@ -191,6 +193,25 @@ pub fn scheduler_toggle(state: State<'_, SchedulerState>, id: String, enabled: b
     toggle_inner(state.inner(), id, enabled);
 }
 
+/// Write `bytes` to `path` atomically: write a sibling tmp file, fsync it, then
+/// rename over the target. On Windows `std::fs::rename` refuses to overwrite an
+/// existing target, so fall back to remove+rename (still safer than an in-place
+/// truncating write: the target is never observed half-written).
+fn atomic_write(path: &std::path::Path, bytes: &[u8]) -> std::io::Result<()> {
+    use std::io::Write;
+    let tmp = path.with_extension("json.tmp");
+    let mut f = std::fs::File::create(&tmp)?;
+    f.write_all(bytes)?;
+    f.sync_all()?;
+    match std::fs::rename(&tmp, path) {
+        Ok(()) => Ok(()),
+        Err(_) => {
+            std::fs::remove_file(path)?;
+            std::fs::rename(&tmp, path)
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -285,5 +306,21 @@ mod tests {
         };
         upsert_inner(&state, task).unwrap();
         assert!(state.tick().is_empty());
+    }
+
+    #[test]
+    fn atomic_write_replaces_and_leaves_no_tmp() {
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("scheduler.json");
+
+        atomic_write(&path, b"{\"v\":1}").unwrap();
+        assert_eq!(std::fs::read(&path).unwrap(), b"{\"v\":1}");
+
+        // Overwrite on top of an existing file (exercises the Windows fallback).
+        atomic_write(&path, b"{\"v\":2}").unwrap();
+        assert_eq!(std::fs::read(&path).unwrap(), b"{\"v\":2}");
+
+        // No tmp residue.
+        assert!(!path.with_extension("json.tmp").exists());
     }
 }

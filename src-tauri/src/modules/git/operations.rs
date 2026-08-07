@@ -1246,6 +1246,16 @@ pub fn push_upstream(
     let repo_root = authorized_repo_root(registry, repo_root, workspace)?;
     ensure_git_available(&repo_root.workspace)?;
 
+    // The caller-supplied remote lands in `git push --set-upstream <remote> …`
+    // as an argv element, so it must be a bare remote name — a value like
+    // `--delete` would otherwise be parsed as a git option. Mirror the
+    // `remote_url` validation; upstream-derived names are already trusted.
+    if let Some(r) = remote {
+        if r.is_empty() || r.len() > 64 || !r.chars().all(is_remote_name_char) {
+            return Err(GitError::InvalidPath(r.to_string()));
+        }
+    }
+
     // Skip the --set-upstream flag if an upstream already exists; plain push is enough.
     let existing = git_stdout_line_opt(
         &repo_root.workspace,
