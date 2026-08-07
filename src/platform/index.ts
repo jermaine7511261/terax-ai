@@ -217,8 +217,11 @@ import {
   requestPermission as tauriReqPerm,
 } from "@tauri-apps/plugin-notification";
 export function sendNotification(options: { title: string; body?: string }): void {
-  if (adapter) return adapter.notification.sendNotification(options);
-  return tauriSendNotification(options);
+  if (adapter) {
+    adapter.notification.sendNotification(options);
+    return;
+  }
+  tauriSendNotification(options);
 }
 export function isNotificationGranted(): Promise<boolean> {
   if (adapter) return adapter.notification.isPermissionGranted();
