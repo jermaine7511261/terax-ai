@@ -143,6 +143,9 @@ export const useSpaces = create<State>((set, get) => ({
     if (get().activeId === id) return;
     set({ activeId: id });
     void saveActiveId(id);
+    // Opening/activating a space counts as "recently opened" so the recency
+    // list stays current even without an explicit env switch.
+    get().pushRecent(id);
   },
 
   pushRecent: (id) => {

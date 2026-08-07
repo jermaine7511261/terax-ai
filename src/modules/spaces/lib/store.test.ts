@@ -26,6 +26,7 @@ import {
   deleteSpaceData,
   loadAll,
   newSpaceId,
+  recentSpaces,
   recentWith,
   saveActiveId,
   saveRecent,
@@ -102,6 +103,44 @@ describe("recentWith", () => {
     expect(list.length).toBe(8);
     expect(list[0]).toBe("id-9");
     expect(list[7]).toBe("id-2");
+  });
+});
+
+describe("recentSpaces", () => {
+  const mk = (id: string, name: string): SpaceMeta => ({
+    id,
+    name,
+    root: `/ws/${id}`,
+    env: { kind: "local" },
+    createdAt: 0,
+    updatedAt: 0,
+  });
+
+  it("resolves recent ids to existing spaces in recency order", () => {
+    const spaces = [mk("a", "A"), mk("b", "B"), mk("c", "C")];
+    expect(recentSpaces(["c", "a", "b"], spaces, null).map((s) => s.id)).toEqual([
+      "c",
+      "a",
+      "b",
+    ]);
+  });
+
+  it("drops ids that no longer exist and never returns duplicates", () => {
+    const spaces = [mk("a", "A"), mk("b", "B")];
+    const out = recentSpaces(["gone", "a", "b", "a"], spaces, null);
+    expect(out.map((s) => s.id)).toEqual(["a", "b"]);
+  });
+
+  it("excludes the currently active space", () => {
+    const spaces = [mk("a", "A"), mk("b", "B"), mk("c", "C")];
+    expect(recentSpaces(["c", "a", "b"], spaces, "a").map((s) => s.id)).toEqual([
+      "c",
+      "b",
+    ]);
+  });
+
+  it("returns empty when there is nothing recent", () => {
+    expect(recentSpaces([], [mk("a", "A")], null)).toEqual([]);
   });
 });
 

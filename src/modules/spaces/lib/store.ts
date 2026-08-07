@@ -81,6 +81,28 @@ export function recentWith(list: string[], id: string): string[] {
   return [id, ...list.filter((x) => x !== id)].slice(0, RECENT_LIMIT);
 }
 
+/**
+ * Resolve a persisted recent-id list into the spaces that still exist, most
+ * recent first, excluding the currently active space. Pure and testable.
+ */
+export function recentSpaces(
+  recent: string[],
+  spaces: SpaceMeta[],
+  activeId: string | null,
+): SpaceMeta[] {
+  const byId = new Map(spaces.map((s) => [s.id, s]));
+  const out: SpaceMeta[] = [];
+  for (const id of recent) {
+    if (id === activeId) continue;
+    const s = byId.get(id);
+    if (s) {
+      out.push(s);
+      byId.delete(id);
+    }
+  }
+  return out;
+}
+
 export async function saveState(id: string, state: SpaceState): Promise<void> {
   await store.set(stateKey(id), state);
 }

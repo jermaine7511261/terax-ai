@@ -626,6 +626,9 @@ export const zhMessages = {
     removeSpace: "删除工作区",
     switchTo: "切换到 {name}",
     renameSpace: "重命名空间",
+    recent: "最近打开",
+    clearRecent: "清空最近",
+    noRecent: "没有最近打开的工作区",
   },
   commandPalette: {
     placeholder: "输入命令，> 查看历史，# 查找文件",
@@ -2057,6 +2060,9 @@ export const enMessages = {
     removeSpace: "Remove Space",
     switchTo: "Switch to {name}",
     renameSpace: "Rename space",
+    recent: "Recently opened",
+    clearRecent: "Clear recent",
+    noRecent: "No recently opened spaces",
   },
   commandPalette: {
     placeholder: "Type a command, > for history, # to find in files",

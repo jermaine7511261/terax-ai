@@ -23,7 +23,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { InlineRename } from "./components/InlineRename";
 import { accentFor } from "./lib/spaceColor";
-import type { SpaceMeta } from "./lib/store";
+import { recentSpaces, type SpaceMeta } from "./lib/store";
 import { useSpaces } from "./lib/useSpaces";
 import { SpaceAvatar } from "./SpaceAvatar";
 
@@ -89,7 +89,9 @@ export function SpaceSwitcher({
 }: Props) {
   const spaces = useSpaces((s) => s.spaces);
   const activeId = useSpaces((s) => s.activeId);
+  const recent = useSpaces((s) => s.recent);
   const setActive = useSpaces((s) => s.setActive);
+  const setRecent = useSpaces((s) => s.setRecent);
   const rename = useSpaces((s) => s.rename);
   const setRoot = useSpaces((s) => s.setRoot);
   const { t } = useI18n();
@@ -109,6 +111,11 @@ export function SpaceSwitcher({
   const [overlay, setOverlay] = useState<{ x: number; y: number } | null>(null);
 
   const current = spaces.find((s) => s.id === activeId);
+
+  const recents = useMemo(
+    () => recentSpaces(recent, spaces, activeId),
+    [recent, spaces, activeId],
+  );
 
   const tabsBySpace = useMemo(() => {
     const m = new Map<string, Tab[]>();
@@ -317,6 +324,47 @@ export function SpaceSwitcher({
             />
           ))}
         </div>
+        {recents.length > 0 && (
+          <>
+            <div className="mt-1.5 border-t border-border/60 pt-1.5">
+              <div className="flex items-center justify-between px-1.5 pb-1 pt-0.5">
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/70">
+                  {t("spaces.recent")}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setRecent([])}
+                  className="flex items-center gap-1 rounded px-1 py-0.5 text-[10.5px] text-muted-foreground/60 transition-colors hover:bg-accent hover:text-foreground"
+                  aria-label={t("spaces.clearRecent")}
+                >
+                  <HugeiconsIcon icon={Delete02Icon} size={11} strokeWidth={1.75} />
+                  {t("spaces.clearRecent")}
+                </button>
+              </div>
+              <div className="-mx-0.5 flex flex-col gap-px px-0.5">
+                {recents.map((sp) => (
+                  <button
+                    key={sp.id}
+                    type="button"
+                    onClick={() => {
+                      setActive(sp.id);
+                      onOpenChange(false);
+                    }}
+                    className="flex w-full items-center gap-2 rounded-md px-1.5 py-1.5 text-left transition-colors hover:bg-accent/60"
+                  >
+                    <SpaceAvatar space={sp} size="sm" />
+                    <span className="min-w-0 flex-1 truncate text-xs font-medium text-foreground">
+                      {sp.name}
+                    </span>
+                    <span className="max-w-28 truncate text-[10px] text-muted-foreground/60">
+                      {sp.root ?? ""}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
         <div className="mt-1.5 border-t border-border/60 pt-1.5">
           <button
             type="button"
