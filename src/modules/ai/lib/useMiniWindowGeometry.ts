@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useRef } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import {
   applyDrag,
   applyResize,
@@ -53,6 +53,9 @@ export function useMiniWindowGeometry() {
   const geom = useRef<Geom>({ x: 0, y: 0, w: 0, h: 0 });
   const frame = useRef(0);
   const pending = useRef<Geom | null>(null);
+  const [maximized, setMaximized] = useState(false);
+  const [pinned, setPinned] = useState(false);
+  const prevGeom = useRef<Geom | null>(null);
 
   const flush = useCallback(() => {
     frame.current = 0;
@@ -162,5 +165,24 @@ export function useMiniWindowGeometry() {
     [beginGesture],
   );
 
-  return { ref, onHeaderPointerDown, startResize };
+  const toggleMaximize = useCallback(() => {
+    setMaximized((prev) => {
+      if (!prev) {
+        // Store current geom before maximizing.
+        prevGeom.current = { ...geom.current };
+        const vp = viewport();
+        write({ x: 0, y: 0, w: vp.vw, h: vp.vh });
+      } else {
+        // Restore previous geom.
+        const g = prevGeom.current ?? defaultGeom(viewport());
+        prevGeom.current = null;
+        write(g);
+      }
+      return !prev;
+    });
+  }, [write]);
+
+  const togglePin = useCallback(() => setPinned((p) => !p), []);
+
+  return { ref, onHeaderPointerDown, startResize, toggleMaximize, togglePin, maximized, pinned };
 }

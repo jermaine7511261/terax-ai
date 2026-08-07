@@ -4,6 +4,7 @@ export type ResizeDir = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
 
 export const MIN_W = 400;
 export const MIN_H = 280;
+export const SNAP_DIST = 16;
 
 const MARGIN_X = 16;
 const BOTTOM_GAP = 96;
@@ -33,7 +34,25 @@ export function clampGeom(g: Geom, vp: Viewport): Geom {
 }
 
 export function applyDrag(start: Geom, dx: number, dy: number, vp: Viewport): Geom {
-  return clampGeom({ ...start, x: start.x + dx, y: start.y + dy }, vp);
+  const g = clampGeom({ ...start, x: start.x + dx, y: start.y + dy }, vp);
+  return snapGeom(g, vp);
+}
+
+/**
+ * Snap the window to the nearest viewport edge (left/right/top/bottom) when
+ * the drag ended within `SNAP_DIST` px of it. Called after drag so the window
+ * "docks" to an edge instead of floating awkwardly close to it.
+ */
+export function snapGeom(g: Geom, vp: Viewport): Geom {
+  let x = g.x;
+  let y = g.y;
+  const right = vp.vw - (g.x + g.w);
+  const bottom = vp.vh - (g.y + g.h);
+  if (g.x < SNAP_DIST) x = 0;
+  else if (right < SNAP_DIST) x = vp.vw - g.w;
+  if (g.y < SNAP_DIST) y = 0;
+  else if (bottom < SNAP_DIST) y = vp.vh - g.h;
+  return { ...g, x, y };
 }
 
 export function applyResize(

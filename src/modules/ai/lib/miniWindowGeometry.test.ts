@@ -7,6 +7,7 @@ import {
   defaultGeom,
   MIN_H,
   MIN_W,
+  snapGeom,
   type Geom,
   type Viewport,
 } from "./miniWindowGeometry";
@@ -60,6 +61,21 @@ describe("applyDrag", () => {
     const g = applyDrag(start, -9999, -9999, vp);
     expect(g).toMatchObject({ x: 0, y: 0 });
   });
+
+  it("snaps on drag end near left edge", () => {
+    const g = applyDrag(start, -800, 0, vp); // x ≈ 0
+    expect(g.x).toBe(0);
+  });
+
+  it("snaps on drag end near right edge", () => {
+    const g = applyDrag({ x: 0, y: 200, w: 500, h: 300 }, 1920, 0, { vw: 1920, vh: 1080 });
+    expect(g.x).toBe(1420);
+  });
+
+  it("snaps on drag end near bottom edge", () => {
+    const g = applyDrag({ x: 500, y: 0, w: 400, h: 300 }, 0, 800, { vw: 1920, vh: 1080 });
+    expect(g.y).toBe(780);
+  });
 });
 
 describe("applyResize", () => {
@@ -105,5 +121,32 @@ describe("applyResize", () => {
 
   it("east handle never moves the top edge", () => {
     expect(applyResize(start, "e", 50, 50, vp).y).toBe(start.y);
+  });
+});
+
+describe("snapGeom", () => {
+  it("snaps to left edge within SNAP_DIST", () => {
+    expect(snapGeom({ x: 10, y: 100, w: 500, h: 600 }, { vw: 1920, vh: 1080 }))
+      .toEqual({ x: 0, y: 100, w: 500, h: 600 });
+  });
+
+  it("snaps to right edge", () => {
+    expect(snapGeom({ x: 1905, y: 200, w: 500, h: 600 }, { vw: 1920, vh: 1080 }))
+      .toEqual({ x: 1420, y: 200, w: 500, h: 600 });
+  });
+
+  it("snaps to bottom edge", () => {
+    expect(snapGeom({ x: 500, y: 1055, w: 400, h: 300 }, { vw: 1920, vh: 1080 }))
+      .toEqual({ x: 500, y: 780, w: 400, h: 300 });
+  });
+
+  it("snaps to top edge", () => {
+    expect(snapGeom({ x: 500, y: 10, w: 400, h: 300 }, { vw: 1920, vh: 1080 }))
+      .toEqual({ x: 500, y: 0, w: 400, h: 300 });
+  });
+
+  it("does not snap when far from any edge", () => {
+    expect(snapGeom({ x: 500, y: 300, w: 400, h: 300 }, { vw: 1920, vh: 1080 }))
+      .toEqual({ x: 500, y: 300, w: 400, h: 300 });
   });
 });

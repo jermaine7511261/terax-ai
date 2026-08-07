@@ -91,7 +91,7 @@ export function AiMiniWindow({ state }: { state: PresenceState }) {
     openPanel();
   };
 
-  const { ref, onHeaderPointerDown, startResize } = useMiniWindowGeometry();
+  const { ref, onHeaderPointerDown, startResize, toggleMaximize, togglePin, pinned } = useMiniWindowGeometry();
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -112,10 +112,11 @@ export function AiMiniWindow({ state }: { state: PresenceState }) {
       data-state={state}
       data-ai-mini-window
       className={cn(
-        "no-scrollbar-deep fixed z-40 flex flex-col overflow-hidden",
+        "no-scrollbar-deep fixed flex flex-col overflow-hidden",
         "rounded-2xl border border-border/60 bg-card text-[12px]",
         "shadow-[0_1px_0_0_rgba(255,255,255,0.04)_inset,0_24px_48px_-12px_rgba(0,0,0,0.45),0_8px_16px_-8px_rgba(0,0,0,0.3)]",
         "ring-1 ring-black/5 dark:ring-white/5",
+        pinned ? "z-50" : "z-40",
         "duration-200 ease-out",
         "data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=open]:slide-in-from-bottom-2",
         "data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=closed]:slide-out-to-bottom-2",
@@ -134,6 +135,9 @@ export function AiMiniWindow({ state }: { state: PresenceState }) {
           onClose={closeMini}
           onExpand={expandToPanel}
           onHeaderPointerDown={onHeaderPointerDown}
+          onDoubleClick={toggleMaximize}
+          pinned={pinned}
+          onTogglePin={togglePin}
         />
       ) : (
         <EmptyShell
@@ -184,11 +188,17 @@ function Body({
   onClose,
   onExpand,
   onHeaderPointerDown,
+  onDoubleClick,
+  pinned,
+  onTogglePin,
 }: {
   sessionId: string;
   onClose: () => void;
   onExpand: () => void;
   onHeaderPointerDown: (e: React.PointerEvent) => void;
+  onDoubleClick?: () => void;
+  pinned?: boolean;
+  onTogglePin?: () => void;
 }) {
   const focusInput = useChatStore((s) => s.focusInput);
   const step = useChatStore((s) => s.agentMeta.step);
@@ -242,6 +252,9 @@ function Body({
         showHistory={showHistory}
         onToggleHistory={() => setShowHistory((v) => !v)}
         onHeaderPointerDown={onHeaderPointerDown}
+        onDoubleClick={onDoubleClick}
+        pinned={pinned}
+        onTogglePin={onTogglePin}
       />
 
       <PlanModeStrip />
@@ -338,6 +351,9 @@ function Header({
   showHistory,
   onToggleHistory,
   onHeaderPointerDown,
+  onDoubleClick,
+  pinned,
+  onTogglePin,
 }: {
   step: string | null;
   isBusy: boolean;
@@ -347,6 +363,9 @@ function Header({
   showHistory?: boolean;
   onToggleHistory?: () => void;
   onHeaderPointerDown: (e: React.PointerEvent) => void;
+  onDoubleClick?: () => void;
+  pinned?: boolean;
+  onTogglePin?: () => void;
 }) {
   const { t } = useI18n();
   const customAgents = useAgentsStore((s) => s.customAgents);
@@ -355,6 +374,7 @@ function Header({
   return (
     <div
       onPointerDown={onHeaderPointerDown}
+      onDoubleClick={onDoubleClick}
       className="relative flex h-11 shrink-0 cursor-grab items-center justify-between gap-2 border-b border-border/60 px-3 active:cursor-grabbing"
     >
       <div className="flex min-w-0 items-center gap-1.5">
@@ -380,6 +400,17 @@ function Header({
           )}
         >
           <HugeiconsIcon icon={Clock01Icon} size={12} strokeWidth={1.75} />
+        </button>
+        <button
+          type="button"
+          onClick={onTogglePin}
+          title={pinned ? "Unpin" : "Pin on top"}
+          className={cn(
+            "flex size-5 items-center justify-center rounded-md transition-colors hover:bg-accent",
+            pinned ? "text-primary" : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          <svg viewBox="0 0 24 24" width={12} height={12} fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v8m-4 0h8m-2 0v12" /></svg>
         </button>
         <Button
           type="button"
