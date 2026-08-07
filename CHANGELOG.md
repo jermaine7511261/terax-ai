@@ -5,6 +5,7 @@ Yamet 的所有重要变更都记录于此。版本遵循项目规则：**功能
 ## [未发布]
 
 ### 新增
+- **第十七轮（0.1.18）** 全量补全：远程 SFTP 编辑回写（sftp_write 后端 + RemoteEditorDialog，闭合审计远程只读缺口）；统一 EmptyState（MCP/网关侧栏引导空态）；迷你窗 P1-a 边缘吸附（snapGeom 距边16px自动吸附）+ 双击最大化/还原 + P1-b 置顶 pin（z-40→z-50）；MCP 添加失败 toast 反馈；DAP 适配器缺失错误 banner；git-history 侧栏入口；会话导出全部（Markdown 下载）+ 清空全部按钮。闭合第十五轮 P1/P2 需求、audit-user-ux/audit-frontend 产品缺陷。1557 前端测试 + cargo clippy 全绿。
 - **第十六轮（0.1.17）** 平台抽象层迁移（GUI/WebUI/TUI/CLI 共享核心逻辑）：全量收敛 `@tauri-apps/*` 直接引用到 `@/platform` 统一适配器层（136 处归零，仅 `platform/tauri/` 自身保留）——核心 IPC（invoke/Channel/convertFileSrc + 新增 invokeRaw 支持 PTY raw-body 写）、事件（listen/emit/UnlistenFn）、存储（LazyStore→createStorage，autoSave 语义由 adapter.set 自动 save 保证）、窗口/路径/开盖/os/app/process/dialog/notification/autostart/updater/clipboard 便捷函数，每个未初始化回退 Tauri 原生（测试 mock 生效）。架构：`types.ts` 16 接口 + `tauri/` 16 适配器 + `web/` 实现，`detectPlatform()` 按运行时选适配器。1557 前端测试全绿 + cargo clippy 通过。
 - **第十五轮（0.1.16）** AI 聊天窗口补强：主窗口会话历史+新建(SessionBar 顶部栏含+新建+下拉切换/重命名/删除); 主窗口 Todo 展示(AiChatPanel 底部 TodoStrip, 与迷你窗共享 todoStore); Edit/Write 工具完成后可折叠展开查看改动内容(旧/新编辑内容); 迷你窗子 agent 进程视图(ActivityStrip 卡片化显示 subagent 类型/实时 step/summary/耗时); 迷你窗内嵌输入框(AiComposerInput 复用顶层 composer); 会话切换草稿保持(composer 按 sessionId 分键保存/恢复)。
 - **第十四轮（0.1.15）** 原生能力深化：终端滚动缓冲区下沉 Rust（新增 `pty/buffer.rs` RollingBuffer 环形 10k 行镜像 + `pty_buffer_lines(id,count,end)` 分页命令 + 前端 `PtySession.bufferLines`，大输出可经后端分页不占前端内存）；文件搜索增量缓存（新增 `fs/index_cache.rs`，按根目录子条目 name+mtime 签名缓存 `(root,query)->hits`，树未变跳过 walk+rank，缺失/变更回退全扫，正确性不依赖缓存）；会话持久化容错（`loadAll` 顶层容错，store 文件整体损坏回退空态防启动崩溃，已有 LazyStore 原子 + hydrateTabs 损坏条目跳过）。
@@ -46,6 +47,7 @@ Yamet 的所有重要变更都记录于此。版本遵循项目规则：**功能
 
 
 ### 新增
+- **第十七轮（0.1.18）** 全量补全：远程 SFTP 编辑回写（sftp_write 后端 + RemoteEditorDialog，闭合审计远程只读缺口）；统一 EmptyState（MCP/网关侧栏引导空态）；迷你窗 P1-a 边缘吸附（snapGeom 距边16px自动吸附）+ 双击最大化/还原 + P1-b 置顶 pin（z-40→z-50）；MCP 添加失败 toast 反馈；DAP 适配器缺失错误 banner；git-history 侧栏入口；会话导出全部（Markdown 下载）+ 清空全部按钮。闭合第十五轮 P1/P2 需求、audit-user-ux/audit-frontend 产品缺陷。1557 前端测试 + cargo clippy 全绿。
 - **第十六轮（0.1.17）** 平台抽象层迁移（GUI/WebUI/TUI/CLI 共享核心逻辑）：全量收敛 `@tauri-apps/*` 直接引用到 `@/platform` 统一适配器层（136 处归零，仅 `platform/tauri/` 自身保留）——核心 IPC（invoke/Channel/convertFileSrc + 新增 invokeRaw 支持 PTY raw-body 写）、事件（listen/emit/UnlistenFn）、存储（LazyStore→createStorage，autoSave 语义由 adapter.set 自动 save 保证）、窗口/路径/开盖/os/app/process/dialog/notification/autostart/updater/clipboard 便捷函数，每个未初始化回退 Tauri 原生（测试 mock 生效）。架构：`types.ts` 16 接口 + `tauri/` 16 适配器 + `web/` 实现，`detectPlatform()` 按运行时选适配器。1557 前端测试全绿 + cargo clippy 通过。
 - **第十五轮（0.1.16）** AI 聊天窗口补强：主窗口会话历史+新建(SessionBar 顶部栏含+新建+下拉切换/重命名/删除); 主窗口 Todo 展示(AiChatPanel 底部 TodoStrip, 与迷你窗共享 todoStore); Edit/Write 工具完成后可折叠展开查看改动内容(旧/新编辑内容); 迷你窗子 agent 进程视图(ActivityStrip 卡片化显示 subagent 类型/实时 step/summary/耗时); 迷你窗内嵌输入框(AiComposerInput 复用顶层 composer); 会话切换草稿保持(composer 按 sessionId 分键保存/恢复)。
 - **第九轮（0.1.10）** 汉化收官：34 处显示文本 + 57 处属性硬编码英文全部走 i18n（仅剩白名单：shadcn 原语 / 品牌名 / 示例值 / 协议名）；新增 common.block / gateway.relogin / ai.emptyOutput / ai.resumeTurn / ai.editMessage / git.binary 等键（zh/en 双语）。
@@ -69,6 +71,7 @@ Yamet 的所有重要变更都记录于此。版本遵循项目规则：**功能
 - **第八轮（0.1.9）** ROADMAP 测试覆盖扩展已勾选。
 
 ### 新增
+- **第十七轮（0.1.18）** 全量补全：远程 SFTP 编辑回写（sftp_write 后端 + RemoteEditorDialog，闭合审计远程只读缺口）；统一 EmptyState（MCP/网关侧栏引导空态）；迷你窗 P1-a 边缘吸附（snapGeom 距边16px自动吸附）+ 双击最大化/还原 + P1-b 置顶 pin（z-40→z-50）；MCP 添加失败 toast 反馈；DAP 适配器缺失错误 banner；git-history 侧栏入口；会话导出全部（Markdown 下载）+ 清空全部按钮。闭合第十五轮 P1/P2 需求、audit-user-ux/audit-frontend 产品缺陷。1557 前端测试 + cargo clippy 全绿。
 - **第十六轮（0.1.17）** 平台抽象层迁移（GUI/WebUI/TUI/CLI 共享核心逻辑）：全量收敛 `@tauri-apps/*` 直接引用到 `@/platform` 统一适配器层（136 处归零，仅 `platform/tauri/` 自身保留）——核心 IPC（invoke/Channel/convertFileSrc + 新增 invokeRaw 支持 PTY raw-body 写）、事件（listen/emit/UnlistenFn）、存储（LazyStore→createStorage，autoSave 语义由 adapter.set 自动 save 保证）、窗口/路径/开盖/os/app/process/dialog/notification/autostart/updater/clipboard 便捷函数，每个未初始化回退 Tauri 原生（测试 mock 生效）。架构：`types.ts` 16 接口 + `tauri/` 16 适配器 + `web/` 实现，`detectPlatform()` 按运行时选适配器。1557 前端测试全绿 + cargo clippy 通过。
 - **第十五轮（0.1.16）** AI 聊天窗口补强：主窗口会话历史+新建(SessionBar 顶部栏含+新建+下拉切换/重命名/删除); 主窗口 Todo 展示(AiChatPanel 底部 TodoStrip, 与迷你窗共享 todoStore); Edit/Write 工具完成后可折叠展开查看改动内容(旧/新编辑内容); 迷你窗子 agent 进程视图(ActivityStrip 卡片化显示 subagent 类型/实时 step/summary/耗时); 迷你窗内嵌输入框(AiComposerInput 复用顶层 composer); 会话切换草稿保持(composer 按 sessionId 分键保存/恢复)。
 - **第七轮（0.1.8）** 反向 MCP server：`src-tauri/src/modules/mcp_server/`（JSON-RPC 2.0 stdio + 6 只读工具 read_file/list_directory/grep/glob/git_status/git_diff + 路径沙箱 + 1MiB 读取上限 + grep 排除 .git），CLI 入口 `yamet __mcp_server`，外部 agent（Claude Code / OpenCode）经 mcpServers 接入。
@@ -78,6 +81,7 @@ Yamet 的所有重要变更都记录于此。版本遵循项目规则：**功能
 - **第七轮（0.1.8）** 全量测试覆盖提升：补测 sessions/todos/slashCommands/memoryStore/utils，覆盖率 11.76% → 31.65% 语句。
 
 ### 新增
+- **第十七轮（0.1.18）** 全量补全：远程 SFTP 编辑回写（sftp_write 后端 + RemoteEditorDialog，闭合审计远程只读缺口）；统一 EmptyState（MCP/网关侧栏引导空态）；迷你窗 P1-a 边缘吸附（snapGeom 距边16px自动吸附）+ 双击最大化/还原 + P1-b 置顶 pin（z-40→z-50）；MCP 添加失败 toast 反馈；DAP 适配器缺失错误 banner；git-history 侧栏入口；会话导出全部（Markdown 下载）+ 清空全部按钮。闭合第十五轮 P1/P2 需求、audit-user-ux/audit-frontend 产品缺陷。1557 前端测试 + cargo clippy 全绿。
 - **第十六轮（0.1.17）** 平台抽象层迁移（GUI/WebUI/TUI/CLI 共享核心逻辑）：全量收敛 `@tauri-apps/*` 直接引用到 `@/platform` 统一适配器层（136 处归零，仅 `platform/tauri/` 自身保留）——核心 IPC（invoke/Channel/convertFileSrc + 新增 invokeRaw 支持 PTY raw-body 写）、事件（listen/emit/UnlistenFn）、存储（LazyStore→createStorage，autoSave 语义由 adapter.set 自动 save 保证）、窗口/路径/开盖/os/app/process/dialog/notification/autostart/updater/clipboard 便捷函数，每个未初始化回退 Tauri 原生（测试 mock 生效）。架构：`types.ts` 16 接口 + `tauri/` 16 适配器 + `web/` 实现，`detectPlatform()` 按运行时选适配器。1557 前端测试全绿 + cargo clippy 通过。
 - **第十五轮（0.1.16）** AI 聊天窗口补强：主窗口会话历史+新建(SessionBar 顶部栏含+新建+下拉切换/重命名/删除); 主窗口 Todo 展示(AiChatPanel 底部 TodoStrip, 与迷你窗共享 todoStore); Edit/Write 工具完成后可折叠展开查看改动内容(旧/新编辑内容); 迷你窗子 agent 进程视图(ActivityStrip 卡片化显示 subagent 类型/实时 step/summary/耗时); 迷你窗内嵌输入框(AiComposerInput 复用顶层 composer); 会话切换草稿保持(composer 按 sessionId 分键保存/恢复)。
 - **第六轮（0.1.7）** MCP client：`src-tauri/src/modules/mcp/`（stdio / HTTP 传输 + JSON-RPC 2.0 + 断线重连 + 并发上限 + stderr 环形尾），5 个命令注册；前端动态工具注册（全部 `needsApproval: true` + `redactSensitive` 脱敏 + 工具卡 `mcp · <server>` 来源分支）。
@@ -112,6 +116,7 @@ Yamet 的所有重要变更都记录于此。版本遵循项目规则：**功能
 ## [0.1.5] — 2026-08-04
 
 ### 新增
+- **第十七轮（0.1.18）** 全量补全：远程 SFTP 编辑回写（sftp_write 后端 + RemoteEditorDialog，闭合审计远程只读缺口）；统一 EmptyState（MCP/网关侧栏引导空态）；迷你窗 P1-a 边缘吸附（snapGeom 距边16px自动吸附）+ 双击最大化/还原 + P1-b 置顶 pin（z-40→z-50）；MCP 添加失败 toast 反馈；DAP 适配器缺失错误 banner；git-history 侧栏入口；会话导出全部（Markdown 下载）+ 清空全部按钮。闭合第十五轮 P1/P2 需求、audit-user-ux/audit-frontend 产品缺陷。1557 前端测试 + cargo clippy 全绿。
 - **第十六轮（0.1.17）** 平台抽象层迁移（GUI/WebUI/TUI/CLI 共享核心逻辑）：全量收敛 `@tauri-apps/*` 直接引用到 `@/platform` 统一适配器层（136 处归零，仅 `platform/tauri/` 自身保留）——核心 IPC（invoke/Channel/convertFileSrc + 新增 invokeRaw 支持 PTY raw-body 写）、事件（listen/emit/UnlistenFn）、存储（LazyStore→createStorage，autoSave 语义由 adapter.set 自动 save 保证）、窗口/路径/开盖/os/app/process/dialog/notification/autostart/updater/clipboard 便捷函数，每个未初始化回退 Tauri 原生（测试 mock 生效）。架构：`types.ts` 16 接口 + `tauri/` 16 适配器 + `web/` 实现，`detectPlatform()` 按运行时选适配器。1557 前端测试全绿 + cargo clippy 通过。
 - **第十五轮（0.1.16）** AI 聊天窗口补强：主窗口会话历史+新建(SessionBar 顶部栏含+新建+下拉切换/重命名/删除); 主窗口 Todo 展示(AiChatPanel 底部 TodoStrip, 与迷你窗共享 todoStore); Edit/Write 工具完成后可折叠展开查看改动内容(旧/新编辑内容); 迷你窗子 agent 进程视图(ActivityStrip 卡片化显示 subagent 类型/实时 step/summary/耗时); 迷你窗内嵌输入框(AiComposerInput 复用顶层 composer); 会话切换草稿保持(composer 按 sessionId 分键保存/恢复)。
 - 第四轮迭代：git 分支状态栏徽标、编辑器右键菜单、文件浏览器多选、图片/PDF 文件预览、补全失败反馈 + 自动降级、终端路径补全的 `~` 展开、终端历史持久化到 `~/.yamet/history`、项目记忆写入工具。
@@ -119,6 +124,7 @@ Yamet 的所有重要变更都记录于此。版本遵循项目规则：**功能
 ## [0.1.4] — 2026-08-03
 
 ### 新增
+- **第十七轮（0.1.18）** 全量补全：远程 SFTP 编辑回写（sftp_write 后端 + RemoteEditorDialog，闭合审计远程只读缺口）；统一 EmptyState（MCP/网关侧栏引导空态）；迷你窗 P1-a 边缘吸附（snapGeom 距边16px自动吸附）+ 双击最大化/还原 + P1-b 置顶 pin（z-40→z-50）；MCP 添加失败 toast 反馈；DAP 适配器缺失错误 banner；git-history 侧栏入口；会话导出全部（Markdown 下载）+ 清空全部按钮。闭合第十五轮 P1/P2 需求、audit-user-ux/audit-frontend 产品缺陷。1557 前端测试 + cargo clippy 全绿。
 - **第十六轮（0.1.17）** 平台抽象层迁移（GUI/WebUI/TUI/CLI 共享核心逻辑）：全量收敛 `@tauri-apps/*` 直接引用到 `@/platform` 统一适配器层（136 处归零，仅 `platform/tauri/` 自身保留）——核心 IPC（invoke/Channel/convertFileSrc + 新增 invokeRaw 支持 PTY raw-body 写）、事件（listen/emit/UnlistenFn）、存储（LazyStore→createStorage，autoSave 语义由 adapter.set 自动 save 保证）、窗口/路径/开盖/os/app/process/dialog/notification/autostart/updater/clipboard 便捷函数，每个未初始化回退 Tauri 原生（测试 mock 生效）。架构：`types.ts` 16 接口 + `tauri/` 16 适配器 + `web/` 实现，`detectPlatform()` 按运行时选适配器。1557 前端测试全绿 + cargo clippy 通过。
 - **第十五轮（0.1.16）** AI 聊天窗口补强：主窗口会话历史+新建(SessionBar 顶部栏含+新建+下拉切换/重命名/删除); 主窗口 Todo 展示(AiChatPanel 底部 TodoStrip, 与迷你窗共享 todoStore); Edit/Write 工具完成后可折叠展开查看改动内容(旧/新编辑内容); 迷你窗子 agent 进程视图(ActivityStrip 卡片化显示 subagent 类型/实时 step/summary/耗时); 迷你窗内嵌输入框(AiComposerInput 复用顶层 composer); 会话切换草稿保持(composer 按 sessionId 分键保存/恢复)。
 - 第三轮迭代：AI 工具三件套（终端驱动、文件管理、git）、网关可用性（回调地址、白名单持久化、iLink 重新登录二维码）、Rust FS 工作区授权、扩展 shell 拒绝名单、stash / 冲突解决 / 分支管理 / 子模块、编辑器 code action、quick fix、斜杠命令、会话重命名、多选、历史持久化。
