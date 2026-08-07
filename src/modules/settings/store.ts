@@ -150,6 +150,7 @@ export type Preferences = {
   whispercppBaseURL: string;
   favoriteModelIds: string[];
   recentModelIds: string[];
+  selectedModelId: string | null;
   vimMode: boolean;
   editorWordWrap: boolean;
   showHidden: boolean;
@@ -246,6 +247,7 @@ const KEY_GROQ_STT_MODEL = "groqSttModel";
 const KEY_WHISPERCPP_BASE_URL = "whispercppBaseURL";
 const KEY_FAVORITE_MODELS = "favoriteModelIds";
 const KEY_RECENT_MODELS = "recentModelIds";
+const KEY_SELECTED_MODEL = "selectedModelId";
 const KEY_VIM_MODE = "vimMode";
 const KEY_EDITOR_WORD_WRAP = "editorWordWrap";
 const KEY_SHOW_HIDDEN = "showHidden";
@@ -330,6 +332,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   whispercppBaseURL: WHISPERCPP_DEFAULT_BASE_URL,
   favoriteModelIds: [],
   recentModelIds: [],
+  selectedModelId: null,
   vimMode: false,
   editorWordWrap: false,
   showHidden: false,
@@ -484,6 +487,7 @@ export async function loadPreferences(): Promise<Preferences> {
     recentModelIds: (
       get<string[]>(KEY_RECENT_MODELS) ?? DEFAULT_PREFERENCES.recentModelIds
     ).filter(isLoadableModelId),
+    selectedModelId: get<string>(KEY_SELECTED_MODEL) ?? null,
     vimMode: get<boolean>(KEY_VIM_MODE) ?? DEFAULT_PREFERENCES.vimMode,
     editorWordWrap:
       get<boolean>(KEY_EDITOR_WORD_WRAP) ?? DEFAULT_PREFERENCES.editorWordWrap,
@@ -759,6 +763,10 @@ export async function setRecentModelIds(value: string[]): Promise<void> {
   await writePref(KEY_RECENT_MODELS, value);
 }
 
+export async function setSelectedModelId(value: string | null): Promise<void> {
+  await writePref(KEY_SELECTED_MODEL, value);
+}
+
 export async function setVimMode(value: boolean): Promise<void> {
   await writePref(KEY_VIM_MODE, value);
 }
@@ -943,6 +951,7 @@ export async function onPreferencesChange(
     [KEY_WHISPERCPP_BASE_URL]: "whispercppBaseURL",
     [KEY_FAVORITE_MODELS]: "favoriteModelIds",
     [KEY_RECENT_MODELS]: "recentModelIds",
+    [KEY_SELECTED_MODEL]: "selectedModelId",
     [KEY_VIM_MODE]: "vimMode",
     [KEY_EDITOR_WORD_WRAP]: "editorWordWrap",
     [KEY_SHOW_HIDDEN]: "showHidden",

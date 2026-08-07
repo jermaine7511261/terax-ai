@@ -1,4 +1,4 @@
-import type { ModelMessage } from "ai";
+import type { ModelMessage, UIMessage } from "ai";
 
 const KEEP_TAIL = 24;
 const ELISION_TEXT = "[elided to save context — see prior tool call in history]";
@@ -12,12 +12,39 @@ type ToolPart = {
   [k: string]: unknown;
 };
 
-function approxBytes(messages: ModelMessage[]): number {
+export function approxBytes(messages: ModelMessage[]): number {
   let n = 0;
   for (const m of messages) {
     if (typeof m.content === "string") n += m.content.length;
     else if (Array.isArray(m.content)) {
       for (const part of m.content as ToolPart[]) {
+        if (part.type === "text" && typeof part.text === "string")
+          n += (part.text as string).length;
+        else if (part.type === "tool-result")
+          n += JSON.stringify(part.output ?? "").length;
+        else if (part.type === "tool-call")
+          n += JSON.stringify(part.input ?? "").length;
+        else n += 64;
+      }
+    }
+  }
+  return n;
+}
+
+/**
+ * Approximate bytes from @ai-sdk/react `UIMessage[]` (status-bar context
+ * estimate). UIMessage and ModelMessage share the same `content` shape
+ * (`string | {type:"text"|"tool-result"|"tool-call", ...}[]`), so this gives
+ * the SAME approximation the compaction logic uses without an async
+ * convertToModelMessages round-trip on every streamed token.
+ */
+export function approxBytesFromUI(messages: UIMessage[]): number {
+  let n = 0;
+  for (const m of messages) {
+    const c = (m as unknown as { content?: unknown }).content;
+    if (typeof c === "string") n += c.length;
+    else if (Array.isArray(c)) {
+      for (const part of c as ToolPart[]) {
         if (part.type === "text" && typeof part.text === "string")
           n += (part.text as string).length;
         else if (part.type === "tool-result")

@@ -1,4 +1,5 @@
 import type { Chat, UIMessage } from "@ai-sdk/react";
+import { approxBytesFromUI } from "../lib/compact";
 import { create } from "zustand";
 import {
   DEFAULT_MODEL_ID,
@@ -24,7 +25,10 @@ import {
   type SessionMeta,
 } from "../lib/sessions";
 import { pushRecentModel } from "../lib/modelPrefs";
-import { setProjectAutoApprove } from "@/modules/settings/store";
+import {
+  setProjectAutoApprove,
+  setSelectedModelId as persistSelectedModelId,
+} from "@/modules/settings/store";
 
 export type Live = {
   getCwd: () => string | null;
@@ -213,6 +217,16 @@ type StoreState = {
   patchAgentMeta: (patch: Partial<AgentMeta>) => void;
   resetAgentMeta: () => void;
 
+  /**
+   * Estimated tokens of the current session's messages, computed with the SAME
+   * approximation the compaction logic uses (`approxBytes / 4`). The status bar
+   * divides this by the model's context limit to show a usage percent that is
+   * exactly "how close are we to triggering compaction". Updated whenever a
+   * session's messages change.
+   */
+  contextEstimate: number;
+  setContextEstimate: (tokens: number) => void;
+
   // Sessions
   sessionsHydrated: boolean;
   sessions: SessionMeta[];
@@ -331,6 +345,7 @@ export const useChatStore = create<StoreState>((set, get) => ({
   setSelectedModelId: (id) => {
     set({ selectedModelId: id });
     void pushRecentModel(id);
+    void persistSelectedModelId(id);
   },
 
   sessionToolAllowlist: {},
@@ -384,6 +399,9 @@ export const useChatStore = create<StoreState>((set, get) => ({
   patchAgentMeta: (patch) =>
     set((s) => ({ agentMeta: { ...s.agentMeta, ...patch } })),
   resetAgentMeta: () => set({ agentMeta: IDLE_META }),
+
+  contextEstimate: 0,
+  setContextEstimate: (tokens) => set({ contextEstimate: tokens }),
 
   sessionsHydrated: false,
   sessions: [],
@@ -527,6 +545,13 @@ export const useChatStore = create<StoreState>((set, get) => ({
   },
 
   persistMessages: (id, messages) => {
+    // Keep the status-bar context estimate in sync with the messages the
+    // compaction logic sees, using the same `approxBytes / 4` approximation.
+    // Only the active session's estimate is shown, so update on that session
+    // (avoid recomputing for every session's idle persistence).
+    if (id === get().activeSessionId) {
+      get().setContextEstimate(approxBytesFromUI(messages) / 4);
+    }
     // Debounce the message-blob write so streaming doesn't pound the store.
     const existing = pendingPersist.get(id);
     if (existing) clearTimeout(existing.timer);
