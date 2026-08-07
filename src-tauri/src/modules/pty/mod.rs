@@ -1,5 +1,6 @@
 mod agent_detect;
 mod buffer;
+pub use buffer::RollingBuffer;
 mod da_filter;
 pub(crate) mod session;
 pub(crate) mod shell_init;

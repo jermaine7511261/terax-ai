@@ -19,11 +19,15 @@ use tauri::ipc::{Channel, Response};
 use tauri::{AppHandle, Emitter, Manager};
 
 use super::protocol::{self, Frame, FrameReader, OpenReq, SessionInfo};
+use crate::modules::pty::RollingBuffer;
 use crate::modules::pty_helper::HelperInfo;
 
 pub struct HelperSessionHandlers {
     pub on_data: Channel<Response>,
     pub on_exit: Channel<i32>,
+    /// Mirrored scrollback so `pty_helper_buffer_lines` can page large output
+    /// without holding the whole stream in frontend memory.
+    pub buffer: Arc<RollingBuffer>,
 }
 
 pub struct HelperClient {
@@ -93,6 +97,7 @@ async fn connect(app: &AppHandle, info: &HelperInfo) -> Result<Arc<HelperClient>
                                 let handlers =
                                     reader_client.handlers.read().unwrap_or_else(|e| e.into_inner());
                                 if let Some(h) = handlers.get(&id) {
+                                    h.buffer.push(&data);
                                     let _ = h.on_data.send(Response::new(data));
                                 }
                             }
@@ -186,7 +191,11 @@ pub async fn pty_helper_open(
         .write().unwrap_or_else(|e| e.into_inner())
         .insert(
             id,
-            HelperSessionHandlers { on_data, on_exit },
+            HelperSessionHandlers {
+                on_data,
+                on_exit,
+                buffer: Arc::new(RollingBuffer::default()),
+            },
         );
     let workspace = crate::modules::workspace::WorkspaceEnv::from_option(workspace);
     let workspace_enc = match &workspace {
@@ -242,7 +251,11 @@ pub async fn pty_helper_attach(
         .write().unwrap_or_else(|e| e.into_inner())
         .insert(
             id,
-            HelperSessionHandlers { on_data, on_exit },
+            HelperSessionHandlers {
+                on_data,
+                on_exit,
+                buffer: Arc::new(RollingBuffer::default()),
+            },
         );
     send_frame(&client, &Frame::Replay { id })
 }
@@ -313,6 +326,24 @@ pub fn pty_helper_list(
         .read().unwrap_or_else(|e| e.into_inner())
         .clone();
     Ok(list)
+}
+
+/// Page the mirrored scrollback of a helper session — the helper equivalent of
+/// `pty_buffer_lines`. `count` lines ending at (exclusive) absolute `end`;
+/// `end == None` means the tail.
+#[tauri::command]
+pub fn pty_helper_buffer_lines(
+    state: tauri::State<'_, HelperClientState>,
+    id: u32,
+    count: Option<usize>,
+    end: Option<u64>,
+) -> Result<(Vec<String>, u64, u64), String> {
+    let guard = state.0.lock().unwrap_or_else(|e| e.into_inner());
+    let client = guard.as_ref().ok_or("pty helper not connected")?;
+    let handlers = client.handlers.read().unwrap_or_else(|e| e.into_inner());
+    let h = handlers.get(&id).ok_or("no session")?;
+    let n = count.unwrap_or(500).clamp(1, 5000);
+    Ok(h.buffer.page(n, end))
 }
 
 /// Best-effort graceful shutdown on app exit: tell the helper to clean up and

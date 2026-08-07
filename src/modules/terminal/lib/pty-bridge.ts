@@ -86,7 +86,7 @@ export async function attachPty(
         releaseHandlers();
       }
     },
-    bufferLines: (c, e) => bufferLinesOf(id, c, e),
+    bufferLines: (c, e) => helperBufferLinesOf(id, c, e),
   };
 }
 
@@ -152,7 +152,7 @@ async function openPtyViaHelper(
         releaseHandlers();
       }
     },
-    bufferLines: (c, e) => bufferLinesOf(id, c, e),
+    bufferLines: (c, e) => helperBufferLinesOf(id, c, e),
   };
 }
 
@@ -233,6 +233,15 @@ async function openPtyInProcess(
     },
     bufferLines: (c, e) => bufferLinesOf(id, c, e),
   };
+}
+
+/** Page a helper session's mirrored scrollback (helper sessions only). */
+async function helperBufferLinesOf(
+  id: number,
+  count: number,
+  end?: number | null,
+): Promise<[string[], number, number]> {
+  return invoke("pty_helper_buffer_lines", { id, count, end: end ?? null });
 }
 
 /** Page a session's mirrored scrollback (in-process sessions only). */
