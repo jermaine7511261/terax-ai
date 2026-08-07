@@ -198,9 +198,9 @@ export function AiComposerInput() {
   };
 
   const voiceLabel = c.voice.recording
-    ? "Listening…"
+    ? t("ai.listening")
     : c.voice.transcribing
-      ? "Transcribing…"
+      ? t("ai.transcribing")
       : null;
   const voiceRow = usePresence(Boolean(voiceLabel), 180);
   const lastVoiceLabel = useRef("");

@@ -237,7 +237,9 @@ export function AiComposerProvider({ children }: ProviderProps) {
         next.push({
           id: sel.id,
           name:
-            sel.source === "editor" ? "Editor selection" : "Terminal selection",
+            sel.source === "editor"
+              ? t("ai.editorSelection")
+              : t("ai.terminalSelection"),
           kind: "selection",
           mediaType: "text/plain",
           text: sel.text,

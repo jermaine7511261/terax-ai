@@ -15,7 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Spinner } from "@/components/ui/spinner";
-import { useI18n } from "@/lib/i18n";
+import { useI18n, tStatic } from "@/lib/i18n";
 import type { PresenceState } from "@/lib/usePresence";
 import { cn } from "@/lib/utils";
 import { InlineInput } from "@/modules/explorer/InlineInput";
@@ -64,22 +64,22 @@ import { TodoStrip } from "./TodoStrip";
 
 const SUGGESTIONS = [
   {
-    label: "Explain the last error",
-    hint: "Read the terminal buffer",
+    labelKey: "ai.suggestExplainLastError" as const,
+    hintKey: "ai.suggestExplainLastErrorHint" as const,
+    textKey: "ai.suggestExplainLastErrorText" as const,
     icon: AlertCircleIcon,
-    text: "Explain the last error in the terminal.",
   },
   {
-    label: "Generate a command",
-    hint: "Tell me what you want to do",
+    labelKey: "ai.suggestGenerateCommand" as const,
+    hintKey: "ai.suggestGenerateCommandHint" as const,
+    textKey: "ai.suggestGenerateCommandText" as const,
     icon: TerminalIcon,
-    text: "Give me a command to ",
   },
   {
-    label: "Summarize buffer",
-    hint: "Recap recent activity",
+    labelKey: "ai.suggestSummarizeBuffer" as const,
+    hintKey: "ai.suggestSummarizeBufferHint" as const,
+    textKey: "ai.suggestSummarizeBufferText" as const,
     icon: FilterIcon,
-    text: "Summarize what just happened in the terminal.",
   },
 ];
 
@@ -296,6 +296,7 @@ function Body({
 }
 
 function PlanModeStrip() {
+  const { t } = useI18n();
   const active = usePlanStore((s) => s.active);
   const queueLen = usePlanStore((s) => s.queue.length);
   const disable = usePlanStore((s) => s.disable);
@@ -303,9 +304,9 @@ function PlanModeStrip() {
   return (
     <div className="flex shrink-0 items-center gap-2 border-b border-border/40 bg-muted/40 px-3 py-1.5">
       <span className="size-1.5 shrink-0 rounded-full bg-amber-500" />
-      <span className="text-[11px] font-medium text-foreground">Plan mode</span>
+      <span className="text-[11px] font-medium text-foreground">{t("ai.planMode")}</span>
       <span className="text-[11px] text-muted-foreground">
-        {queueLen > 0 ? `· ${queueLen} queued` : "· no edits queued"}
+        {t(queueLen > 0 ? "ai.editsQueued" : "ai.noEditsQueued", { n: queueLen })}
       </span>
       <span className="flex-1" />
       <button
@@ -313,7 +314,7 @@ function PlanModeStrip() {
         onClick={() => disable()}
         className="rounded px-1.5 py-0.5 text-[10.5px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
       >
-        Exit
+        {t("ai.exit")}
       </button>
     </div>
   );
@@ -338,7 +339,7 @@ function EmptyShell({
         onHeaderPointerDown={onHeaderPointerDown}
       />
       <div className="flex flex-1 items-center justify-center text-[11px] text-muted-foreground">
-        Loading sessions…
+        {tStatic("ai.loadingSessions")}
       </div>
     </>
   );
@@ -387,7 +388,7 @@ function Header({
         {isBusy ? (
           <span className="flex min-w-0 items-center gap-1 text-[10px] text-muted-foreground">
             <Spinner className="size-2.5" />
-            <span className="max-w-32 truncate">{step ?? "Thinking…"}</span>
+            <span className="max-w-32 truncate">{step ?? t("ai.thinking")}</span>
           </span>
         ) : null}
         <SessionPicker />
@@ -405,7 +406,7 @@ function Header({
         <button
           type="button"
           onClick={onTogglePin}
-          title={pinned ? "Unpin" : "Pin on top"}
+          title={pinned ? t("ai.unpin") : t("ai.pinOnTop")}
           className={cn(
             "flex size-5 items-center justify-center rounded-md transition-colors hover:bg-accent",
             pinned ? "text-primary" : "text-muted-foreground hover:text-foreground",
@@ -490,7 +491,7 @@ function ContextIndicator({ messages }: { messages: UIMessage[] }) {
             <span className="font-mono text-foreground">{modelLabel}</span>
           </div>
           <div className="mt-1 flex items-center justify-between text-muted-foreground">
-            <span>{lastInput > 0 ? "Last request" : "Estimated context"}</span>
+            <span>{lastInput > 0 ? t("ai.lastRequest") : t("ai.estimatedContext")}</span>
             <span className="font-mono text-foreground">
               {formatTokens(used)}
             </span>
@@ -506,20 +507,20 @@ function ContextIndicator({ messages }: { messages: UIMessage[] }) {
           {reported > 0 && (
             <>
               <div className="mt-1.5 flex items-center justify-between text-muted-foreground">
-                <span>Session input</span>
+                <span>{t("ai.sessionInput")}</span>
                 <span className="font-mono text-foreground">
                   {formatTokens(tokens.inputTokens)}
                 </span>
               </div>
               <div className="flex items-center justify-between text-muted-foreground">
-                <span>Session output</span>
+                <span>{t("ai.sessionOutput")}</span>
                 <span className="font-mono text-foreground">
                   {formatTokens(tokens.outputTokens)}
                 </span>
               </div>
               {tokens.cachedInputTokens > 0 && (
                 <div className="flex items-center justify-between text-muted-foreground">
-                  <span>Cache hit</span>
+                  <span>{t("ai.cacheHit")}</span>
                   <span className="font-mono text-foreground">
                     {cacheRate}%
                   </span>
@@ -527,7 +528,7 @@ function ContextIndicator({ messages }: { messages: UIMessage[] }) {
               )}
               {cost != null && (
                 <div className="flex items-center justify-between text-muted-foreground">
-                  <span>Session cost</span>
+                  <span>{t("ai.sessionCost")}</span>
                   <span className="font-mono text-foreground">
                     ${cost.toFixed(cost < 0.01 ? 4 : cost < 1 ? 3 : 2)}
                   </span>
@@ -545,8 +546,8 @@ function ContextIndicator({ messages }: { messages: UIMessage[] }) {
         <ContextContentFooter>
           <span className="text-[10px] italic text-muted-foreground">
             {lastInput > 0
-              ? "Last request reflects current context size; session totals are cumulative."
-              : "Token count is approximate (chars / 4)."}
+              ? t("ai.lastRequestHint")
+              : t("ai.tokenCountApprox")}
           </span>
         </ContextContentFooter>
       </ContextContent>
@@ -579,7 +580,7 @@ function SessionPicker() {
           )}
           title={t("ai.switchSession")}
         >
-          <span className="truncate">{active.title || "New chat"}</span>
+          <span className="truncate">{active.title || t("ai.newChat")}</span>
           <HugeiconsIcon
             icon={ArrowDown01Icon}
             size={10}
@@ -594,7 +595,7 @@ function SessionPicker() {
           className="gap-2 text-xs"
         >
           <HugeiconsIcon icon={Add01Icon} size={12} strokeWidth={1.75} />
-          New session
+          {t("ai.newSession")}
         </DropdownMenuItem>
         {sorted.length > 0 ? <DropdownMenuSeparator /> : null}
         {sorted.map((s) => (
@@ -659,7 +660,7 @@ function SessionRow({
         />
       ) : (
         <span className="min-w-0 flex-1 truncate">
-          {session.title || "New chat"}
+          {session.title || t("ai.newChat")}
         </span>
       )}
       <button
@@ -696,8 +697,8 @@ function dayKey(ts: number): string {
   const startOf = (x: Date) =>
     new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
   const diff = Math.round((startOf(today) - startOf(d)) / 86_400_000);
-  if (diff <= 0) return "Today";
-  if (diff === 1) return "Yesterday";
+  if (diff <= 0) return tStatic("ai.today");
+  if (diff === 1) return tStatic("ai.yesterday");
   return d.toLocaleDateString();
 }
 
@@ -878,7 +879,7 @@ function HistoryRow({
       ) : (
         <>
           <span className="min-w-0 flex-1 truncate text-[12px] text-foreground">
-            {session.title || "New chat"}
+            {session.title || t("ai.newChat")}
           </span>
           <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground/50">
             {timeLabel(session.updatedAt)}
@@ -923,15 +924,15 @@ function EmptyState({ onPick }: { onPick: (text: string) => void }) {
           {t("ai.askYamet")}
         </p>
         <p className="max-w-[18rem] text-[11.5px] leading-relaxed text-muted-foreground">
-          Yamet sees the active terminal — cwd, recent commands, and output.
+          {t("ai.terminalSeesHint")}
         </p>
       </div>
       <div className="flex w-full flex-col gap-2.5">
         {SUGGESTIONS.map((s) => (
           <button
-            key={s.label}
+            key={s.labelKey}
             type="button"
-            onClick={() => onPick(s.text)}
+            onClick={() => onPick(t(s.textKey))}
             className={cn(
               "group flex items-center gap-2.5 bg-card/70 rounded-lg px-2.5 py-2 border border-border text-left",
               "transition-colors hover:bg-muted/50 hover:text-foreground",
@@ -942,10 +943,10 @@ function EmptyState({ onPick }: { onPick: (text: string) => void }) {
             </div>
             <div className="min-w-0 flex-1">
               <div className="text-[12px] font-medium text-foreground">
-                {s.label}
+                {t(s.labelKey)}
               </div>
               <div className="text-[10.5px] text-muted-foreground">
-                {s.hint}
+                {t(s.hintKey)}
               </div>
             </div>
           </button>

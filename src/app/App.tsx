@@ -1148,7 +1148,7 @@ export default function App() {
   const handleNewSpace = useCallback(() => {
     const { spaces, create, setActive } = useSpaces.getState();
     const meta = create({
-      name: `Space ${spaces.length + 1}`,
+      name: tStatic("spaces.newSpaceName", { number: spaces.length + 1 }),
       root: activeCwd ?? home ?? null,
       env: workspaceEnv,
     });
