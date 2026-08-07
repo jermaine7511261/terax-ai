@@ -58,6 +58,7 @@ import { usePlanStore } from "../store/planStore";
 import { AiChatView } from "./AiChat";
 import { PlanDiffReview } from "./PlanDiffReview";
 import { ActivityStrip } from "./ActivityStrip";
+import { AiComposerInput } from "./AiComposerInput";
 import { TodoStrip } from "./TodoStrip";
 
 const SUGGESTIONS = [
@@ -272,6 +273,9 @@ function Body({
         )}
       </div>
 
+      <div className="shrink-0 border-t border-border/40 px-2 py-1.5">
+        <AiComposerInput />
+      </div>
       <TodoStrip sessionId={sessionId} />
     </>
   );

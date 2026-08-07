@@ -1,6 +1,5 @@
 import { useI18n } from "@/lib/i18n";
 import { currentWorkspaceEnv } from "@/modules/workspace";
-import { invoke } from "@tauri-apps/api/core";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { getModel, type ModelId } from "../config";
@@ -10,6 +9,7 @@ import { getChat, useChatStore } from "../store/chatStore";
 import { useSnippetsStore } from "../store/snippetsStore";
 import { type SlashCommandMeta, tryRunSlashCommand } from "./slashCommands";
 
+import { getPlatform } from "@/platform";
 export type FileAttachment = {
   id: string;
   name: string;
@@ -78,6 +78,48 @@ export function AiComposerProvider({ children }: ProviderProps) {
   const [pickedSnippets, setPickedSnippets] = useState<Snippet[]>([]);
   const [pickedCommands, setPickedCommands] = useState<SlashCommandMeta[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Per-session draft persistence: when switching sessions, save the current
+  // draft and restore the target session's draft (if any). Cleared on submit.
+  const drafts = useRef<
+    Map<
+      string,
+      {
+        value: string;
+        files: FileAttachment[];
+        snippets: Snippet[];
+        commands: SlashCommandMeta[];
+      }
+    >
+  >(new Map());
+  const prevSession = useRef<string | null>(null);
+  useEffect(() => {
+    if (!sessionId || sessionId === prevSession.current) return;
+    // Save current session's draft
+    if (prevSession.current) {
+      drafts.current.set(prevSession.current, {
+        value,
+        files,
+        snippets: pickedSnippets,
+        commands: pickedCommands,
+      });
+    }
+    // Restore target session's draft
+    const saved = drafts.current.get(sessionId);
+    if (saved) {
+      setValue(saved.value);
+      setFiles(saved.files);
+      setPickedSnippets(saved.snippets);
+      setPickedCommands(saved.commands);
+    } else {
+      setValue("");
+      setFiles([]);
+      setPickedSnippets([]);
+      setPickedCommands([]);
+    }
+    prevSession.current = sessionId;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId]);
 
   const focusSignal = useChatStore((s) => s.focusSignal);
   const pendingPrefill = useChatStore((s) => s.pendingPrefill);
@@ -247,7 +289,7 @@ export function AiComposerProvider({ children }: ProviderProps) {
         | { kind: "text"; content: string; size: number }
         | { kind: "binary"; size: number }
         | { kind: "toolarge"; size: number; limit: number };
-      const result = await invoke<ReadResult>("fs_read_file", {
+      const result = await getPlatform().ipc.invoke<ReadResult>("fs_read_file", {
         path,
         workspace: currentWorkspaceEnv(),
       });
@@ -420,6 +462,8 @@ export function AiComposerProvider({ children }: ProviderProps) {
     setFiles([]);
     setPickedSnippets([]);
     setPickedCommands([]);
+    // Clear the draft for this session so the next session switch starts fresh.
+    if (sessionId) drafts.current.delete(sessionId);
     // Re-focus immediately after submit so the user can type a follow-up
     requestAnimationFrame(() => textareaRef.current?.focus());
   };
