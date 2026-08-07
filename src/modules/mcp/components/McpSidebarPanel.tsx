@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Spinner } from "@/components/ui/spinner";
 import { useI18n } from "@/lib/i18n";
 import { useEffect } from "react";
@@ -46,9 +47,12 @@ export function McpSidebarPanel({ root }: { root: string | null }) {
             {t("settingsMcp.checking")}
           </div>
         ) : servers.length === 0 ? (
-          <p className="px-1 py-1.5 text-[11px] text-muted-foreground">
-            {t("settingsMcp.empty")}
-          </p>
+          <Empty>
+            <EmptyHeader>
+              <EmptyTitle>{t("settingsMcp.empty")}</EmptyTitle>
+              <EmptyDescription>{t("settingsMcp.sidebarHint")}</EmptyDescription>
+            </EmptyHeader>
+          </Empty>
         ) : (
           servers.map((s) => {
             const connected = s.status === "connected";

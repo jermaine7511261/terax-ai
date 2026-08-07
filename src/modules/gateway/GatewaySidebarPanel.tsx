@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Spinner } from "@/components/ui/spinner";
 import { useI18n } from "@/lib/i18n";
 import {
@@ -64,9 +65,12 @@ export function GatewaySidebarPanel() {
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-1.5">
         {platforms.length === 0 ? (
-          <p className="px-1 py-1.5 text-[11px] text-muted-foreground">
-            {t("gateway.noPlatforms")}
-          </p>
+          <Empty>
+            <EmptyHeader>
+              <EmptyTitle>{t("gateway.noPlatforms")}</EmptyTitle>
+              <EmptyDescription>{t("gateway.sidebarHint")}</EmptyDescription>
+            </EmptyHeader>
+          </Empty>
         ) : (
           platforms.map((p) => {
             const isBusy = busyId === p.id;

@@ -1044,6 +1044,7 @@ export const zhMessages = {
     servers: "MCP 服务器",
     description: "以原生 stdio/SSE 客户端连接 MCP 服务器，工具自动暴露给 AI 智能体。",
     empty: "尚未配置 MCP 服务器",
+    sidebarHint: "在设置 → MCP 中添加服务器，注册 AI 工具面",
     checking: "加载中...",
     addServer: "添加服务器",
     addTitle: "添加 MCP 服务器",
@@ -1122,6 +1123,7 @@ export const zhMessages = {
     title: "IM 网关",
     subtitle: "接入国内即时通信平台，通过聊天驱动本机 AI Agent",
     noPlatforms: "暂无可用平台",
+    sidebarHint: "在设置 → 网关中连接平台",
     configured: "已配置",
     notConfigured: "未配置",
     connected: "已连接",
@@ -2421,6 +2423,7 @@ export const enMessages = {
     description:
       "Connect MCP servers through native stdio/SSE clients; their tools are exposed to the AI agent automatically.",
     empty: "No MCP servers configured",
+    sidebarHint: "Add servers in Settings → MCP to register AI tools",
     checking: "loading...",
     addServer: "Add server",
     addTitle: "Add MCP server",
@@ -2501,6 +2504,7 @@ export const enMessages = {
     subtitle:
       "Connect domestic IM platforms and drive your local AI agent from chat",
     noPlatforms: "No platforms available",
+    sidebarHint: "Connect a platform in Settings → Gateway",
     configured: "Configured",
     notConfigured: "Not configured",
     connected: "Connected",
