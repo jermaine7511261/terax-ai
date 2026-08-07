@@ -181,7 +181,7 @@ describe("onCustomThemesChange", () => {
         }),
     );
     const unsubEvent = vi.fn(() => {
-      eventHandler = null;
+      eventHandler = undefined;
     });
     listen.mockImplementation(
       (_event: string, cb: () => void) =>
@@ -203,7 +203,7 @@ describe("onCustomThemesChange", () => {
     unlisten();
     // Event subscription torn down via the returned unlisten.
     expect(unsubEvent).toHaveBeenCalledTimes(1);
-    expect(eventHandler).toBeNull();
+    expect(eventHandler).toBeUndefined();
     // Local store subscription torn down — forwarding no longer fires cb.
     onChangeHandler!("themes");
     expect(cb).toHaveBeenCalledTimes(2);

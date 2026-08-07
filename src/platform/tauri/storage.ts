@@ -35,7 +35,7 @@ export function createTauriStorage(filename: string, _options?: unknown): IStora
   const ensureForwarder = () => {
     // Tear down the previous forwarder (prevents listener leaks) and
     // re-register so subscriptions always reach the current store.
-    // The store's onChange may be async (returns a Promise<UnlistenFn>).
+    // The store's onChange may return a Promise<UnlistenFn>.
     forwarderUnlisten?.();
     forwarderUnlisten = null;
     const unlisten = store.onChange?.((key, value) => {
@@ -47,12 +47,10 @@ export function createTauriStorage(filename: string, _options?: unknown): IStora
         }
       }
     });
-    if (unlisten && typeof (unlisten as Promise<UnlistenFn>).then === "function") {
-      (unlisten as Promise<UnlistenFn>).then((u) => {
-        forwarderUnlisten = u;
+    if (unlisten) {
+      Promise.resolve(unlisten).then((u) => {
+        forwarderUnlisten = u ?? null;
       });
-    } else {
-      forwarderUnlisten = (unlisten as UnlistenFn | null) ?? null;
     }
   };
   ensureForwarder();
