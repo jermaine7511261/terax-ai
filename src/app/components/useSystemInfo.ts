@@ -1,5 +1,5 @@
 import { IS_LINUX, IS_MAC, IS_WINDOWS } from "@/lib/platform";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform";
 import { useEffect, useState } from "react";
 
 const OS_LABEL = IS_MAC

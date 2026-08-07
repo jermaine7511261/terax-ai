@@ -1,5 +1,5 @@
 import { currentWorkspaceEnv } from "@/modules/workspace";
-import { Channel, invoke } from "@tauri-apps/api/core";
+import { Channel, invoke } from "@/platform";
 import type { Transport } from "codemirror-languageserver";
 
 export type LspSpawnConfig = {

@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/lib/i18n";
 import { useDapStore } from "@/modules/dap";

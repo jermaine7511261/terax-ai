@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { currentWorkspaceEnv } from "@/modules/workspace";
 

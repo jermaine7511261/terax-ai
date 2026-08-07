@@ -1,6 +1,6 @@
 import { currentWorkspaceEnv } from "@/modules/workspace";
 import { type Completion, startCompletion } from "@codemirror/autocomplete";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform";
 import { homeDir } from "@tauri-apps/api/path";
 
 type DirEntry = {

@@ -119,7 +119,7 @@ import { ThemeProvider, useThemeFileEditing } from "@/modules/theme";
 import { UpdaterDialog } from "@/modules/updater";
 import { WeixinReloginOverlay } from "@/modules/gateway/WeixinReloginOverlay";
 import { useWorkspaceEnvStore, type WorkspaceEnv } from "@/modules/workspace";
-import { convertFileSrc, invoke } from "@tauri-apps/api/core";
+import { convertFileSrc, invoke } from "@/platform";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { SearchAddon } from "@xterm/addon-search";

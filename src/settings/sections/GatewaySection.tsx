@@ -1,4 +1,4 @@
-import { Channel } from "@tauri-apps/api/core";
+import { Channel } from "@/platform";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -202,7 +202,7 @@ export function GatewaySection(): JSX.Element {
   const startQrLogin = async (id: string) => {
     setQrFlow({ running: true, qrUrl: null, statusLabel: "waiting", error: null });
     const ch = new Channel<QrFrame>();
-    ch.onmessage = (frame) => {
+    ch.onmessage = (frame: QrFrame) => {
       if (frame.kind === "qr") {
         setQrFlow((s) => ({ ...s, qrUrl: frame.svg_data_url, statusLabel: "waiting" }));
       } else if (frame.kind === "status") {

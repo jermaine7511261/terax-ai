@@ -1,4 +1,4 @@
-import { type Channel, invoke } from "@tauri-apps/api/core";
+import { type Channel, invoke } from "@/platform";
 
 export type DapTransportType = "stdio" | "websocket" | "tcp";
 

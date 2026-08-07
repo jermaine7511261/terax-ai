@@ -1,7 +1,7 @@
 import { ensureMonoFontsLoaded } from "@/lib/fonts";
 import { usePreferencesStore } from "@/modules/settings/preferences";
 import type { SshTarget } from "@/modules/tabs";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform";
 import type { SearchAddon } from "@xterm/addon-search";
 import {
   useCallback,

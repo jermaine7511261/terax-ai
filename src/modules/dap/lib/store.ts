@@ -1,4 +1,4 @@
-import { Channel } from "@tauri-apps/api/core";
+import { Channel } from "@/platform";
 import { listen } from "@tauri-apps/api/event";
 import { create } from "zustand";
 import {

@@ -2,7 +2,7 @@ import { quoteShellArg } from "@/lib/shellQuote";
 import type { EditorFormatter } from "@/modules/settings/store";
 import { currentWorkspaceEnv } from "@/modules/workspace";
 import type { EditorView } from "@codemirror/view";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform";
 
 type ReadResult = { kind: string; content?: string; mtime?: number };
 

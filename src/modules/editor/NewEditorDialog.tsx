@@ -12,7 +12,7 @@ import { useI18n } from "@/lib/i18n";
 import { currentWorkspaceEnv } from "@/modules/workspace";
 import { File02Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform";
 import { useEffect, useRef, useState } from "react";
 
 type Props = {

@@ -1,6 +1,6 @@
 import "./styles/globals.css";
 
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import ReactDOM from "react-dom/client";
 import App from "./app/App";

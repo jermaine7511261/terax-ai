@@ -2,7 +2,7 @@ import { notifyDocumentSaved } from "@/modules/lsp";
 import { usePreferencesStore } from "@/modules/settings/preferences";
 import { currentWorkspaceEnv } from "@/modules/workspace";
 import { tStatic } from "@/lib/i18n";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { detectEol, type Eol, normalizeToLf, restoreEol } from "./eol";

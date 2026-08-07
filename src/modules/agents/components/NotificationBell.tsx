@@ -14,7 +14,7 @@ import {
   Notification03Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform";
 import { useMemo, useState } from "react";
 import { useI18n } from "@/lib/i18n";
 import { AgentIcon } from "../lib/agentIcon";

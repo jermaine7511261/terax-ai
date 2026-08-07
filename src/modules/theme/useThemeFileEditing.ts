@@ -1,5 +1,5 @@
 import { type RefObject, useEffect } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { setThemeId as persistThemeId } from "@/modules/settings/store";
 import type { Tab } from "@/modules/tabs";

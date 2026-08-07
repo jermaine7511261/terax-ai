@@ -1,7 +1,7 @@
 // Remote SSH panel: SFTP file browser + port-forwarding tunnel manager.
 // Bridges to the Rust `sftp_list`/`sftp_read` and `ssh_tunnel_*` commands.
 
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@/platform";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import {
