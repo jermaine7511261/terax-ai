@@ -7,6 +7,7 @@ import {
   sendMessage,
 } from "../store/chatRuntime";
 import { AiChatView } from "./AiChat";
+import { SessionBar } from "./SessionBar";
 import { TodoStrip } from "./TodoStrip";
 
 /**
@@ -58,6 +59,7 @@ function ChatBody({ sessionId }: { sessionId: string }) {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
+      <SessionBar />
       <div className="flex min-h-0 flex-1 flex-col [&_.text-sm]:text-[13px] [&_p]:leading-relaxed">
         {helpers.messages.length === 0 ? (
           <EmptyState onPick={focusInput} />
