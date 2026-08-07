@@ -151,6 +151,7 @@ export type Preferences = {
   favoriteModelIds: string[];
   recentModelIds: string[];
   selectedModelId: string | null;
+  thinkingLength: "off" | "low" | "medium" | "high";
   vimMode: boolean;
   editorWordWrap: boolean;
   showHidden: boolean;
@@ -242,12 +243,31 @@ const KEY_OPENAI_COMPAT_MODEL_ID = "openaiCompatibleModelId";
 const KEY_OPENAI_COMPAT_CONTEXT_LIMIT = "openaiCompatibleContextLimit";
 const KEY_CUSTOM_ENDPOINTS = "customEndpoints";
 const KEY_OPENROUTER_MODEL_ID = "openrouterModelId";
+export type ThinkingLength = "off" | "low" | "medium" | "high";
+
+export const THINKING_LENGTHS: readonly ThinkingLength[] = [
+  "off",
+  "low",
+  "medium",
+  "high",
+];
+
+function parseThinkingLength(
+  v: string | undefined,
+  fallback: ThinkingLength,
+): ThinkingLength {
+  return THINKING_LENGTHS.includes(v as ThinkingLength)
+    ? (v as ThinkingLength)
+    : fallback;
+}
+
 const KEY_STT_PROVIDER = "sttProvider";
 const KEY_GROQ_STT_MODEL = "groqSttModel";
 const KEY_WHISPERCPP_BASE_URL = "whispercppBaseURL";
 const KEY_FAVORITE_MODELS = "favoriteModelIds";
 const KEY_RECENT_MODELS = "recentModelIds";
 const KEY_SELECTED_MODEL = "selectedModelId";
+const KEY_THINKING_LENGTH = "thinkingLength";
 const KEY_VIM_MODE = "vimMode";
 const KEY_EDITOR_WORD_WRAP = "editorWordWrap";
 const KEY_SHOW_HIDDEN = "showHidden";
@@ -333,6 +353,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   favoriteModelIds: [],
   recentModelIds: [],
   selectedModelId: null,
+  thinkingLength: "medium",
   vimMode: false,
   editorWordWrap: false,
   showHidden: false,
@@ -488,6 +509,10 @@ export async function loadPreferences(): Promise<Preferences> {
       get<string[]>(KEY_RECENT_MODELS) ?? DEFAULT_PREFERENCES.recentModelIds
     ).filter(isLoadableModelId),
     selectedModelId: get<string>(KEY_SELECTED_MODEL) ?? null,
+    thinkingLength: parseThinkingLength(
+      get<string>(KEY_THINKING_LENGTH),
+      DEFAULT_PREFERENCES.thinkingLength,
+    ),
     vimMode: get<boolean>(KEY_VIM_MODE) ?? DEFAULT_PREFERENCES.vimMode,
     editorWordWrap:
       get<boolean>(KEY_EDITOR_WORD_WRAP) ?? DEFAULT_PREFERENCES.editorWordWrap,
@@ -767,6 +792,10 @@ export async function setSelectedModelId(value: string | null): Promise<void> {
   await writePref(KEY_SELECTED_MODEL, value);
 }
 
+export async function setThinkingLength(value: ThinkingLength): Promise<void> {
+  await writePref(KEY_THINKING_LENGTH, value);
+}
+
 export async function setVimMode(value: boolean): Promise<void> {
   await writePref(KEY_VIM_MODE, value);
 }
@@ -952,6 +981,7 @@ export async function onPreferencesChange(
     [KEY_FAVORITE_MODELS]: "favoriteModelIds",
     [KEY_RECENT_MODELS]: "recentModelIds",
     [KEY_SELECTED_MODEL]: "selectedModelId",
+    [KEY_THINKING_LENGTH]: "thinkingLength",
     [KEY_VIM_MODE]: "vimMode",
     [KEY_EDITOR_WORD_WRAP]: "editorWordWrap",
     [KEY_SHOW_HIDDEN]: "showHidden",

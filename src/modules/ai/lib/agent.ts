@@ -25,6 +25,7 @@ import { compactModelMessagesDetailed } from "./compact";
 import type { CustomEndpointKeys, ProviderKeys } from "./keyring";
 import { prepareAgentPrompt } from "./prompt";
 import { createProxyFetch } from "./proxyFetch";
+import type { ThinkingLength } from "@/modules/settings/store";
 
 const localProxyFetch = createProxyFetch({ allowPrivateNetwork: true });
 
@@ -222,6 +223,8 @@ export type LocalProviderConfig = {
   openrouterModelId?: string;
   customEndpoints?: readonly CustomEndpoint[];
   customEndpointKeys?: CustomEndpointKeys;
+  /** Reasoning-effort style thinking budget: "off" | "low" | "medium" | "high". */
+  thinkingLength?: ThinkingLength;
 };
 
 export function buildConfiguredLanguageModel(
@@ -345,6 +348,8 @@ export type RunAgentOptions = {
   projectMemory?: string | null;
   uiMessages: UIMessage[];
   abortSignal?: AbortSignal;
+  /** Reasoning-effort thinking budget: "off" | "low" | "medium" | "high". */
+  thinkingLength?: ThinkingLength;
 };
 
 export async function runAgentStream(opts: RunAgentOptions) {
@@ -397,6 +402,20 @@ export async function runAgentStream(opts: RunAgentOptions) {
   );
 
   let stepsSeen = 0;
+  // Map the user's thinking-length choice to a provider reasoning-effort
+  // parameter (OpenAI-compatible "reasoning_effort": low/medium/high). "off"
+  // omits the option entirely so providers that don't support it are unaffected.
+  const reasoningEffort =
+    opts.thinkingLength && opts.thinkingLength !== "off"
+      ? opts.thinkingLength
+      : undefined;
+  const providerOptions = reasoningEffort
+    ? {
+        [provider]: {
+          reasoning_effort: reasoningEffort,
+        },
+      }
+    : undefined;
   return streamText({
     model,
     system: prompt.system,
@@ -405,6 +424,7 @@ export async function runAgentStream(opts: RunAgentOptions) {
     tools: filterTools(buildTools(opts.toolContext), opts.toolAllowlist),
     stopWhen: stepCountIs(MAX_AGENT_STEPS),
     abortSignal: opts.abortSignal,
+    providerOptions,
     onStepFinish: (step) => {
       stepsSeen++;
       if (opts.onStep) {

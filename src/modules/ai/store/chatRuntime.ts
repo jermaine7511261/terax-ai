@@ -63,6 +63,7 @@ function makeChat(sessionId: string): Chat<UIMessage> {
     getPlanMode: () => usePlanStore.getState().active,
     getToolAllowlist: () =>
       useChatStore.getState().sessionToolAllowlist[sessionId],
+    getThinkingLength: () => usePreferencesStore.getState().thinkingLength,
     getLlamaCppBaseURL: () => usePreferencesStore.getState().llamaCppBaseURL,
     getLlamaCppModelId: () => usePreferencesStore.getState().llamaCppModelId,
     getOpenaiCompatibleBaseURL: () =>

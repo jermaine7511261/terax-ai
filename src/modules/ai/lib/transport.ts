@@ -2,6 +2,7 @@ import type { UIMessage } from "@ai-sdk/react";
 import type { CustomEndpoint } from "../config";
 import { runAgentStream, type AgentUsageDelta } from "./agent";
 import type { ProviderKeys, CustomEndpointKeys } from "./keyring";
+import type { ThinkingLength } from "@/modules/settings/store";
 import { formatAiError } from "./errors";
 import { native } from "./native";
 import type { ToolContext } from "../tools/tools";
@@ -231,6 +232,7 @@ type Deps = {
   getPlanMode?: () => boolean;
   /** Skill-scoped tool allowlist for this session (undefined = full tools). */
   getToolAllowlist?: () => string[] | undefined;
+  getThinkingLength?: () => ThinkingLength | undefined;
 };
 
 type SendOptions = {
@@ -277,6 +279,7 @@ export function createContextAwareTransport(deps: Deps) {
       customEndpointKeys: deps.getCustomEndpointKeys?.(),
       planMode: deps.getPlanMode?.(),
       toolAllowlist: deps.getToolAllowlist?.(),
+      thinkingLength: deps.getThinkingLength?.(),
       projectMemory,
       uiMessages: messagesForRun,
       abortSignal: options.abortSignal,

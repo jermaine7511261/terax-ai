@@ -24,6 +24,7 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useChatStore } from "../store/chatStore";
 import { usePreferencesStore } from "@/modules/settings/preferences";
+import { setThinkingLength, type ThinkingLength } from "@/modules/settings/store";
 import {
   compatModelIdForEndpoint,
   getCompatModelInfo,
@@ -163,6 +164,46 @@ function ModelSection() {
   );
 }
 
+function ThinkingLengthSection() {
+  const { t } = useI18n();
+  const value = usePreferencesStore((s) => s.thinkingLength);
+
+  const options: { id: ThinkingLength; label: string }[] = [
+    { id: "off", label: t("ai.thinkingOff") },
+    { id: "low", label: t("ai.thinkingLow") },
+    { id: "medium", label: t("ai.thinkingMedium") },
+    { id: "high", label: t("ai.thinkingHigh") },
+  ];
+
+  return (
+    <>
+      <div className="px-2 pt-1.5 pb-1 text-[10px] font-medium tracking-wide text-muted-foreground uppercase">
+        {t("ai.thinkingLength")}
+      </div>
+      {options.map((o) => (
+        <DropdownMenuItem
+          key={o.id}
+          onSelect={() => void setThinkingLength(o.id)}
+          className={cn(
+            "flex items-center gap-2 text-[12px]",
+            o.id === value && "bg-accent/40",
+          )}
+        >
+          <span className="min-w-0 flex-1">{o.label}</span>
+          {o.id === value ? (
+            <HugeiconsIcon
+              icon={Tick02Icon}
+              size={12}
+              strokeWidth={2}
+              className="shrink-0 text-foreground"
+            />
+          ) : null}
+        </DropdownMenuItem>
+      ))}
+    </>
+  );
+}
+
 export function ModelSwitcher() {
   const { t } = useI18n();
   const selectedModel = useChatStore((s) => s.selectedModelId);
@@ -210,6 +251,8 @@ export function ModelSwitcher() {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-60 max-h-96 overflow-y-auto">
         <ModelSection />
+        <DropdownMenuSeparator />
+        <ThinkingLengthSection />
         <DropdownMenuSeparator />
         <DropdownMenuItem
           onSelect={() => void openSettingsWindow("models")}
