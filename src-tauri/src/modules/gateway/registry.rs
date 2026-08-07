@@ -8,7 +8,7 @@ use std::time::Instant;
 use tokio::sync::mpsc;
 
 use super::adapter::{ChatTarget, PlatformAdapter, PlatformEventSink, SendResult};
-use super::message::{ChatType, MessageEvent};
+use super::message::MessageEvent;
 use super::platform::PlatformId;
 use super::session::SessionRouter;
 
@@ -274,11 +274,14 @@ impl GatewayRegistry {
                 // dropped from the agent path — but the pending callback gets a
                 // sender+text summary so the approval UI isn't blind.
                 //
-                // WeChat DM is auto-approved: the QR login already authenticates
-                // the account, so a direct DM is trusted by default (mirrors
-                // Hermes dm_policy where the owner authorizes via scan).
-                let auto_trust =
-                    ev.platform == PlatformId::Weixin && ev.chat_type == ChatType::Dm;
+                // NOTE: there is deliberately NO blanket auto-approve here (not
+                // even for WeChat DM). The weixin adapter already filters out
+                // messages sent by the account itself (weixin.rs handle_inbound
+                // skips sender_id == account_id), so every DM that reaches this
+                // loop is from a third party. Auto-trusting them would let any
+                // stranger drive the agent. All platforms go through the
+                // default-deny pending-approval gate.
+                let auto_trust = false;
                 if auto_trust {
                     this.inner.sessions.approve(&sk);
                 }

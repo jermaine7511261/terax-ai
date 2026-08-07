@@ -130,8 +130,25 @@ pub fn write_state(path: &Path, port: u16, token: &str) -> Result<(), String> {
     std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
     let json = serde_json::json!({ "port": port, "token": token });
     let tmp = path.with_extension("json.tmp");
-    std::fs::write(&tmp, serde_json::to_vec(&json).map_err(|e| e.to_string())?)
-        .map_err(|e| e.to_string())?;
+    // Write the token/port state with owner-only permissions (0600) on Unix:
+    // this token is the sole credential for the 127.0.0.1 helper listener, so
+    // a world-readable file would let any local user inject keystrokes into
+    // the active PTY or kill sessions. The atomic tmp+rename is kept.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        let mut opts = std::fs::OpenOptions::new();
+        opts.write(true).create(true).truncate(true).mode(0o600);
+        let mut f = opts.open(&tmp).map_err(|e| e.to_string())?;
+        std::io::Write::write_all(&mut f, &serde_json::to_vec(&json).map_err(|e| e.to_string())?)
+            .map_err(|e| e.to_string())?;
+        f.sync_all().map_err(|e| e.to_string())?;
+    }
+    #[cfg(not(unix))]
+    {
+        std::fs::write(&tmp, serde_json::to_vec(&json).map_err(|e| e.to_string())?)
+            .map_err(|e| e.to_string())?;
+    }
     std::fs::rename(&tmp, path).map_err(|e| e.to_string())
 }
 

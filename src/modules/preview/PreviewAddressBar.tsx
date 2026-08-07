@@ -19,7 +19,7 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n";
-import { openUrl } from "@/platform";
+import { invoke, openUrl } from "@/platform";
 import {
   forwardRef,
   useEffect,
@@ -309,7 +309,7 @@ export const PreviewAddressBar = forwardRef<PreviewAddressBarHandle, Props>(
           type="button"
           variant="ghost"
           size="icon"
-          onClick={() => void import("@tauri-apps/api/core").then((m) => m.invoke("toggle_devtools"))}
+          onClick={() => void invoke("toggle_devtools")}
           title="Toggle DevTools"
           className="size-7 shrink-0 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
         >

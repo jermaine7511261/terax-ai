@@ -81,7 +81,8 @@ export const useAgentActivityStore = create<State>((set) => ({
 
 /** Hook: list of activities for display, capped at 8. */
 export function useRecentActivities(): AgentActivity[] {
-  return useAgentActivityStore((s) => s.activities.slice(0, 8));
+  const all = useAgentActivityStore((s) => s.activities);
+  return all.slice(0, 8);
 }
 
 let _nextId = 0;

@@ -1,5 +1,10 @@
-// WebKitGTK can't read external copies, so the native plugin is Linux-only and
-// lazy-loaded to keep it out of the mac/win bundle.
+// Terminal clipboard I/O. Routes the native path through the `@/platform`
+// abstraction layer so feature code never imports `@tauri-apps/*` directly
+// (platform rule). WebKitGTK can't read external copies, so the native plugin
+// path is used only on Linux; everywhere else the web Clipboard API suffices
+// and keeps the native plugin out of the mac/win bundle.
+import { clipboardReadText, clipboardWriteText } from "@/platform";
+
 const IS_LINUX =
   typeof navigator !== "undefined" &&
   /Linux/.test(navigator.userAgent) &&
@@ -13,9 +18,10 @@ function webClipboard(): Clipboard | null {
 export async function readTerminalClipboard(): Promise<string> {
   if (IS_LINUX) {
     try {
-      const { readText } = await import("@tauri-apps/plugin-clipboard-manager");
-      return await readText();
-    } catch {}
+      return await clipboardReadText();
+    } catch {
+      // fall through to the web Clipboard API below
+    }
   }
   try {
     return (await webClipboard()?.readText()) ?? "";
@@ -27,12 +33,15 @@ export async function readTerminalClipboard(): Promise<string> {
 export async function writeTerminalClipboard(text: string): Promise<void> {
   if (IS_LINUX) {
     try {
-      const { writeText } = await import("@tauri-apps/plugin-clipboard-manager");
-      await writeText(text);
+      await clipboardWriteText(text);
       return;
-    } catch {}
+    } catch {
+      // fall through to the web Clipboard API below
+    }
   }
   try {
     await webClipboard()?.writeText(text);
-  } catch {}
+  } catch {
+    // Clipboard is best-effort.
+  }
 }

@@ -18,6 +18,8 @@ pub enum ServerRequest {
     #[serde(rename = "initialize")]
     Initialize {
         #[serde(default)]
+        id: serde_json::Value,
+        #[serde(default)]
         params: InitializeParams,
     },
 
@@ -176,7 +178,7 @@ mod tests {
         let line = r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}"#;
         let req = parse_request(line).unwrap().unwrap();
         match req {
-            ServerRequest::Initialize { .. } => {}
+            ServerRequest::Initialize { id, .. } => assert_eq!(id, 1),
             _ => panic!("expected Initialize"),
         }
     }

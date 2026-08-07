@@ -64,6 +64,11 @@ pub fn run_server(workdir: &Path) {
 
         let response = handle_request(request, workdir);
 
+        let Some(response) = response else {
+            // JSON-RPC notification (no id): must NOT receive a response.
+            continue;
+        };
+
         let line = serialize_response(&response);
         // Enforce output limit.
         let bytes = line.as_bytes();
@@ -78,11 +83,21 @@ pub fn run_server(workdir: &Path) {
     }
 }
 
-fn handle_request(req: ServerRequest, workdir: &Path) -> JsonRpcResponse {
+fn handle_request(req: ServerRequest, workdir: &Path) -> Option<JsonRpcResponse> {
     match req {
-        ServerRequest::Initialize { params: _ } => {
+        ServerRequest::Initialize { id, params } => {
+            // Echo the client's own protocol version when it's one we support,
+            // else fall back to our latest. (Protocol versions are
+            // dot-separated like "2025-06-18"; we accept the client's and
+            // advertise it back so strict clients can correlate.)
+            let client_v = params.protocol_version;
+            let protocol = if client_v.is_empty() {
+                "2025-06-18".to_string()
+            } else {
+                client_v
+            };
             let resp = serde_json::json!({
-                "protocolVersion": "2024-11-05",
+                "protocolVersion": protocol,
                 "capabilities": {
                     "tools": {}
                 },
@@ -91,31 +106,29 @@ fn handle_request(req: ServerRequest, workdir: &Path) -> JsonRpcResponse {
                     "version": env!("CARGO_PKG_VERSION")
                 }
             });
-            JsonRpcResponse::success(serde_json::json!(1), resp)
+            Some(JsonRpcResponse::success(id, resp))
         }
         ServerRequest::Initialized => {
-            // Notification — no response needed. Return a dummy that will
-            // be serialized but is harmless. In practice we skip serialization
-            // for notifications, but this path shouldn't be reached.
-            JsonRpcResponse::success(serde_json::Value::Null, serde_json::json!(null))
+            // JSON-RPC notification (no id) — must not receive a response.
+            None
         }
         ServerRequest::ToolsList { id } => {
             let tool_list = tools::list_tools();
             let resp = serde_json::json!({ "tools": tool_list });
-            JsonRpcResponse::success(id, resp)
+            Some(JsonRpcResponse::success(id, resp))
         }
         ServerRequest::ToolsCall { id, params } => {
             match tools::call_tool(&params.name, &params.arguments, workdir) {
                 Ok(content) => {
-                    JsonRpcResponse::success(id, serde_json::json!({ "content": content }))
+                    Some(JsonRpcResponse::success(id, serde_json::json!({ "content": content })))
                 }
                 Err(e) => {
-                    JsonRpcResponse::error(id, -32000, e)
+                    Some(JsonRpcResponse::error(id, -32000, e))
                 }
             }
         }
         ServerRequest::Ping { id } => {
-            JsonRpcResponse::success(id, serde_json::json!({}))
+            Some(JsonRpcResponse::success(id, serde_json::json!({})))
         }
     }
 }
@@ -143,14 +156,36 @@ mod tests {
     
 
     #[test]
-    fn handle_initialize() {
+    fn handle_initialize_echoes_id_and_protocol() {
         let req = ServerRequest::Initialize {
-            params: Default::default(),
+            id: serde_json::json!(7),
+            params: protocol::InitializeParams {
+                protocol_version: "2025-06-18".into(),
+                ..Default::default()
+            },
         };
-        let resp = handle_request(req, Path::new("."));
-        assert!(resp.result.is_some());
+        let resp = handle_request(req, Path::new(".")).unwrap();
+        assert_eq!(resp.id, 7); // echoes the client's request id, not hardcoded 1
         let result = resp.result.unwrap();
         assert_eq!(result["serverInfo"]["name"], "yamet-mcp-server");
+        assert_eq!(result["protocolVersion"], "2025-06-18");
+    }
+
+    #[test]
+    fn handle_initialize_falls_back_when_no_protocol_sent() {
+        let req = ServerRequest::Initialize {
+            id: serde_json::json!(1),
+            params: Default::default(),
+        };
+        let resp = handle_request(req, Path::new(".")).unwrap();
+        let result = resp.result.unwrap();
+        assert_eq!(result["serverInfo"]["name"], "yamet-mcp-server");
+    }
+
+    #[test]
+    fn handle_initialized_notification_is_none() {
+        let resp = handle_request(ServerRequest::Initialized, Path::new("."));
+        assert!(resp.is_none()); // notifications must not receive a response
     }
 
     #[test]
@@ -158,7 +193,7 @@ mod tests {
         let req = ServerRequest::ToolsList {
             id: serde_json::json!(1),
         };
-        let resp = handle_request(req, Path::new("."));
+        let resp = handle_request(req, Path::new(".")).unwrap();
         let result = resp.result.unwrap();
         let tools = result["tools"].as_array().unwrap();
         assert_eq!(tools.len(), 6);
@@ -173,7 +208,7 @@ mod tests {
         let req = ServerRequest::Ping {
             id: serde_json::json!(42),
         };
-        let resp = handle_request(req, Path::new("."));
+        let resp = handle_request(req, Path::new(".")).unwrap();
         assert!(resp.result.is_some());
     }
 
@@ -188,7 +223,7 @@ mod tests {
                 arguments: serde_json::json!({"path": "test.txt"}),
             },
         };
-        let resp = handle_request(req, dir.path());
+        let resp = handle_request(req, dir.path()).unwrap();
         let content = &resp.result.unwrap()["content"];
         assert_eq!(content[0]["text"], "hello mcp");
     }
@@ -203,7 +238,7 @@ mod tests {
                 arguments: serde_json::json!({"path": "../etc/passwd"}),
             },
         };
-        let resp = handle_request(req, dir.path());
+        let resp = handle_request(req, dir.path()).unwrap();
         assert!(resp.error.is_some());
     }
 }

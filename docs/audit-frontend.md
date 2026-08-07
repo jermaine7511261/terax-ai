@@ -1,229 +1,125 @@
-# Yamet 前端代码审查报告（audit-frontend）
+# yamet 前端（src/）深度审计报告
 
-> 审查对象：`E:/Agent/yamet`（v0.1.14，React 19 + TypeScript + Vite + xterm.js + CodeMirror 6 + zustand + radix-ui + shadcn/ui + Tailwind v4，别名 `@/*` → `src/*`）
-> 审查视角：资深前端/React 工程师 · 前端工程纵深
-> 方法：静态分析（Python 扫描 + ripgrep/search_files），全部结论基于真实代码 `file:line` 证据。未臆造。
-> 规模：src/ 共 **588 个 TS/TSX 文件**（425 TS + 163 TSX），其中 **166 个 `*.test.*` 测试文件**。
-
----
-
-## ⏱ 修复状态（2026-08-06 全量修复后更新）
-
-| 原发现 | 严重度 | 修复状态 | 修复提交 |
-|---|---|---|---|
-| 1.2 同功能多份实现（basename 12 处复制 + 行为漂移） | P1 | ✅ 已修复 | `3d9dc81`+`844efd2`（收敛到 `@/lib/path`，security.ts 拒绝名单版保留） |
-| 6.2 硬编码中文漏网（rendererPool toast） | P2 | ✅ 已修复 | `971c084`（→ tStatic 双语键）+ `b964a51`（移除白名单豁免） |
-| 6.3 硬编码英文盲区（无英文检测门禁） | P2 | ✅ 已修复 | `7f82882`（16+ 处英文 → t()/tStatic） |
-| 巨型组件（SourceControlPanel/ModelsSection 等） | 高 | ⏳ 待拆分 | 见规划，后续迭代 |
-| 类型化 IPC 契约层 | 中 | ⏳ 待收敛 | 见规划，后续迭代 |
-
-> 巨型组件拆分与类型化 IPC 收敛属重构范畴，已列入后续迭代；其余 P1/P2 均已闭环。
+> 审计范围：`src/`（app、components、lib、modules、platform、settings）
+> 审计性质：只读研究，未修改任何文件。文件:行号 均以当前仓库为准。
+> 结论分级：**P0**（阻断核心功能/数据/安全）· **P1**（高影响，明显违反要求/架构）· **P2**（中低，健壮性/一致性/可维护性）
 
 ---
 
-## 一、架构
+## 一、结论摘要
 
-### 1.1 【模块划分与 barrel 导出】—— 做得好
-【证据】`src/modules/*/index.ts` 均为薄 barrel：`explorer/index.ts`(2 行)、`search/index.ts`(1 行)、`remote/index.ts`(1 行)、`statusbar/index.ts`(1 行) 等，几乎全部是纯 re-export；多个模块用 `*StackLazy` 惰性包装导出（`editor/index.ts`、`git-history/index.ts`、`markdown/index.ts`、`source-control/index.ts`）。
-【现状】模块按 `<area>/` 自包含，hooks 归 `lib/`，跨模块一律 `@/...`（无相对路径），与 YAMET.md 约定一致。
-【问题】无。
-【改进建议】保持现状；新增模块遵循同样的薄 barrel + lazy 入口约定。
-
-### 1.2 【同功能多份实现：路径工具严重重复且有行为漂移】—— P1
-【证据】`basename` 在 **12 个文件独立复制定义**：
-- `src/modules/ai/components/AiChat.tsx:578`
-- `src/modules/git-history/GitHistoryPane.tsx:88`
-- `src/modules/tabs/lib/useTabs.ts:170`
-- `src/modules/source-control/SourceControlPanel.tsx:122`
-- `src/modules/ai/lib/security.ts:131`
-- `src/modules/command-palette/CommandPalette.tsx:530`
-- `src/modules/explorer/FileExplorer.tsx:103`
-- `src/modules/lsp/lib/sessionManager.ts:44`
-- `src/modules/spaces/lib/serialize.ts:31`
-- `src/modules/statusbar/CwdBreadcrumb.tsx:43`
-- `src/modules/tabs/lib/useWindowTitle.ts:8`
-- `src/modules/ai/components/PlanDiffReview.tsx:16`
-
-实现**行为漂移**：`AiChat.tsx:579` 用 `Math.max(lastIndexOf("/"), lastIndexOf("\\"))`；而 `GitHistoryPane.tsx:89` / `useTabs.ts:171` / `SourceControlPanel.tsx:123` 用 `path.split(/[\\/]/).filter(Boolean)` —— 对尾斜杠（如 `"a/b/"`）前者返回 `""`、后者返回 `"b"`，边角行为不一致。
-
-`dirname` 同样在 6 处独立定义（`externalFormat.ts:96`、`useFileTree.ts:33`、`GitHistoryPane.tsx:93`、`SourceControlPanel.tsx:127`、`useSourceControlContext.ts:7`、`CwdBreadcrumb.tsx:37`），且 `SourceControlPanel.tsx:130` 用 `index <= 0` 返回 `""` 的边角与 `GitHistoryPane.tsx:96` 不同。
-
-`formatBytes` 在 4 处独立定义（`components/ai-elements/tool.tsx:755`、`editor/EditorPane.tsx:106`、`theme/bgImageStore.ts:77`、`updater/UpdaterDialog.tsx:35`）。`normalizeError` 在 3 处独立定义（`GitHistoryPane.tsx:100`、`useSourceControl.ts:70`、`useSourceControlPanel.ts:136`）。
-
-【现状】`src/lib` 下**没有共享 path 工具**（仅有 `src/modules/statusbar/lib/pathUtils.ts:13` 的 `segmentsFromCwd`，且局限在 statusbar 域）。YAMET.md:158 明确约定「反斜杠感知 basename」，但始终未收敛为共享工具，而是到处复制。
-【问题】违反 DRY；跨文件行为漂移是潜在正确性隐患（尤其 Windows 反斜杠/尾斜杠路径）；修 bug 要改 12 处。
-【改进建议】在 `src/lib/path.ts` 收敛 `basename`/`dirname`/`joinPath`/`formatBytes`，统一用 `.split(/[\\/]/)` 语义（与 YAMET.md 约定一致），删掉 12 处复制；`normalizeError` 收敛为 `src/lib/errors.ts` 单一实现。
-
-### 1.3 【zustand store 分布】—— 合理，仅命名易混淆
-【证据】共 19 个 `create<T>(...)` store（扫描见 `.audit_pat.py` 结果）：
-- ai 域：`chatStore`、`agentsStore`、`memoryStore`、`planStore`、`schedulerStore`、`snippetsStore`、`todoStore`、`providerModels`(fetchedModelsStore)
-- 其他：`agentStore`(agents)、`managedAgentsStore`、`dap/store`、`diagnosticsStore`、`lsp/runtimeStore`、`mcp/store`、`settings/preferences`、`spaces/useSpaces`、`terminal/agentActivity`、`terminal/dropStore`、`workspace/env`
-
-【现状】按域划分，职责清晰，未过度分散。唯一隐患是命名混淆：`modules/agents/store/agentStore.ts:28`（终端 agent 会话/通知）与 `modules/ai/store/agentsStore.ts:32`（AI 子 agent/工具）两个完全不同的域用了几乎同名的 store。
-【问题】命名近似导致误引用风险。
-【改进建议】`ai/agentsStore.ts` 更名（如 `subagentsStore` / `aiAgentsStore`）以消除歧义。
-
-### 1.4 【App.tsx 协调者】—— 做得好
-【证据】`src/app/App.tsx`（1577 行）作为协调者，把标签树 `useTabs`、工作区切换 `useWorkspaceSwitcher`、spaces 启动 `useSpacesBoot`、AI 引导 `useAiBootstrap` 等拆到独立 hooks；import 全部走模块 barrel 或 `lazy(() => import(...))`（DebugPanel/RemotePanel 惰性，见 `App.tsx:20-25`）。
-【问题】无；结构清晰。
+| 级别 | 数量 | 一句话说明 |
+|------|------|-----------|
+| P0 | 0 | 未发现确定性的 P0（见「结论」章节的边界说明） |
+| P1 | 2 | ① AI 界面大面积硬编码英文（zh 为必需主语言）② feature 模块绕过 `@/platform` 直连 `@tauri-apps/*` |
+| P2 | 8 | 内联合并竞态、巨型单组件、agent 状态 store 碎片化、cwd 绑定、硬编码命名、脆弱依赖等 |
+| Done well | 7 | 见文末 |
 
 ---
 
-## 二、代码质量
+## 二、P1 — 高影响问题
 
-### 2.1 【巨型单文件组件/Hook】—— P2
-【证据】>1000 行的文件：
-- `SourceControlPanel.tsx` **1821 行**
-- `useSourceControlPanel.ts` 1237 行
-- `useTabs.ts` 1328 行
-- `useTerminalSession.ts` 1220 行
-- `rendererPool.ts` 1146 行
-- `App.tsx` 1577 行
-另有 `translations.ts` 2724 行（数据表，合理）、`fileIcons.ts` 2681 行（图标映射表，合理）属数据性质除外。
-【现状】source-control 域的两个文件加起来超 3000 行，rendererPool/useTerminalSession 均超千行。
-【问题】可维护性/可测性下降；`SourceControlPanel.tsx` 顶部一段同时手写 `basename`/`dirname`（122/127 行），进一步印证 1.2 的重复问题。
-【改进建议】优先拆分 `SourceControlPanel.tsx`（渲染 vs 逻辑已部分在 `useSourceControlPanel.ts`，可再拆行级组件与工具函数）。
+### P1-1. AI 聊天/迷你窗口界面大面积硬编码英文（违反「zh 必需 + en 兜底」要求）
 
-### 2.2 【React Compiler 已启用，但仍有大量手动 memo】—— P2（观察）
-【证据】`vite.config.ts:21-23` 启用 `babel-plugin-react-compiler`（`reactCompilerPreset({ target: "19" })`）。但全库仍有 `useCallback` **282 处**、`useEffect` 246 处、`useMemo` 70 处、`useRef` 104 处、`useState` 157 处。
-【现状】React Compiler 会自动 memo 组件与 hooks，部分手动 `useMemo`/`useCallback` 属冗余。
-【问题】非 bug；但加重心智负担与 diff 噪音。
-【改进建议】在 CI 引入 `react-compiler-healthcheck`（已装为 devDep），评估可移除的手动 memo 数量，不强制清零。
+中文是主语言、英文为兜底，且项目有完整 `zhMessages`。但核心 AI 交互面在**已调用 `useI18n()` 的同文件里**大量直接写死英文字符串，导致中文用户看到英文 UI。证据（均为直接读取确认）：
 
-### 2.3 【事件监听清理】—— P2（观察，非定论）
-【证据】全库 `addEventListener` 44 处 vs `removeEventListener` 31 处；6 个文件在同一文件内 add 而无 remove：
-- `ai/lib/proxyFetch.ts`(add=1)、`editor/lib/colorSwatches.ts`(2)、`lsp/lib/client.ts`(3)、`lsp/lib/locationsPanel.ts`(2)、`terminal/block/lib/historyPopover.ts`(2)、`terminal/lib/rendererPool.ts`(3)
-【现状】这些多为模块级长生命周期监听或 xterm/编辑器实例上的 DOM 监听，经 `dispose`/`UnlistenFn`/channel 清理而非 `removeEventListener`。
-【问题】无法静态断定泄漏；`rendererPool.ts` 的 3 处（终端/编辑器实例上）若实例销毁路径未覆盖则可能泄漏，需人工核验。
-【改进建议】对上述 6 文件逐一确认清理路径；用 eslint 规则或 code review 确保每个 `addEventListener` 有成对清理。
+**`src/modules/ai/components/AiChat.tsx`**
+- 【AiChat.tsx:164-165】 `chipLabel()` 返回 `"Editor selection"` / `"Terminal selection"`（上下文芯片标签）
+- 【AiChat.tsx:254】 空状态 `description="Explain command output, fix errors, generate snippets, or run a task."`
+- 【AiChat.tsx:294】 `{step ?? "Thinking…"}`
+- 【AiChat.tsx:302】 继续按钮文案 `"Continue from where you stopped. Don't recap — just keep going."`
+- 【AiChat.tsx:309/318】 错误块 `"Request failed."` / `"Dismiss"`
+- 【AiChat.tsx:339-340/347】 上下文压缩提示 `"Context compacted — {n} older tool result(s) elided..."` / `"Dismiss"`
+- 【AiChat.tsx:361/368】 步数上限 `"Hit the step limit. Continue to keep going."` / `"Continue"`
+- 【AiChat.tsx:623】 `{count} file{count===1?"":"s"}`（虽然 `ai.read` 用了 `t()`，但数量后缀是英文）
 
-### 2.4 【死代码/未使用】—— 基本干净
-【证据】`knip.json` 与 `knip`（devDep）已配置（`package.json:30`，`knip.json` 存在）；无 `console.log`（0 处）；`console.warn` 17 处、`console.error` 36 处，属合理错误处理。`TODO` 注释 102 处。
-【问题】无明确死代码证据；`eager-graph.mjs:9` 注释声称由 `scripts/eager-graph.test.ts` 使用，但该测试文件**不存在**（实际测试在 `src/app/eager-budget.test.ts`），为陈旧注释。
-【改进建议】更新 `eager-graph.mjs:9` 注释指向 `src/app/eager-budget.test.ts`；在 CI 跑 `pnpm knip`。
+**`src/modules/ai/components/AiMiniWindow.tsx`**
+- 【AiMiniWindow.tsx:65-84】 `SUGGESTIONS` 建议数组全部英文：`"Explain the last error"`、`"Generate a command"`、`"Summarize buffer"` 等
+- 【AiMiniWindow.tsx:306/308/316】 `"Plan mode"`、`· ${queueLen} queued`/`"· no edits queued"`、`"Exit"`
+- 【AiMiniWindow.tsx:341】 `"Loading sessions…"`
+- 【AiMiniWindow.tsx:390】 `{step ?? "Thinking…"}`
+- 【AiMiniWindow.tsx:408】 `title={pinned ? "Unpin" : "Pin on top"}`
+- 【AiMiniWindow.tsx:493】 `"Last request"` / `"Estimated context"`
+- 【AiMiniWindow.tsx:509/515/522/530】 上下文详情 `"Session input"`、`"Session output"`、`"Cache hit"`、`"Session cost"`
+- 【AiMiniWindow.tsx:548-549】 页脚 `"Last request reflects current context size; session totals are cumulative."`、`"Token count is approximate (chars / 4)."`
+- 【AiMiniWindow.tsx:582/597/662】 `"New chat"`、`"New session"`、`"New chat"`
+- 【AiMiniWindow.tsx:699-700】 `dayKey()` 返回 `"Today"` / `"Yesterday"`
 
----
+**`src/modules/ai/components/AiComposerInput.tsx`**
+- 【AiComposerInput.tsx:200-204】 `voiceLabel`：`"Listening…"` / `"Transcribing…"`
 
-## 三、类型安全 —— 本库最强项
+**`src/modules/ai/lib/composer.tsx`**
+- 【composer.tsx:240】 附件名 `sel.source === "editor" ? "Editor selection" : "Terminal selection"`（与 AiChat.tsx:164 同串重复）
 
-【证据】
-- `tsconfig.json:18` `strict: true`，外加 `noUnusedLocals`、`noUnusedParameters`、`noFallthroughCasesInSwitch`；`verify.ps1:26-28` 强制 `tsc --noEmit`。
-- **`as any` / `: any` / `<any>` 全库为 0 处**；39 处词法 "any" 全部出现在注释/翻译文案/AI 提示词等自然语言中（如 `main.tsx:22` 注释、`translations.ts:1941` 文案），无一处是类型逃生。
-- 34 处 `as unknown as` 全部是**合理的第三方边界逃生**：`components/ai-elements/chat-code-lezer.ts:42-114`（lezer `StreamParser`）、`explorer/lib/iconResolver.ts:18`（iconify set）、`terminal/lib/rendererPool.ts:863-875`（xterm addon 私有字段）、`ai/components/AiChat.tsx:712-734` 与 `chatRuntime.ts:101`（AI SDK part 类型）、`useTabs.ts:535`/`useTerminalSession.ts:1218`（window 全局扩展）等。
-- 仅 **1 处** `@ts-ignore`：`src/components/ui/spinner.tsx:9`，位于 shadcn/ui 生成文件（biome 已排除 `!src/components/ui/**`）。
-- 仅 **2 处**非空断言：`AiChat.tsx:553` `run!.startIdx`、`statusbar/lib/pathUtils.ts:26` `normHome!.length`，均为已判空后的安全断言。
+**其它**
+- 【SourceControlPanel.tsx】 `"Discard changes?"`（git 丢弃确认，属破坏性操作却未走 `t()`）
+- 【App.tsx:1151】 新建工作区命名 `\`Space ${spaces.length + 1}\``
 
-【现状】类型纪律极佳，逃生舱使用克制且都有边界合理性。
-【问题】无实质问题。
-【改进建议】保持；新代码延续「用 `as unknown as` 做边界转换、禁 `as any`」的隐性约定，可考虑在 biome 或 knip 显式加 `noExplicitAny` 门禁固化。
+> 处理建议：上述字符串应收敛进 `zhMessages`/`enMessages` 新增键（沿用 `t()`/`tStatic()`），并过一遍 `tsc --noEmit`。因 zh/en 键位奇偶校验门已启用，新增键需两语言同时补齐。
 
----
+### P1-2. feature 模块绕过 `@/platform` 抽象层，直接 `import "@tauri-apps/*"`
 
-## 四、测试质量
+`@/platform`（`src/platform/index.ts:5-9`）明确要求「feature 代码不得直接 import `@tauri-apps/*`」。但发现 2 处直接引用（虽为动态 `import()`，仍破坏抽象、使 web 兜底失效）：
 
-### 4.1 【测试分布】—— 166 个测试文件
-【证据】分布：`ai` 50、`terminal` 23、`editor` 17、`theme` 8、`lsp` 7、`tabs` 7、`explorer` 6、`agents` 5、`command-palette` 5、`settings` 5、`spaces` 4、`components` 4 等（覆盖全部 27 个子域，仅 `search`/`preview`/`remote`/`mcp`/`markdown` 各 1 个较薄）。
-【问题】核心且复杂的域覆盖好；集成型 UI 壳（search/preview/remote）覆盖薄，与注释自述一致（见 4.3）。
-
-### 4.2 【测试是否测到真实逻辑】—— 做得好，无空壳/纯 snapshot
-【证据】
-- **0 个 `toMatchSnapshot`/`toMatchInlineSnapshot` 使用**（全库无纯快照测试）；唯一含 "snapshot" 的 `terminal/lib/sessionSnapshot.test.ts` 是会话快照逻辑测试，非 jest snapshot。
-- 抽样 `src/modules/lsp/lib/transport.test.ts:1-73`：`vi.hoisted` mock `@tauri-apps/api/core` 与 `@/modules/workspace`，断言 `lsp_spawn` 被以正确参数（`command`/`args`/`env`/`maxRssMb`/`workspace`）调用，且校验空 env/maxRssMb 传 null 的边界——是真实逻辑测试。
-- 其他较大测试：`slashCommands.test.ts`(455)、`useTabs.test.ts`(379)、`chatStore.test.ts`(346)、`security.test.ts`(322，测密钥路径拒绝名单)、`useFileTree.test.ts`(224)。
-
-### 4.3 【核心逻辑不变量锁定】—— 做得好
-【证据】`src/app/eager-budget.test.ts`（25 行）从 `scripts/eager-graph.mjs` 引入自研静态导入追踪器 `traceEager`，BFS 两窗口入口 `src/main.tsx` 与 `src/settings/main.tsx`，断言 `@ai-sdk`/`ai`/`streamdown`/`@codemirror`/`@uiw` 不在 eager 图内。这是**启动 bundle 的锁定不变量测试**。
-【现状】核心体积不变量被测试保护；`eager-graph.mjs` 是真实静态分析器（非 mock），能抓住 barrel 重新导出把重型栈拉入 eager 图的回归。
-【问题】无。
-【改进建议】`eager-graph.mjs:9` 注释指向的 `eager-graph.test.ts` 应更正为 `src/app/eager-budget.test.ts`。
-
-### 4.4 【覆盖率】—— P2（观察）
-【证据】`vite.config.ts:176-186` 覆盖率阈值：statements 29 / branches 25 / functions 23 / lines 29；`verify.ps1:38-40` 强制 `test:coverage`。注释自述从 24.75% 提到 29.13%（1392 → 1547 tests）。
-【现状】阈值已门槛化并逐轮提升；但绝对覆盖率仍偏低（~29%），缺口在大型集成 hook + 组件外壳。
-【问题】组件渲染路径几乎无单元测试。
-【改进建议】保持逐轮加阈值；为高价值组件壳（如 Settings 各 section、DebugPanel）补 jsdom 冒烟测试，或明确交给 E2E 并给出验收标准。
+- 【PreviewAddressBar.tsx:312】 `void import("@tauri-apps/api/core").then((m) => m.invoke("toggle_devtools"))` — 绕过 `@/platform` 的 `invoke()`
+- 【terminalClipboard.ts:16,30】 `import("@tauri-apps/plugin-clipboard-manager")` 的 `readText`/`writeText` — 而 `@/platform/index.ts:266-273` 已提供 `clipboardReadText()`/`clipboardWriteText()`（含 web 兜底），此处应改用它；否则该模块在 web 平台会抛错
 
 ---
 
-## 五、性能 / 体积 —— 做得好
+## 三、P2 — 中低影响问题
 
-【证据】体积治理是多重叠加防线：
-1. **eager-budget 测试**锁死重型栈不 eager（见 4.3）。
-2. **`.size-limit.json`** 锁 `main window startup JS` 540KB gzip + `total client JS` 1550KB gzip，`verify.ps1:50-52` 跑 `pnpm size`。
-3. **`vite.config.ts:72-139` 精细 manualChunks**：每个 AI 提供商独立 chunk（`ai-anthropic`/`ai-openai`/`ai-cerebras`…，仅供 `agent.ts` 懒加载）、每个 CodeMirror 语言独立 `cm-lang-*` chunk（按需加载）、xterm/streamdown/codemirror/radix 各自成块、`clsx`/`tailwind-merge`/`class-variance-authority` 与 `vite/preload-helper` 钉到 react（防止被重型 chunk 吸附而拖入 eager 图，见注释 73-92）。
-4. **`vscode-languageserver-protocol` 别名到 4 枚举 shim**（`vite.config.ts:46-51`）省约 117KB。
-5. **treeshake `manualPureFunctions`**（`vite.config.ts:64-70`）把 `console.debug/info/trace` 标纯以在 prod 裁掉。
-6. 重型栈（editor/AI/markdown/DAP/remote）全部 `lazy(() => import(...))`。
+### P2-1. `snippetsStore` 内建技能合并竞态（可能吞掉扫描结果）
+【useAiBootstrap.ts:100-114】 同一 effect 里并发调用 `useSnippetsStore.getState().hydrate()` 和 `scanSkillsDir(root)`→`mergeBuiltin()`。`mergeBuiltin()` 直接读 `get().snippets`（snippetsStore.ts:67-77），而 `hydrate()` 是异步的（`Promise.all([loadSnippets, loadDisabledBuiltins])`，snippetsStore.ts:39-50）。若 `scanSkillsDir` 先于 `hydrate` 完成，`mergeBuiltin` 会把 builtin 合并进空列表，随后 `hydrate` 的 `set({ snippets })` 用 `loadSnippets()` 结果**覆盖**，builtin 丢失（直到下次重扫）。`useAiBootstrap` 与设置页都调用二者（snippetsStore.ts:87 注释已承认此重复），竞态窗口真实存在。建议：在 `hydrate` 完成后串行 `mergeBuiltin`，或将扫描纳入 `hydrate` 内部。
 
-【问题】无；这是极佳的体积工程范例。
-【改进建议】无。
+### P2-2. `App.tsx` 巨型单组件 + 渲染期直接写 ref
+- 【App.tsx:146-1614】 1614 行的单一组件承载 tabs/panes/快捷键/AI/source-control/spaces/侧栏面板/命令面板等全部编排，耦合极高，测试与维护困难（同类逻辑在 `useTabs`/`useSpaces`/`useChatStore` 已拆出，但编排仍集中）。
+- 【App.tsx:193-194】 `const tabsRef = useRef(tabs); tabsRef.current = tabs;` — 在渲染期直接改 ref，违反 React 惯例（应在 `useEffect` 或事件回调内更新），并发/StrictMode 下可能拿到不一致快照。属于「能跑但脆弱」的模式。
 
----
+### P2-3. agent 生命周期状态被四个 store 分散跟踪
+`src/modules/agents/store/agentStore.ts`（`useAgentStore.sessions`：叶子 agent 会话/状态/通知）、`src/modules/agents/store/managedAgentsStore.ts`（受管 claude 子 agent 轮次）、`src/modules/ai/store/agentActivityStore.ts`（ActivityStrip 活动流）、`chatStore.agentMeta.status`（主对话 agent 状态）。四者职责有重叠（都在描述"某 agent 正在 running/waiting/done"），状态流转分散在不同模块，出现一致性问题时难定位。建议至少抽公共类型/演进为单一活动事件流。
 
-## 六、i18n
+### P2-4. 侧栏 MCP 面板把「当前工作区 root」当服务器 cwd
+【McpSidebarPanel.tsx:92】 `onClick={() => void connect(s.id, root)}`，而 `connect(id, root)` → `mcpServerConnect(id, root, null)`（mcp/lib/store.ts:53-57）。MCP 服务器在设置页是全局配置，但侧栏连接时把**当前激活工作区的 `explorerRoot`** 作为其启动目录；切换工作区后再连接会以错误 cwd 启动 stdio 服务器。建议服务器显式携带其配置时的工作区，或连接时由用户确认 cwd。
 
-### 6.1 【架构】—— 做得好
-【证据】`src/lib/i18n/translations.ts`（2724 行）以 `zhMessages` 为主 + `enMessages` 回退，`Paths<>` 派生 `TranslationKey` 类型，zh/en 键奇偶在编译期强制（YAMET.md:99）；全库 **341 个文件**触碰 i18n（`useI18n()` / `tStatic()` / `t()`）。组件用 `useI18n`、模块作用域用 `tStatic`，符合约定。
+### P2-5. `onEditAndResend` 依赖数组 `[helpers]` 过粗（当前安全，属脆弱点）
+【AiChatPanel.tsx:43-58】【AiMiniWindow.tsx:228-243】 `useCallback(() => { ...helpers.messages... }, [helpers])`。已核实 `@ai-sdk/react` 的 `useChat`（node_modules/@ai-sdk/react/dist/index.js:262-279）**每次渲染返回新对象**，故当前回调每次渲染都会重建、读到最新 `messages`，**并非 stale**。但 `[helpers]` 只依赖对象身份，一旦未来重构把 `helpers` 用 `useMemo` 固化，此回调即变成 stale-closure（正是任务担心的模式）。建议改为 `[helpers.messages, helpers.setMessages]` 或在回调内经 `useRef` 读最新。
 
-### 6.2 【硬编码中文】—— 门禁通过，但已知漏网未修
-【证据】`node scripts/i18n-scan.mjs` 通过（输出 "i18n-scan: 通过"）。但 `i18n-scan.mjs:92` 白名单显式豁免 `rendererPool.ts`，其内部 `src/modules/terminal/lib/rendererPool.ts:325-328` 硬编码中文 toast：
-```
-toast("检测到多行粘贴", { description: `剪贴板包含 ${lineCount} 行内容…`, label: "粘贴" })
-```
-`i18n-scan.mjs:93` 还豁免 `GeneralSection.tsx` 的语言名 `中文（简体）`。
-【现状】这是**已知的、被白名单掩盖的未修复硬编码**，注释自述"tracked for a follow-up pass"。
-【问题】违反"绝不硬编码 UI 文本"的仓库约定；白名单让门禁对这些漏网失效。
-【改进建议】把 `rendererPool.ts:325-328` 的多行粘贴 toast 与 `GeneralSection.tsx` 语言名改为 `t()` 键，然后从 `i18n-scan.mjs` 白名单移除这两条豁免。
+### P2-6. 重复的中英文字符串常量散落多处
+`"Editor selection"/"Terminal selection"` 在 AiChat.tsx:164-165 与 composer.tsx:240 重复；`"Thinking…"` 在 AiChat.tsx:294 与 AiMiniWindow.tsx:390 重复。若本地化，应收敛为同一 i18n 键（避免出现"一处已汉化、一处未汉化"）。
 
-### 6.3 【硬编码英文盲区】—— P2
-【证据】`i18n-scan.mjs` 只匹配 CJK（`CJK_RE = /[\u4e00-\u9fff]{2,}/`，第 52 行），**完全不查英文硬编码**。实证：`src/modules/source-control/SourceControlPanel.tsx:140` 返回硬编码英文 `"No upstream"`，且在 `:641`（`pushStatusLabel = upstreamBadgeLabel(...)`）被渲染为面向用户的 push 状态标签。
-【现状】英文文案泄漏无门禁。
-【问题】zh 为主的 UI 在英文回退模式下此处直接显示英文（虽恰好是英文，但破坏了"文案走 i18n 键"的一致性约定；若未来加第三种语言或统一措辞会漏）。
-【改进建议】为 i18n-scan 增加英文 JSX 文本节点检测（白名单品牌/模型/协议名），把 `SourceControlPanel.tsx:140` 等改为 `t()` 键。
+### P2-7. 平台剪贴板实现与抽象层职责重复
+`terminalClipboard.ts` 自带一套基于 `@tauri-apps/plugin-clipboard-manager` 的实现（见 P1-2），与 `@/platform` 的 `clipboardReadText/WriteText` 重复且无 web 兜底。属「重复实现 + 绕过抽象」双重问题。
+
+### P2-8. 通知/提示中散落的英文（运行时文本）
+- 【useAiBootstrap.ts:136-137】 定时任务通知 `title: \`Yamet · ${fired.name}\``、body 截断——走系统通知，非 UI 渲染，但仍是英文。
+- 大量 `console.warn`（如 useAiLiveBridge.ts:158、App.tsx:620）为英文——对开发者可见，可接受，不列证据块。
 
 ---
 
-## 七、与后端命令的接线 —— 无死链
+## 四、关于 P0 的边界说明
 
-【证据】静态交叉核对（generic-aware 正则，兼容 `invoke<number>("cmd")` 形式）：
-- 前端 invoke 命令字符串 **133 个**，全部能在 `src-tauri` 找到对应的 `#[tauri::command] fn`，**缺失 = 0**。
-- 首次扫描报 `pty_open`/`lsp_spawn`/`pty_helper_open` 疑似缺失，实为这些命令的 `#[tauri::command]` 与 `fn` 之间夹了 `#[allow(clippy::too_many_arguments)]`（`src-tauri/src/modules/pty/mod.rs`、`lsp/mod.rs`、`pty_helper/client.rs`），命令面完整。
-- 反向"未被前端调用"的 86 个 Rust 命令多为误报：它们经动态 `invoke(cmd)` 或 wrapper 调用（如 `ai/lib/native.ts` 统一封装 fs/git/shell/history 命令、`lsp/lib/transport.ts` 封装 `lsp_spawn`、`pty-bridge.ts` 封装 `pty_open`），或经 Tauri 事件/插件调用。
-- `scripts/check-doc-drift.mjs`（`verify.ps1:42-44` 强制）核对命令面/模块布局/原生铁律与文档一致性。
-
-【现状】前端调用的每条命令都有 Rust 侧实现，无死链；后端命令面有文档漂移门禁保护。
-【问题】无。
-【改进建议】无。
+本次只读审计未构建/运行，无法做动态验证。以下原本可疑、经核实后**排除**为 bug 的点，如实记录：
+- **API 密钥无明文落 localStorage**：密钥走系统钥匙串（`secrets_get/set/delete`，keyring.ts:22-58），`chatStore.apiKeys` 仅内存态；localStorage 只存非敏感 UI 偏好（侧栏宽度/视图/折叠、bg fast-path、mru、更新检查时间、迷你窗几何）。**此项干净**。
+- **agent 初始化竞态**：`useAiBootstrap` 仅在 App.tsx:368 调用一次；`usePreferencesStore.init()` 用模块级 `initPromise` 去重（preferences.ts:15,51-70），各 store 用模块级 `initialized` 防重复 hydrate（agentsStore.ts:26,37-39）。**基本干净**，唯一真实竞态见 P2-1（属内建合并，非核心初始化）。
+- **`onEditAndResend` stale-closure**：核实 `useChat` 每次渲染返回新对象，当前无 stale（见 P2-5）。
 
 ---
 
-## 八、优先级问题清单
+## 五、Done well（做得好的点）
 
-### P0（阻断/致命）
-- 无。
-
-### P1（应尽快修复）
-1. **路径工具重复 + 行为漂移**（1.2）：`basename`×12、`dirname`×6、`formatBytes`×4、`normalizeError`×3 各自复制实现，且 basename 尾斜杠边角行为不一致（`AiChat.tsx:578` vs `GitHistoryPane.tsx:88`）。→ 收敛到 `src/lib/path.ts` / `src/lib/errors.ts` 单一实现。
-2. **i18n 硬编码英文盲区**（6.3）：`SourceControlPanel.tsx:140` "No upstream"（`:641` 渲染）等英文文案无门禁。→ 扩展 i18n-scan 覆盖英文并修复。
-3. **已知硬编码中文漏网未修**（6.2）：`rendererPool.ts:325-328` 多行粘贴 toast、`GeneralSection.tsx` 语言名被 i18n-scan 白名单掩盖。→ 改为 `t()` 键并移除白名单豁免。
-
-### P2（建议改进）
-4. **巨型单文件**（2.1）：`SourceControlPanel.tsx`(1821)、`useSourceControlPanel.ts`(1237)、`useTabs.ts`(1328)、`useTerminalSession.ts`(1220)、`rendererPool.ts`(1146)。优先拆 source-control 域。
-5. **React Compiler 启用但手动 memo 冗余**（2.2）：282 `useCallback` / 70 `useMemo`。用 `react-compiler-healthcheck` 评估。
-6. **组件覆盖率薄**（4.4）：整体 ~29%，组件壳无单测。逐轮加阈值或明确 E2E 验收。
-7. **store 命名混淆**（1.3）：`ai/agentsStore.ts` vs `agents/agentStore.ts`。更名消歧。
-8. **陈旧注释**（4.3/2.4）：`eager-graph.mjs:9` 指向不存在的 `eager-graph.test.ts`，实际在 `src/app/eager-budget.test.ts`。
-9. **监听器清理核验**（2.3）：6 文件 `addEventListener` 无同文件 `removeEventListener`（rendererPool 等），需人工确认 dispose 路径。
-10. **knip 未进 CI**（2.4）：`knip.json` 已配置，建议加入 `verify.ps1`。
+1. **密钥安全**：`secrets_*` 系统钥匙串 + 内存态，无明文密钥落盘（keyring.ts）。
+2. **i18n 键位奇偶校验门启用**：`translations.ts:2769-2777` `AssertSameKeys<typeof zhMessages, typeof enMessages>`，zh/en 键集若不一致编译即失败——这是硬约束，很扎实（因此本报告问题集中在「组件内硬编码字符串绕过该门」，而非键缺失）。
+3. **AI live 桥用 ref 最新值模式**：`useAiLiveBridge`（useAiLiveBridge.ts:56-57 `ref.current = params`）避免 cwd/终端状态 stale，注释解释清晰。
+4. **Composer submit 不 memo**：每次渲染生成新闭包读取最新 `value/files/snippets`，无 stale（composer.tsx:322-469）。
+5. **启动包预算锁定**：`app/eager-budget.test.ts` 静态追踪禁止 editor/AI/markdown 进入主/设置窗口 eager 图；重面板（Debug/Remote/MCP/Gateway）在 App.tsx:21-37 全部 `lazy()`。
+6. **侧栏 capability 面板真实执行**：DebugPanel（start/continue/step）、RemotePanel、McpSidebarPanel、GatewaySidebarPanel 均调用真实 IPC（connect/start），**非"只描述不执行"占位**。
+7. **跨窗口偏好初始化幂等**：`initPromise` 去重（preferences.ts），多窗口安全。
 
 ---
 
-## 九、做得好的地方
+## 六、修复优先级建议
 
-- **体积/性能工程极佳**（五）：eager-budget 不变量测试 + size-limit 双上限 + 精细 manualChunks（AI 提供商/CM 语言按需分块）+ LSP protocol shim 省 117KB + 懒加载全覆盖。
-- **类型安全零 any**（三）：全库 0 个 `as any`；34 处 `as unknown as` 全是合理的第三方边界逃生；仅 1 处 `@ts-ignore`（在 shadcn 生成文件）；tsconfig strict + CI 强约束。
-- **测试测真实逻辑**（四）：0 个纯快照测试；LSP transport / 密钥安全 / 标签树 / 命令补全等核心逻辑有实质断言；启动 bundle 不变量被静态分析器测试锁定。
-- **i18n 架构**（六）：编译期 zh/en 键奇偶强制 + 341 文件走统一文案层 + CI 硬编码中文门禁。
-- **命令面无死链**（七）：133 个前端 invoke 全部有 Rust 对应，且有 doc-drift 门禁。
-- **模块规范**（一）：薄 barrel + 自包含 + lazy 入口 + 跨模块一律 `@/` 别名。
-- **CI 门禁完备**：`verify.ps1` 串起 check-types / lint / test / coverage / check-drift / i18n-scan / size-limit / lock-poison / cargo check/test / tauri build 全链路。
+1. **P1-1**（i18n）：把上述 ~25 处英文串收敛为 zh/en 键——一次性、影响面大、直接改善中文主用户。
+2. **P1-2 + P2-7**（平台抽象）：`terminalClipboard.ts` 改走 `@/platform.clipboard`；`PreviewAddressBar.tsx:312` 改用 `@/platform.invoke("toggle_devtools")`。恢复 web 兜底。
+3. **P2-1**（合并竞态）：将 skills 扫描并入 `hydrate` 串行完成，或在 hydrate 后触发 mergeBuiltin。
+4. **P2-4**（MCP cwd）、**P2-2**（App 拆分/ref 更新时机）作为迭代轮次处理。
