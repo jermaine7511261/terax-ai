@@ -113,7 +113,7 @@ export function ThemesSection() {
         existingIds.add(theme.id);
         await saveCustomTheme(theme);
         setThemeId(theme.id);
-      } catch (e) {
+      } catch (_e) {
         setImportError(
           translate("settingsThemes.readFailed", { name: file.name }),
         );

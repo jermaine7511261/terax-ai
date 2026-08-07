@@ -88,3 +88,12 @@ export function gatewayWeixinPersist(frame: {
 }): Promise<void> {
   return invoke("gateway_weixin_persist", frame);
 }
+
+export type QrFrame =
+  | { kind: "qr"; svg_data_url: string }
+  | { kind: "status"; status: string }
+  | { kind: "confirmed"; account_id: string; token: string; base_url: string };
+
+export function gatewayWeixinQrLogin(onFrame: Channel<QrFrame>): Promise<void> {
+  return invoke("gateway_weixin_qr_login", { onFrame });
+}
