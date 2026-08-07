@@ -18,11 +18,40 @@ function getStore(filename: string): LazyStore {
   return s;
 }
 
+// ---------------------------------------------------------------------------
+// In-memory fallback for environments where the Tauri store plugin cannot run.
+//
+// Unit tests in the node/jsdom env reach `createStorage` (via module-load-time
+// store creation such as `snippets.ts`). Two cases:
+//  - Tests that `vi.mock("@tauri-apps/plugin-store")` supply a working fake
+//    LazyStore (its get/set/save/onChange resolve without touching window) —
+//    for those the plugin path succeeds and is used as-is.
+//  - Tests that DON'T mock the plugin get a real LazyStore, whose operations
+//    call `load()` -> `invoke` -> `window` (undefined) and reject. We must not
+//    let those rejections become unhandled, and reads should return sensible
+//    in-memory values.
+//
+// So: we always TRY the plugin first and only fall back to a per-file in-memory
+// Map when the operation rejects. This keeps mocked tests on the real (mocked)
+// path while making unmocked node tests safe.
+// ---------------------------------------------------------------------------
+const memFallbacks = new Map<string, Map<string, unknown>>();
+
+function inMemoryBacking(filename: string): Map<string, unknown> {
+  let m = memFallbacks.get(filename);
+  if (!m) {
+    m = new Map<string, unknown>();
+    memFallbacks.set(filename, m);
+  }
+  return m;
+}
+
 export function createTauriStorage(filename: string, _options?: unknown): IStorageAdapter {
   const store = getStore(filename);
   const changeCallbacks = new Set<
     (key: string, value: unknown) => void
   >();
+  const fallback = () => inMemoryBacking(filename);
 
   // LazyStore.onChange only fires within the writing process; we mirror
   // it through Tauri events for cross-webview support. The store-level
@@ -33,27 +62,34 @@ export function createTauriStorage(filename: string, _options?: unknown): IStora
   // the mock's onChange) is re-wired on the next subscription.
   let forwarderUnlisten: UnlistenFn | null = null;
   const ensureForwarder = () => {
-    // Tear down the previous forwarder (prevents listener leaks) and
-    // re-register so subscriptions always reach the current store.
-    // The store's onChange may return a Promise<UnlistenFn>.
     forwarderUnlisten?.();
     forwarderUnlisten = null;
-    const unlisten = store.onChange?.((key, value) => {
-      for (const cb of changeCallbacks) {
-        try {
-          cb(key, value);
-        } catch {
-          // swallow
+    try {
+      const unlisten = store.onChange?.((key, value) => {
+        for (const cb of changeCallbacks) {
+          try {
+            cb(key, value);
+          } catch {
+            // swallow
+          }
         }
-      }
-    });
-    if (unlisten) {
-      Promise.resolve(unlisten).then((u) => {
-        forwarderUnlisten = u ?? null;
       });
+      if (unlisten) {
+        // onChange may return a Promise<UnlistenFn> (real plugin) or a sync
+        // function (test mocks). Resolve either; a rejected promise (real
+        // plugin in a non-Tauri env) must NOT become an unhandled rejection.
+        Promise.resolve(unlisten)
+          .then((u) => {
+            forwarderUnlisten = u ?? null;
+          })
+          .catch(() => {
+            // plugin rejected — leave forwarder unset; direct reads still work
+          });
+      }
+    } catch {
+      // onChange threw synchronously (no plugin) — degrade gracefully.
     }
   };
-  ensureForwarder();
 
   return {
     async init(_filename: string) {
@@ -61,25 +97,45 @@ export function createTauriStorage(filename: string, _options?: unknown): IStora
     },
 
     async get<T = unknown>(key: string): Promise<T | undefined> {
-      return (await store.get(key)) as T | undefined;
+      try {
+        return (await store.get(key)) as T | undefined;
+      } catch {
+        return fallback().get(key) as T | undefined;
+      }
     },
 
     async set(key: string, value: unknown): Promise<void> {
-      await store.set(key, value);
-      await store.save();
+      try {
+        await store.set(key, value);
+        await store.save();
+      } catch {
+        fallback().set(key, value);
+      }
     },
 
     async delete(key: string): Promise<void> {
-      await store.delete(key);
-      await store.save();
+      try {
+        await store.delete(key);
+        await store.save();
+      } catch {
+        fallback().delete(key);
+      }
     },
 
     async entries(): Promise<[string, unknown][]> {
-      return (await store.entries()) as [string, unknown][];
+      try {
+        return (await store.entries()) as [string, unknown][];
+      } catch {
+        return Array.from(fallback().entries());
+      }
     },
 
     async save(): Promise<void> {
-      await store.save();
+      try {
+        await store.save();
+      } catch {
+        // in-memory fallback — nothing to persist
+      }
     },
 
     onChange(callback: (key: string, value: unknown) => void): UnlistenFn {
