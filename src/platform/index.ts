@@ -84,6 +84,24 @@ export function invokeRaw<T>(
 }
 
 /**
+ * Subscribe to a cross-context event. Falls back to the raw Tauri listen
+ * when the platform isn't initialized (unit tests mocking the event API).
+ */
+export function listen<T = unknown>(
+  event: string,
+  handler: (payload: { payload: T }) => void,
+): Promise<UnlistenFn> {
+  if (adapter) return adapter.events.listen(event, handler);
+  return tauriListen<T>(event, handler);
+}
+
+/** Emit a cross-context event. Falls back to the raw Tauri emit. */
+export function emit(event: string, payload?: unknown): Promise<void> {
+  if (adapter) return adapter.events.emit(event, payload);
+  return payload === undefined ? tauriEmit(event) : tauriEmit(event, payload);
+}
+
+/**
  * Create a storage adapter for a specific file.
  * Delegates to the active platform's storage factory if available,
  * otherwise creates a standalone storage instance.
@@ -102,8 +120,14 @@ export function createStorage(filename: string, _options?: unknown): IStorageAda
 /** Re-export Channel type for files that use streaming IPC. */
 import { Channel, convertFileSrc } from "@tauri-apps/api/core";
 import { invoke as tauriInvoke } from "@tauri-apps/api/core";
+import {
+  listen as tauriListen,
+  emit as tauriEmit,
+  type UnlistenFn,
+} from "@tauri-apps/api/event";
 
 export { Channel, convertFileSrc };
+export type { UnlistenFn };
 
 export type { IPlatformAdapter, IStorageAdapter } from "./types";
 export type * from "./types";

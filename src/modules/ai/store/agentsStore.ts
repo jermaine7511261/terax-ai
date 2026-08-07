@@ -1,4 +1,4 @@
-import { emit, listen } from "@tauri-apps/api/event";
+import { emit, listen } from "@/platform";
 import { create } from "zustand";
 import {
   BUILTIN_AGENTS,

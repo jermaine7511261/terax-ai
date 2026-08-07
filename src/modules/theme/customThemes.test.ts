@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { UnlistenFn } from "@tauri-apps/api/event";
+import type { UnlistenFn } from "@/platform";
 import type { Theme } from "./types";
 
 // Module-level singletons created at import time; hoist mocks so the module

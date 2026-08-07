@@ -1,4 +1,4 @@
-import { listen } from "@tauri-apps/api/event";
+import { listen } from "@/platform";
 import { create } from "zustand";
 
 export type AgentPhase = "working" | "attention" | "finished" | "idle";

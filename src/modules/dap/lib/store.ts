@@ -1,5 +1,5 @@
 import { Channel } from "@/platform";
-import { listen } from "@tauri-apps/api/event";
+import { listen } from "@/platform";
 import { create } from "zustand";
 import {
   dapRequestSend,

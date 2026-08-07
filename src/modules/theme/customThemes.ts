@@ -1,4 +1,4 @@
-import { emit, listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { emit, listen, type UnlistenFn } from "@/platform";
 import { LazyStore } from "@tauri-apps/plugin-store";
 import type { Theme } from "./types";
 
