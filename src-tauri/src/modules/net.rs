@@ -438,13 +438,26 @@ pub async fn ai_http_stream(
     let client = build_safe_client(allow_private, &[(host, safe_ips)])?;
 
     let req = build_request(&client, &method, parsed, headers, body)?;
-    let resp = match req.send().await {
-        Ok(r) => r,
-        Err(e) => {
+    // Bound the initial response wait and each streamed chunk read so a server
+    // that accepts the connection but never responds / stalls mid-stream can't
+    // hold the request open forever (no read timeout on the client otherwise).
+    let resp = match tokio::time::timeout(
+        std::time::Duration::from_secs(60),
+        req.send(),
+    )
+    .await
+    {
+        Ok(Ok(r)) => r,
+        Ok(Err(e)) => {
             let _ = on_event.send(AiStreamEvent::Error {
                 message: e.to_string(),
             });
             return Err(e.to_string());
+        }
+        Err(_) => {
+            let m = "ai_http_stream timed out waiting for response".to_string();
+            let _ = on_event.send(AiStreamEvent::Error { message: m.clone() });
+            return Err(m);
         }
     };
 
@@ -453,10 +466,24 @@ pub async fn ai_http_stream(
     let _ = on_event.send(AiStreamEvent::Headers { status, headers });
 
     let mut stream = resp.bytes_stream();
-    while let Some(item) = stream.next().await {
-        match item {
-            Ok(chunk) => {
-                let bytes: Bytes = chunk;
+    loop {
+        // Bound each streamed chunk read; a stalled upstream can't hang us.
+        match tokio::time::timeout(
+            std::time::Duration::from_secs(60),
+            stream.next(),
+        )
+        .await
+        {
+            Ok(Some(chunk)) => {
+                let bytes: Bytes = match chunk {
+                    Ok(b) => b,
+                    Err(e) => {
+                        let _ = on_event.send(AiStreamEvent::Error {
+                            message: e.to_string(),
+                        });
+                        return Err(e.to_string());
+                    }
+                };
                 if on_event
                     .send(AiStreamEvent::Chunk {
                         bytes: bytes.to_vec(),
@@ -467,11 +494,11 @@ pub async fn ai_http_stream(
                     return Ok(());
                 }
             }
-            Err(e) => {
-                let _ = on_event.send(AiStreamEvent::Error {
-                    message: e.to_string(),
-                });
-                return Err(e.to_string());
+            Ok(None) => break, // stream ended
+            Err(_) => {
+                let m = "ai_http_stream timed out reading stream".to_string();
+                let _ = on_event.send(AiStreamEvent::Error { message: m.clone() });
+                return Err(m);
             }
         }
     }

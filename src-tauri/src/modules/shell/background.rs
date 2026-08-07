@@ -75,8 +75,12 @@ impl BackgroundProc {
         let _ = self.child.kill();
         #[cfg(windows)]
         {
-            // Dropping the job handle triggers KILL_ON_JOB_CLOSE on the whole tree.
+            // Explicitly terminate the whole job tree, then drop the handle
+            // (drop alone also triggers KILL_ON_JOB_CLOSE, but terminate() is
+            // explicit and immediate). The handle is held alive here so the
+            // job stays intact until this point — the orphan guard relies on it.
             if let Some(job) = self.job.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                let _ = job.terminate();
                 drop(job);
             }
         }

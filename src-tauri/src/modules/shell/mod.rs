@@ -142,7 +142,18 @@ fn run_blocking(
             }
             #[cfg(windows)]
             {
-                let _ = crate::modules::proc::job::ProcessJob::create_for(child.id());
+                // Assign the child to a kill-on-close Job and hold the handle so
+                // TerminateJobObject kills the WHOLE process tree (grandchildren
+                // spawned by the shell), not just the direct process. Keeping the
+                // handle alive here is essential — the previous code created the
+                // job with `let _`, dropping it immediately and defeating the
+                // orphan guard.
+                let job = crate::modules::proc::job::ProcessJob::create_for(child.id());
+                if let Ok(job) = job {
+                    let _ = job.terminate();
+                } else {
+                    let _ = child.kill();
+                }
             }
             let _ = child.kill();
             let _ = child.wait();

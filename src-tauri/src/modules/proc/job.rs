@@ -10,7 +10,7 @@ use std::mem::{size_of, zeroed};
 use windows_sys::Win32::Foundation::{CloseHandle, FALSE, HANDLE, INVALID_HANDLE_VALUE};
 use windows_sys::Win32::System::JobObjects::{
     AssignProcessToJobObject, CreateJobObjectW, JobObjectExtendedLimitInformation,
-    SetInformationJobObject, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
+    SetInformationJobObject, TerminateJobObject, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
     JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
 };
 use windows_sys::Win32::System::Threading::{OpenProcess, PROCESS_SET_QUOTA, PROCESS_TERMINATE};
@@ -62,6 +62,18 @@ impl ProcessJob {
             Ok(Self { handle: job })
         }
     }
+
+    /// Force-terminate every process in the job (the whole process tree),
+    /// not just the direct child. This is the reliable way to kill a spawned
+    /// command together with all its (grand)children on Windows — a bare
+    /// `child.kill()` only kills the immediate process and leaves orphans.
+    pub fn terminate(&self) -> bool {
+        if self.handle.is_null() || self.handle == INVALID_HANDLE_VALUE {
+            return false;
+        }
+        // 1 = success exit code for TerminateJobObject.
+        unsafe { TerminateJobObject(self.handle, 1) != 0 }
+    }
 }
 
 impl Drop for ProcessJob {
@@ -87,13 +99,14 @@ mod tests {
     }
 
     #[test]
-    fn drop_kills_assigned_process_tree() {
+    fn terminate_kills_assigned_process_tree() {
         let mut child = Command::new("cmd.exe")
             .args(["/C", "ping -n 30 127.0.0.1 > nul"])
             .spawn()
             .expect("spawn cmd.exe");
 
         let job = ProcessJob::create_for(child.id()).expect("create job");
+        assert!(job.terminate(), "terminate should succeed");
         drop(job);
 
         let deadline = Instant::now() + Duration::from_secs(3);
@@ -102,7 +115,7 @@ mod tests {
                 Some(_) => break,
                 None if Instant::now() >= deadline => {
                     let _ = child.kill();
-                    panic!("child survived 3s after ProcessJob drop");
+                    panic!("child survived 3s after terminate");
                 }
                 None => std::thread::sleep(Duration::from_millis(50)),
             }
