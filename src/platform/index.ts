@@ -107,15 +107,20 @@ export function emit(event: string, payload?: unknown): Promise<void> {
  * otherwise creates a standalone storage instance.
  */
 export function createStorage(filename: string, _options?: unknown): IStorageAdapter {
-  const p = getPlatform();
-  // If the platform exposes a factory, use it; otherwise fall back
-  // to the default storage (settings).
+  if (!adapter) {
+    // Not initialized (module-load-time store creation, or tests) — fall back
+    // to the raw Tauri LazyStore-backed adapter.
+    return require_t_storage()(filename);
+  }
+  const p = adapter;
   if ("createStorage" in p && typeof (p as any).createStorage === "function") {
     return (p as any).createStorage(filename);
   }
-  // The default storage is already the right thing for single-store usage.
   return p.storage;
 }
+
+import { createTauriStorage as require_t_storage_ } from "./tauri/storage";
+const require_t_storage = () => require_t_storage_;
 
 /** Re-export Channel type for files that use streaming IPC. */
 import { Channel, convertFileSrc } from "@tauri-apps/api/core";

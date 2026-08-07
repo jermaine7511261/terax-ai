@@ -1,12 +1,12 @@
 import { emit, listen, type UnlistenFn } from "@/platform";
-import { LazyStore } from "@tauri-apps/plugin-store";
+import { createStorage } from "@/platform";
 import type { Theme } from "./types";
 
 const STORE_PATH = "yamet-custom-themes.json";
 const KEY = "themes";
 const CHANGED_EVENT = "yamet://custom-themes-changed";
 
-const store = new LazyStore(STORE_PATH, { defaults: {}, autoSave: 200 });
+const store = createStorage(STORE_PATH);
 
 export async function listCustomThemes(): Promise<Theme[]> {
   const v = await store.get<Theme[]>(KEY);
@@ -17,7 +17,6 @@ export async function saveCustomTheme(theme: Theme): Promise<void> {
   const current = await listCustomThemes();
   const next = current.filter((t) => t.id !== theme.id).concat(theme);
   await store.set(KEY, next);
-  await store.save();
   await emit(CHANGED_EVENT);
 }
 
@@ -26,7 +25,6 @@ export async function deleteCustomTheme(id: string): Promise<void> {
   const next = current.filter((t) => t.id !== id);
   if (next.length === current.length) return;
   await store.set(KEY, next);
-  await store.save();
   await emit(CHANGED_EVENT);
 }
 

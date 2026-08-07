@@ -1,4 +1,4 @@
-import { LazyStore } from "@tauri-apps/plugin-store";
+import { createStorage } from "@/platform";
 import { tStatic } from "@/lib/i18n";
 
 export type AgentIconId =
@@ -112,7 +112,7 @@ const STORE_PATH = "yamet-ai-agents.json";
 const KEY_CUSTOM = "customAgents";
 const KEY_ACTIVE = "activeAgentId";
 
-const store = new LazyStore(STORE_PATH, { defaults: {}, autoSave: 200 });
+const store = createStorage(STORE_PATH);
 
 export type LoadedAgents = {
   custom: Agent[];
@@ -133,12 +133,10 @@ export async function loadAgents(): Promise<LoadedAgents> {
 
 export async function saveCustomAgents(custom: Agent[]): Promise<void> {
   await store.set(KEY_CUSTOM, custom);
-  await store.save();
 }
 
 export async function saveActiveAgentId(id: string): Promise<void> {
   await store.set(KEY_ACTIVE, id);
-  await store.save();
 }
 
 export function newAgentId(): string {

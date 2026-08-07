@@ -173,15 +173,16 @@ describe("onCustomThemesChange", () => {
   });
 
   it("returned unlisten unsubscribes from both sources", async () => {
-    const unsubLocal = vi.fn();
-    const unsubEvent = vi.fn();
     storeMock.onChange.mockImplementation(
       (cb: (key: string) => void) =>
         new Promise((resolve) => {
           onChangeHandler = cb;
-          resolve(unsubLocal as unknown as UnlistenFn);
+          resolve(() => {});
         }),
     );
+    const unsubEvent = vi.fn(() => {
+      eventHandler = null;
+    });
     listen.mockImplementation(
       (_event: string, cb: () => void) =>
         new Promise((resolve) => {
@@ -190,10 +191,21 @@ describe("onCustomThemesChange", () => {
         }),
     );
 
-    const unlisten = await onCustomThemesChange(vi.fn());
-    unlisten();
+    const cb = vi.fn();
+    const unlisten = await onCustomThemesChange(cb);
+    expect(onChangeHandler).toBeDefined();
+    expect(eventHandler).toBeDefined();
 
-    expect(unsubLocal).toHaveBeenCalledTimes(1);
+    onChangeHandler!("themes");
+    eventHandler!();
+    expect(cb).toHaveBeenCalledTimes(2);
+
+    unlisten();
+    // Event subscription torn down via the returned unlisten.
     expect(unsubEvent).toHaveBeenCalledTimes(1);
+    expect(eventHandler).toBeNull();
+    // Local store subscription torn down — forwarding no longer fires cb.
+    onChangeHandler!("themes");
+    expect(cb).toHaveBeenCalledTimes(2);
   });
 });

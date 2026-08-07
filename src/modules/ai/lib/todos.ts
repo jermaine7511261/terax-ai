@@ -1,4 +1,4 @@
-import { LazyStore } from "@tauri-apps/plugin-store";
+import { createStorage } from "@/platform";
 
 export type TodoStatus = "pending" | "in_progress" | "completed";
 
@@ -12,7 +12,7 @@ export type Todo = {
 const STORE_PATH = "yamet-ai-todos.json";
 const todosKey = (sessionId: string) => `todos:${sessionId}`;
 
-const store = new LazyStore(STORE_PATH, { defaults: {}, autoSave: 200 });
+const store = createStorage(STORE_PATH);
 
 export async function loadTodos(sessionId: string): Promise<Todo[]> {
   return (await store.get<Todo[]>(todosKey(sessionId))) ?? [];

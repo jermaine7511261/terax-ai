@@ -1,5 +1,5 @@
 import type { UIMessage } from "@ai-sdk/react";
-import { LazyStore } from "@tauri-apps/plugin-store";
+import { createStorage } from "@/platform";
 
 export type SessionMeta = {
   id: string;
@@ -14,7 +14,7 @@ const KEY_SESSIONS = "sessions";
 const KEY_ACTIVE = "activeId";
 const messagesKey = (id: string) => `messages:${id}`;
 
-const store = new LazyStore(STORE_PATH, { defaults: {}, autoSave: 200 });
+const store = createStorage(STORE_PATH);
 
 export type LoadedSessions = {
   sessions: SessionMeta[];

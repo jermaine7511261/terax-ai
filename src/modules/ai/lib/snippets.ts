@@ -1,4 +1,4 @@
-import { LazyStore } from "@tauri-apps/plugin-store";
+import { createStorage } from "@/platform";
 
 export type Snippet = {
   id: string;
@@ -17,7 +17,7 @@ const STORE_PATH = "yamet-ai-snippets.json";
 const KEY_LIST = "snippets";
 const KEY_DISABLED = "disabledBuiltinHandles";
 
-const store = new LazyStore(STORE_PATH, { defaults: {}, autoSave: 200 });
+const store = createStorage(STORE_PATH);
 
 export async function loadSnippets(): Promise<Snippet[]> {
   return (await store.get<Snippet[]>(KEY_LIST)) ?? [];
@@ -27,7 +27,6 @@ export async function saveSnippets(list: Snippet[]): Promise<void> {
   // Only user-authored snippets are persisted; builtins come from the
   // skills/ scan each boot and are gated by `disabledBuiltinHandles`.
   await store.set(KEY_LIST, list.filter((s) => !s.builtin));
-  await store.save();
 }
 
 export async function loadDisabledBuiltins(): Promise<string[]> {
@@ -36,7 +35,6 @@ export async function loadDisabledBuiltins(): Promise<string[]> {
 
 export async function saveDisabledBuiltins(list: string[]): Promise<void> {
   await store.set(KEY_DISABLED, list);
-  await store.save();
 }
 
 export function newSnippetId(): string {

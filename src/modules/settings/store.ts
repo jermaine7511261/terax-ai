@@ -21,7 +21,7 @@ import {
 } from "@/modules/ai/config";
 import type { KeyBinding, ShortcutId } from "@/modules/shortcuts/shortcuts";
 import { emit, listen, type UnlistenFn } from "@/platform";
-import { LazyStore } from "@tauri-apps/plugin-store";
+import { createStorage } from "@/platform";
 
 export type ThemePref = "system" | "light" | "dark";
 
@@ -362,9 +362,9 @@ export const DEFAULT_PREFERENCES: Preferences = {
   workspaceRoot: null,
 };
 
-const store = new LazyStore(STORE_PATH, { defaults: {}, autoSave: 200 });
+const store = createStorage(STORE_PATH);
 
-// LazyStore.onChange only fires within the writing process. The settings
+// Storage .onChange only fires within the writing process. The settings
 // page lives in a separate webview, so writes there never reach the main
 // window's subscribers. Mirror every setter through a Tauri event so any
 // window can listen.
@@ -372,7 +372,6 @@ const PREFS_CHANGED_EVENT = "yamet://prefs-changed";
 
 async function writePref<T>(key: string, value: T): Promise<void> {
   await store.set(key, value);
-  await store.save();
   await emit(PREFS_CHANGED_EVENT, { key, value });
 }
 
@@ -976,7 +975,7 @@ export async function onPreferencesChange(
   };
   // Same-process writes still fire onChange immediately; cross-window writes
   // arrive via the Tauri event emitted by writePref().
-  const unsubLocal = await store.onChange<unknown>((key, value) => {
+  const unsubLocal = await store.onChange((key, value) => {
     const mapped = map[key];
     if (mapped) cb(mapped, value);
   });

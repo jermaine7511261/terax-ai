@@ -17,6 +17,7 @@ vi.mock("@tauri-apps/plugin-store", () => {
     async delete(k: string) {
       memory.delete(k);
     }
+    async save() {}
   }
   return { LazyStore };
 });

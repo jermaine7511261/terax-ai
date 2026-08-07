@@ -28,9 +28,13 @@ vi.mock("../store/planStore", () => ({
 
 // `./context` resolves `homeDir()` at import time; give it a known value so the
 // `~` expansion path in resolvePath is deterministic.
-vi.mock("@/platform", () => ({
-  homeDir: () => Promise.resolve("/home/user"),
-}));
+vi.mock("@/platform", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/platform")>();
+  return {
+    ...actual,
+    homeDir: () => Promise.resolve("/home/user"),
+  };
+});
 
 import { buildFsTools } from "./fs";
 
