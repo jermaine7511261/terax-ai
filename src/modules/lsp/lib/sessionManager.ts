@@ -356,7 +356,7 @@ export function sessionsForPath(path: string): Managed[] {
   return [...sessions.values()].filter(
     (m) =>
       !m.closing &&
-      (norm.startsWith(m.root.replace(/\\/g, "/") + "/") ||
+      (norm.startsWith(`${m.root.replace(/\\/g, "/")}/`) ||
         norm === m.root.replace(/\\/g, "/")),
   );
 }

@@ -22,8 +22,8 @@ export const tauriWatch: IWatchAdapter = {
       const paths = ev.payload.paths.filter(
         (p) =>
           p === watched ||
-          p.startsWith(watched + "/") ||
-          p.startsWith(watched + "\\"),
+          p.startsWith(`${watched}/`) ||
+          p.startsWith(`${watched}\\`),
       );
       if (paths.length > 0) handler({ kind: "modify", paths });
     });

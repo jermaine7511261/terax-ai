@@ -89,8 +89,8 @@ function build(view: EditorView): DecorationSet {
   for (const { from, to } of view.visibleRanges) {
     const text = view.state.sliceDoc(from, to);
     COLOR_RE.lastIndex = 0;
-    let m: RegExpExecArray | null;
-    while ((m = COLOR_RE.exec(text)) !== null) {
+    let m: RegExpExecArray | null = COLOR_RE.exec(text);
+    while (m !== null) {
       const start = from + m.index;
       const end = start + m[0].length;
       builder.add(
@@ -101,6 +101,7 @@ function build(view: EditorView): DecorationSet {
           side: -1,
         }),
       );
+      m = COLOR_RE.exec(text);
     }
   }
   return builder.finish();

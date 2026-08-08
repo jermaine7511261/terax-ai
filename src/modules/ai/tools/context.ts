@@ -34,6 +34,11 @@ export type ToolContext = {
   readCache: Map<string, { size: number; hash: number }>;
   /** Active chat session id — used by tools that persist per-session state (todos). */
   getSessionId: () => string | null;
+  /** Delegation depth of the current worker (root agent = 0). Used by
+   * delegate_many to guard against infinite nesting. */
+  getSubagentDepth?: () => number;
+  /** Parent activity id of the current worker (opencode parentID tree). */
+  getParentActivityId?: () => string | undefined;
 };
 
 export function resolvePath(rawPath: string, cwd: string | null): string {

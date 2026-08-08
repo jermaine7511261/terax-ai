@@ -30,10 +30,10 @@ function Highlight({
   if (ranges.length === 0) return <>{text}</>;
   const parts: React.ReactNode[] = [];
   let i = 0;
-  ranges.forEach((r, key) => {
+  ranges.forEach((r) => {
     if (r.start > i) parts.push(text.slice(i, r.start));
     parts.push(
-      <mark key={key} className="rounded-[2px] bg-primary/25 text-foreground">
+      <mark key={`${r.start}-${r.end}`} className="rounded-[2px] bg-primary/25 text-foreground">
         {text.slice(r.start, r.end)}
       </mark>,
     );
@@ -196,9 +196,9 @@ export function SearchPanel({ root, onOpen }: Props) {
                     {fileHits.length}
                   </span>
                 </div>
-                {fileHits.map((h, i) => (
+                {fileHits.map((h) => (
                   <button
-                    key={i}
+                    key={`${h.path}-${h.line}`}
                     type="button"
                     onClick={() => onOpen(h.path, h.line)}
                     className="block w-full cursor-pointer truncate px-2 py-[3px] text-left font-mono text-[10.5px] leading-snug text-foreground/90 transition-colors hover:bg-foreground/[0.05]"

@@ -334,10 +334,14 @@ export function GatewaySection(): JSX.Element {
               )}
               {(FIELDS[p.id] ?? []).map((f) => (
                 <div key={f.key} className="flex items-center gap-2">
-                  <label className="w-32 shrink-0 text-sm">
+                  <label
+                    htmlFor={`gw-field-${p.id}-${f.key}`}
+                    className="w-32 shrink-0 text-sm"
+                  >
                     {t(`gateway.field.${f.labelKey}` as TranslationKey)}
                   </label>
                   <Input
+                    id={`gw-field-${p.id}-${f.key}`}
                     type={f.secret ? "password" : "text"}
                     value={values[p.id]?.[f.key] ?? ""}
                     onChange={(e) => setField(p.id, f.key, e.target.value)}
@@ -455,8 +459,11 @@ export function GatewaySection(): JSX.Element {
               <div className="mt-3 border-t border-border/40 pt-3 space-y-2">
                 <span className="text-sm font-medium">{t("gateway.sendTest")}</span>
                 <div className="flex items-center gap-2">
-                  <label className="w-32 shrink-0 text-sm">{t("gateway.chatId")}</label>
+                  <label htmlFor={`gw-chatid-${p.id}`} className="w-32 shrink-0 text-sm">
+                    {t("gateway.chatId")}
+                  </label>
                   <Input
+                    id={`gw-chatid-${p.id}`}
                     value={testChatId[p.id] ?? ""}
                     onChange={(e) =>
                       setTestChatId((prev) => ({ ...prev, [p.id]: e.target.value }))
@@ -466,8 +473,11 @@ export function GatewaySection(): JSX.Element {
                   />
                 </div>
                 <div className="flex items-center gap-2">
-                  <label className="w-32 shrink-0 text-sm">{t("gateway.messageText")}</label>
+                  <label htmlFor={`gw-msg-${p.id}`} className="w-32 shrink-0 text-sm">
+                    {t("gateway.messageText")}
+                  </label>
                   <Input
+                    id={`gw-msg-${p.id}`}
                     value={testText[p.id] ?? ""}
                     onChange={(e) => setTestText((prev) => ({ ...prev, [p.id]: e.target.value }))}
                     className="flex-1"

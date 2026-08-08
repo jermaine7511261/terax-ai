@@ -1182,7 +1182,7 @@ function stripAnsi(s: string): string {
   return s.replace(ANSI_RE, "");
 }
 
-export function terminalDebugStats() {
+function terminalDebugStats() {
   const liveSessions = [...sessions.entries()].map(([leafId, s]) => ({
     leafId,
     pty: !!s.pty,

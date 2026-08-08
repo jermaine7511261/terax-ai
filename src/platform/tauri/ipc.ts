@@ -37,7 +37,7 @@ export const tauriIpc: IIpcAdapter = {
     body: ArrayBuffer | Uint8Array,
     options?: { headers?: Record<string, string> },
   ): Promise<T> {
-    return invoke<T>(cmd, body, options as any);
+    return invoke<T>(cmd, body, options as never);
   },
 
   createChannel<T>(): StreamingChannel<T> {

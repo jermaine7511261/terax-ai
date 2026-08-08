@@ -1,3 +1,4 @@
+// biome-ignore-all lint/a11y/useSemanticElements: 会话项需内嵌操作按钮，只能 span+role 模式
 import {
   Context,
   ContextContent,
@@ -375,6 +376,8 @@ function Header({
 
   return (
     <div
+      role="button"
+      tabIndex={0}
       onPointerDown={onHeaderPointerDown}
       onDoubleClick={onDoubleClick}
       className="relative flex h-11 shrink-0 cursor-grab items-center justify-between gap-2 border-b border-border/60 px-3 active:cursor-grabbing"
@@ -412,7 +415,10 @@ function Header({
             pinned ? "text-primary" : "text-muted-foreground hover:text-foreground",
           )}
         >
-          <svg viewBox="0 0 24 24" width={12} height={12} fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v8m-4 0h8m-2 0v12" /></svg>
+          <svg viewBox="0 0 24 24" width={12} height={12} fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
+            <title>Pin</title>
+            <path d="M12 2v8m-4 0h8m-2 0v12" />
+          </svg>
         </button>
         <Button
           type="button"
@@ -773,7 +779,10 @@ function HistoryPanel({
           title="Export all"
           className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
         >
-          <svg viewBox="0 0 24 24" width={11} height={11} fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12m-4-4 4 4 4-4M4 20h16"/></svg>
+          <svg viewBox="0 0 24 24" width={11} height={11} fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
+            <title>Export all</title>
+            <path d="M12 3v12m-4-4 4 4 4-4M4 20h16"/>
+          </svg>
         </button>
         <button
           type="button"
@@ -781,7 +790,10 @@ function HistoryPanel({
           title="Clear all"
           className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-red-500/10 hover:text-red-500"
         >
-          <svg viewBox="0 0 24 24" width={11} height={11} fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18M8 6V4h8v2m2 0v14H6V6"/></svg>
+          <svg viewBox="0 0 24 24" width={11} height={11} fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
+            <title>Clear all</title>
+            <path d="M3 6h18M8 6V4h8v2m2 0v14H6V6"/>
+          </svg>
         </button>
         <button
           type="button"

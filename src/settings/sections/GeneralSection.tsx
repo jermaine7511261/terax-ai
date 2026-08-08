@@ -245,6 +245,7 @@ export function GeneralSection() {
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <span
+                      role="img"
                       className="cursor-help text-[11px] text-muted-foreground/70 leading-none"
                       aria-label={t("settingsGeneral.webglRenderer")}
                     >

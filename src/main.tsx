@@ -1,6 +1,6 @@
 import "./styles/globals.css";
 
-import { invoke } from "@/platform";
+import { detectPlatform, invoke } from "@/platform";
 import { getCurrentWindow } from "@/platform";
 import ReactDOM from "react-dom/client";
 import App from "./app/App";
@@ -18,6 +18,11 @@ if (import.meta.env.DEV && import.meta.env.VITE_REACT_SCAN === "true") {
   const { scan } = await import("react-scan");
   scan({ enabled: true });
 }
+
+// Activate the platform adapter once, before any module code runs: the
+// feature modules call `invoke`/`createStorage`/`getOsPlatform` through it.
+// Until this resolves, `invoke()` falls back to the raw Tauri call.
+await detectPlatform();
 
 // Reap PTY sessions orphaned by a prior webview load before any tab spawns.
 await invoke("pty_close_all").catch(() => {});

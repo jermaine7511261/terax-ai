@@ -446,7 +446,7 @@ export function GitHistoryPane({
         filesInflightRef.current.delete(sha);
       }
     },
-    [repoRoot],
+    [repoRoot, bumpFiles],
   );
 
   const handleRowClick = useCallback(
@@ -475,6 +475,7 @@ export function GitHistoryPane({
 
   const closePopover = useCallback(() => setOpenAnchor(null), []);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: filesTick 为缓存失效信号（body 不直接引用）
   const openFilesEntry = useMemo(() => {
     if (!openAnchor) return null;
     return filesCacheRef.current.get(openAnchor.sha) ?? null;
@@ -874,7 +875,7 @@ function CommitDetail({
             <HugeiconsIcon icon={Copy01Icon} size={11} strokeWidth={1.9} />
             {copied ? "Copied" : "Copy SHA"}
           </Button>
-          {webUrl ? (
+          {remoteWeb && webUrl ? (
             <Button
               size="xs"
               variant="ghost"
@@ -886,7 +887,7 @@ function CommitDetail({
                 size={11}
                 strokeWidth={1.9}
               />
-              {hostLabel(remoteWeb!)}
+              {hostLabel(remoteWeb)}
             </Button>
           ) : null}
         </div>

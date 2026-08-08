@@ -41,8 +41,8 @@ describe("YAMET_CMD_RE", () => {
   it("matches a bare command with no state", () => {
     const m = '<yamet-command name="init" />'.match(YAMET_CMD_RE);
     expect(m).not.toBeNull();
-    expect(m![1]).toBe("init");
-    expect(m![2]).toBeUndefined();
+    expect(m?.[1]).toBe("init");
+    expect(m?.[2]).toBeUndefined();
   });
 
   it("matches a command with a state attribute", () => {
@@ -50,8 +50,8 @@ describe("YAMET_CMD_RE", () => {
       YAMET_CMD_RE,
     );
     expect(m).not.toBeNull();
-    expect(m![1]).toBe("review");
-    expect(m![2]).toBe("active");
+    expect(m?.[1]).toBe("review");
+    expect(m?.[2]).toBe("active");
   });
 
   it("requires the trailing /> (not >)", () => {
@@ -71,7 +71,7 @@ describe("YAMET_CMD_RE", () => {
   it("allows multiple trailing newlines", () => {
     const m = '<yamet-command name="fix" />\n\n\n'.match(YAMET_CMD_RE);
     expect(m).not.toBeNull();
-    expect(m![1]).toBe("fix");
+    expect(m?.[1]).toBe("fix");
   });
 
   it("does not match a name with uppercase letters", () => {
@@ -95,13 +95,13 @@ describe("YAMET_CMD_RE", () => {
   it("matches hyphenated names like claude-code", () => {
     const m = '<yamet-command name="claude-code" />'.match(YAMET_CMD_RE);
     expect(m).not.toBeNull();
-    expect(m![1]).toBe("claude-code");
+    expect(m?.[1]).toBe("claude-code");
   });
 
   it("matches numeric names", () => {
     const m = '<yamet-command name="cmd123" />'.match(YAMET_CMD_RE);
     expect(m).not.toBeNull();
-    expect(m![1]).toBe("cmd123");
+    expect(m?.[1]).toBe("cmd123");
   });
 });
 

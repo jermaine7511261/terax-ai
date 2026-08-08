@@ -1,3 +1,4 @@
+// biome-ignore-all lint/style/noNonNullAssertion: 测试断言数据必然存在
 // @ts-nocheck
 // @vitest-environment jsdom
 import { act, renderHook } from "@testing-library/react";
@@ -245,7 +246,7 @@ describe("useTabs hook", () => {
     act(() => {
       result.current.openFileTab("/proj/a.ts");
     });
-    const firstId = result.current.tabs.find((t) => t.kind === "editor")!.id;
+    const firstId = result.current.tabs.find((t) => t.kind === "editor")?.id;
     const before = result.current.tabs;
     act(() => {
       result.current.openFileTab("/proj/a.ts");
@@ -353,11 +354,11 @@ describe("useTabs hook", () => {
     act(() => {
       result.current.openFileTab("/proj/a.ts");
     });
-    const aId = result.current.tabs.find((t) => t.path === "/proj/a.ts")!.id;
+    const aId = result.current.tabs.find((t) => t.path === "/proj/a.ts")?.id;
     act(() => {
       result.current.openFileTab("/proj/b.ts");
     });
-    const bId = result.current.tabs.find((t) => t.path === "/proj/b.ts")!.id;
+    const bId = result.current.tabs.find((t) => t.path === "/proj/b.ts")?.id;
     act(() => {
       result.current.reorderTabByGap(aId, 0);
     });

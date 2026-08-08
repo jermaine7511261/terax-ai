@@ -461,6 +461,7 @@ export const EditorPane = memo(
       void resolveLanguage(resolvePath).catch(() => {});
     }, [path, overrideLanguage]);
 
+      // biome-ignore lint/correctness/useExhaustiveDependencies: doc.size 受 union 收窄限制无法入依赖数组（size 变化伴随 status 重载）
     useEffect(() => {
       const ext =
         overrideLanguage || (path.split(".").pop()?.toLowerCase() ?? null);

@@ -119,7 +119,7 @@ export function AiComposerProvider({ children }: ProviderProps) {
     }
     prevSession.current = sessionId;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionId]);
+  }, [sessionId, value, pickedSnippets, pickedCommands, files]);
 
   const focusSignal = useChatStore((s) => s.focusSignal);
   const pendingPrefill = useChatStore((s) => s.pendingPrefill);
@@ -143,9 +143,10 @@ export function AiComposerProvider({ children }: ProviderProps) {
       requestAnimationFrame(() => textareaRef.current?.focus());
     }
     prevIsBusyRef.current = isBusy;
-  }, [isBusy, textareaRef]);
+  }, [isBusy]);
 
   // Listen for explorer's "Attach to Agent" event.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: attachFileByPath 定义于 effect 之后（TDZ），闭包稳定
   useEffect(() => {
     const onAttach = (e: Event) => {
       const path = (e as CustomEvent<string>).detail;
@@ -249,7 +250,7 @@ export function AiComposerProvider({ children }: ProviderProps) {
       }
       return next.length ? [...prev, ...next] : prev;
     });
-  }, [pendingSelections, consumeSelections]);
+  }, [pendingSelections, consumeSelections, t]);
 
   const voice = useWhisperRecording({
     onResult: (transcript: string) => {

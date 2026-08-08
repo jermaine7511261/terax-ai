@@ -4,7 +4,7 @@
  */
 import type { IPlatformAdapter } from "../types";
 import { webIpc } from "./ipc";
-import { webStorage } from "./storage";
+import { createWebStorage, webStorage } from "./storage";
 import { webEvents } from "./events";
 import { webPath } from "./path";
 import { webWindow } from "./window";
@@ -16,6 +16,7 @@ export const webAdapter: IPlatformAdapter = {
   name: "web",
   ipc: webIpc,
   storage: webStorage,
+  createStorage: createWebStorage,
   events: webEvents,
   path: webPath,
   window: webWindow,

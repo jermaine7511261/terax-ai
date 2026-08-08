@@ -9,6 +9,9 @@ export type AgentIconId =
   | "designer"
   | "spark";
 
+/** Agent visibility mode (opencode agent schema): where the agent is offered. */
+export type AgentMode = "subagent" | "primary" | "all";
+
 export type Agent = {
   id: string;
   name: string;
@@ -16,6 +19,18 @@ export type Agent = {
   instructions: string;
   icon: AgentIconId;
   builtIn: boolean;
+  /**
+   * Where this agent may be selected (P1-0 / opencode `mode`):
+   *  - "primary" = the main chat agent picker only
+   *  - "subagent" = only as a delegated worker
+   *  - "all" = both (default for user-created agents)
+   */
+  mode?: AgentMode;
+  /**
+   * Run but hide from selectors (opencode `hidden`). Used for internal/system
+   * agents (e.g. a compaction agent) that can run but shouldn't clutter the UI.
+   */
+  hidden?: boolean;
 };
 
 export const BUILTIN_AGENTS: readonly Agent[] = [
@@ -149,4 +164,59 @@ export function findAgent(
 ): Agent {
   if (!id) return BUILTIN_AGENTS[0];
   return agents.find((a) => a.id === id) ?? BUILTIN_AGENTS[0];
+}
+
+/**
+ * Merge user-provided agent overrides onto the builtin set (P1-0 / opencode
+ * ConfigV2 semantics): a user agent with the same `name` as a builtin overrides
+ * it (same-name override); `disabled: true` removes the builtin of that name;
+ * otherwise the user agent is appended as a new custom agent. Returns a fresh
+ * array — pure, unit-tested.
+ */
+export type AgentOverride = Partial<Omit<Agent, "id">> & {
+  name: string;
+  /** Set true to remove a builtin of the same name (opencode `disable`). */
+  disabled?: boolean;
+};
+
+export function mergeAgentOverrides(
+  builtins: readonly Agent[],
+  overrides: readonly AgentOverride[],
+): Agent[] {
+  const out: Agent[] = builtins.map((a) => ({ ...a }));
+  for (const ov of overrides) {
+    const idx = out.findIndex((a) => a.name.toLowerCase() === ov.name.toLowerCase());
+    if (ov.disabled) {
+      if (idx !== -1) out.splice(idx, 1);
+      continue;
+    }
+    const base = idx !== -1 ? out[idx] : null;
+    const merged: Agent = {
+      id: base?.id ?? `custom:${ov.name}`,
+      name: ov.name,
+      description: ov.description ?? base?.description ?? "",
+      instructions: ov.instructions ?? base?.instructions ?? "",
+      icon: ov.icon ?? base?.icon ?? "spark",
+      builtIn: base ? true : false,
+      mode: ov.mode ?? base?.mode,
+      hidden: ov.hidden ?? base?.hidden,
+    };
+    if (idx !== -1) out[idx] = merged;
+    else out.push(merged);
+  }
+  return out;
+}
+
+/** Agents a primary (main-chat) picker should offer: not hidden + not subagent-only. */
+export function selectablePrimaryAgents(agents: readonly Agent[]): Agent[] {
+  return agents.filter(
+    (a) => !a.hidden && a.mode !== "subagent",
+  );
+}
+
+/** Agents a delegated-worker picker should offer: not hidden + not primary-only. */
+export function selectableSubagentAgents(agents: readonly Agent[]): Agent[] {
+  return agents.filter(
+    (a) => !a.hidden && a.mode !== "primary",
+  );
 }

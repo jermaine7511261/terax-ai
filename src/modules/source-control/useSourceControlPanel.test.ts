@@ -1,3 +1,4 @@
+// biome-ignore-all lint/suspicious/noExplicitAny: 测试替身（zustand store mock）需要宽松类型
 // @vitest-environment jsdom
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";

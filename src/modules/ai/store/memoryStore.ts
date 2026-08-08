@@ -71,3 +71,45 @@ export function formatSessionMemory(
   const lines = entries.map((e) => `- ${e.content.replace(/\r?\n/g, " ")}`);
   return `<yamet-session-memory>\n${lines.join("\n")}\n</yamet-session-memory>`;
 }
+
+/**
+ * Relevance recall (P1-4, hermes `select_context`): score a memory line against
+ * a query by counting how many non-trivial query tokens appear in it. Returns
+ * a 0..1 score. Trivial tokens (stopwords/common words) are ignored.
+ */
+export function recallScore(line: string, query: string): number {
+  const q = query.toLowerCase().trim();
+  if (!q) return 0;
+  const tokens = q.split(/[^\p{L}\p{N}]+/u).filter(
+    (t) => t.length >= 3 && !STOPWORDS.has(t),
+  );
+  if (tokens.length === 0) return 0;
+  const lineLower = line.toLowerCase();
+  let hits = 0;
+  for (const t of tokens) if (lineLower.includes(t)) hits++;
+  return hits / tokens.length;
+}
+
+const STOPWORDS = new Set([
+  "the", "and", "for", "are", "with", "this", "that", "from", "have",
+  "was", "has", "you", "how", "what", "when", "where", "which", "please",
+]);
+
+/**
+ * Rank a list of memory lines by relevance to the query, returning the top
+ * `limit` hits that score above `threshold`. Pure — unit-tested.
+ */
+export function recallTop(
+  lines: string[],
+  query: string,
+  opts: { limit?: number; threshold?: number } = {},
+): string[] {
+  const limit = opts.limit ?? 8;
+  const threshold = opts.threshold ?? 0;
+  return lines
+    .map((l) => ({ l, s: recallScore(l, query) }))
+    .filter((x) => x.s > threshold)
+    .sort((a, b) => b.s - a.s)
+    .slice(0, limit)
+    .map((x) => x.l);
+}

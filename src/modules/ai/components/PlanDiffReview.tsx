@@ -225,9 +225,9 @@ function UnifiedDiffPreview({
   return (
     <div className="overflow-hidden rounded border border-border/40 font-mono text-[11px] leading-relaxed">
       <div className="max-h-72 overflow-auto">
-        {shown.map((l, i) => (
+        {shown.map((l) => (
           <div
-            key={i}
+            key={`${l.kind}-${l.text}`}
             className={cn(
               "flex whitespace-pre",
               l.kind === "add"

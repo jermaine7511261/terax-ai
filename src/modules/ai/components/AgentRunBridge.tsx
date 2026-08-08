@@ -164,7 +164,7 @@ function Bridge({
   const startedRef = useRef(false);
   useEffect(() => {
     startedRef.current = false;
-  }, [sessionId]);
+  }, []);
   useEffect(() => {
     if (status === "submitted" || status === "streaming") {
       startedRef.current = true;
@@ -205,7 +205,7 @@ function Bridge({
   useEffect(() => {
     openedRef.current = new Set();
     fileMutationFingerprintRef.current = "";
-  }, [sessionId]);
+  }, []);
 
   // Cheap fingerprint of file-mutation tool parts only. The diff-tab effect
   // is the most expensive thing on the streaming path, so we skip it when

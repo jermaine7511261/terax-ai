@@ -17,6 +17,14 @@ export type SkillFile = {
   prompt: string;
   handle?: string;
   toolAllowlist?: string[];
+  /** P1-5 lifecycle metadata (curator). */
+  agent_created?: boolean;
+  created_at?: number;
+  activity_ts?: number;
+  usage_count?: number;
+  /** Archived by the curator — the skill still exists but is hidden from the
+   * active list (archive-only, never deleted). */
+  archived?: boolean;
 };
 
 /** Serialize a snippet as a shareable skill.json payload (bundle export). */
@@ -90,6 +98,11 @@ export function parseSkillJson(raw: string): SkillFile | null {
     toolAllowlist: Array.isArray(o.toolAllowlist)
       ? o.toolAllowlist.filter((x): x is string => typeof x === "string")
       : undefined,
+    agent_created: o.agent_created === true,
+    created_at: typeof o.created_at === "number" ? o.created_at : undefined,
+    activity_ts: typeof o.activity_ts === "number" ? o.activity_ts : undefined,
+    usage_count: typeof o.usage_count === "number" ? o.usage_count : 0,
+    archived: o.archived === true,
   };
 }
 
@@ -133,6 +146,8 @@ async function readSkillFile(path: string): Promise<Snippet | null> {
   if (result.kind !== "text") return null;
   const skill = parseSkillJson(result.content);
   if (!skill) return null;
+  // Archived skills still exist on disk but are hidden from the active set.
+  if (skill.archived) return null;
   return {
     id: `builtin-${skill.name}`,
     handle: skill.handle ?? normalizeHandle(skill.name),

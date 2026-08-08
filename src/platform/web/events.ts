@@ -4,7 +4,10 @@ import type { IEventAdapter, UnlistenFn } from "../types";
  * Browser event bus using CustomEvent.
  * Same-tab only; cross-tab needs BroadcastChannel (Phase 2).
  */
-const listeners = new Map<string, Set<(payload: any) => void>>();
+const listeners = new Map<
+  string,
+  Set<(payload: { payload: unknown }) => void>
+>();
 
 export const webEvents: IEventAdapter = {
   async listen<T = unknown>(
@@ -23,10 +26,15 @@ export const webEvents: IEventAdapter = {
       };
       window.addEventListener(`yamet:${event}`, bridge);
     }
-    listeners.get(event)!.add(handler);
+    const set = listeners.get(event);
+    if (set) {
+      set.add(handler as unknown as (payload: { payload: unknown }) => void);
+    }
 
     return () => {
-      listeners.get(event)?.delete(handler);
+      listeners
+        .get(event)
+        ?.delete(handler as unknown as (payload: { payload: unknown }) => void);
     };
   },
 

@@ -1,3 +1,5 @@
+// biome-ignore-all lint/style/noNonNullAssertion: 测试断言数据必然存在
+// biome-ignore-all lint/suspicious/noExplicitAny: 测试替身（mock Channel onmessage 回调）需要宽松类型
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const invokeMock = vi.hoisted(() => vi.fn());
@@ -112,7 +114,7 @@ describe("message framing / server-request answering", () => {
         message: expect.stringContaining('"id":7'),
       }),
     );
-    const sent = invokeMock.mock.calls.find((c) => c[0] === "lsp_send")![1]
+    const sent = invokeMock.mock.calls.find((c) => c[0] === "lsp_send")?.[1]
       .message;
     expect(JSON.parse(sent).result).toEqual([null]);
   });
@@ -128,7 +130,7 @@ describe("message framing / server-request answering", () => {
         '{"jsonrpc":"2.0","id":3,"method":"client/registerCapability"}',
       ),
     );
-    const sent = invokeMock.mock.calls.find((c) => c[0] === "lsp_send")![1]
+    const sent = invokeMock.mock.calls.find((c) => c[0] === "lsp_send")?.[1]
       .message;
     expect(JSON.parse(sent).result).toBeNull();
   });
@@ -144,7 +146,7 @@ describe("message framing / server-request answering", () => {
         '{"jsonrpc":"2.0","id":9,"method":"custom/unknown"}',
       ),
     );
-    const sent = invokeMock.mock.calls.find((c) => c[0] === "lsp_send")![1]
+    const sent = invokeMock.mock.calls.find((c) => c[0] === "lsp_send")?.[1]
       .message;
     const parsed = JSON.parse(sent);
     expect(parsed.error.code).toBe(-32601);

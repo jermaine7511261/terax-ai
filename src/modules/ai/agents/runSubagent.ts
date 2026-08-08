@@ -12,6 +12,16 @@ import { SUBAGENTS, type SubagentType } from "./registry";
 
 const SUBAGENT_MAX_STEPS = 12;
 
+/** Hard ceiling on the delegation depth (grok `subagents_max_depth` / hermes
+ * `max_spawn_depth`). A subagent's workers inherit depth+1; beyond this the
+ * delegate_many tool refuses to spawn deeper. */
+export const MAX_SPAWN_DEPTH = 3;
+
+/** Summary budget cap (hermes summary-budget-cap): a subagent's returned
+ * summary longer than this is truncated to a head excerpt + a "…" marker so a
+ * parent's context can't be blown up by a child's oversized result. */
+export const SUBAGENT_SUMMARY_CAP = 4000;
+
 type Args = {
   type: SubagentType;
   prompt: string;
@@ -22,6 +32,16 @@ type Args = {
   customEndpoints?: readonly CustomEndpoint[];
   customEndpointKeys?: CustomEndpointKeys;
   onStep?: (label: string) => void;
+  /**
+   * Optional isolated context to inject ahead of the prompt (P1-2 / opencode
+   * task_result). The child has NO shared parent history — this is the only
+   * context it carries beyond its own system prompt + tools.
+   */
+  context?: string;
+  /** Delegation depth of this worker (root parent = 0). Guards infinite nesting. */
+  depth?: number;
+  /** Parent activity/session id for the UI tree (opencode parentID). */
+  parentId?: string;
 };
 
 type RunResult = {
@@ -57,9 +77,18 @@ export async function runSubagent({
   customEndpoints,
   customEndpointKeys,
   onStep,
+  context,
 }: Args): Promise<RunResult> {
   const def = SUBAGENTS[type];
   if (!def) throw new Error(`unknown subagent type: ${type}`);
+
+  // Independent context (P1-2): the child carries only its system prompt,
+  // the caller-supplied context (if any), and the task prompt — never the
+  // parent's shared message history.
+  const taskPrompt =
+    context && context.trim().length > 0
+      ? `${context.trim()}\n\n${prompt}`
+      : prompt;
 
   const readOnly: Record<string, unknown> = {
     ...buildFsTools(toolContext),
@@ -86,7 +115,7 @@ export async function runSubagent({
   const result = await generateText({
     model,
     system: def.systemPrompt,
-    prompt,
+    prompt: taskPrompt,
     tools: tools as Parameters<typeof generateText>[0]["tools"],
     stopWhen: stepCountIs(SUBAGENT_MAX_STEPS),
     onStepFinish: (step) => {
@@ -96,8 +125,16 @@ export async function runSubagent({
     },
   });
 
+  // Summary budget cap (hermes): truncate the child's returned summary so a
+  // parent's context can't be blown up by an oversized result.
+  const raw = result.text || "(no output)";
+  const summary =
+    raw.length > SUBAGENT_SUMMARY_CAP
+      ? `${raw.slice(0, SUBAGENT_SUMMARY_CAP)}…[truncated to ${SUBAGENT_SUMMARY_CAP} chars]`
+      : raw;
+
   return {
-    summary: result.text || "(no output)",
+    summary,
     stepCount: result.steps?.length ?? 0,
     durationMs: Date.now() - start,
   };

@@ -1,3 +1,4 @@
+// biome-ignore-all lint/suspicious/noTemplateCurlyInString: 测试故意构造 ${HOME} 命令串验证拦截逻辑
 import { describe, expect, it } from "vitest";
 import {
   checkReadable,

@@ -177,6 +177,7 @@ export function useSourceControl(
     enabledRef.current = enabled;
   }, [enabled]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: workspaceKey 变化时重置状态（信号依赖，body 不直接引用）
   useEffect(() => {
     requestIdRef.current++;
     inflightRef.current = null;
@@ -205,6 +206,7 @@ export function useSourceControl(
     [],
   );
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: workspaceKey 变化需重刷（信号依赖，body 不直接引用）
   const doRefresh = useCallback(
     async (remoteMode: SourceControlRefreshMode): Promise<void> => {
       if (!enabledRef.current) return;
@@ -414,6 +416,7 @@ export function useSourceControl(
     [refresh],
   );
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: workspaceKey 变化需重跑（信号依赖，body 不直接引用）
   useEffect(() => {
     if (!enabled) {
       requestIdRef.current++;

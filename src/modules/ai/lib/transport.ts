@@ -7,8 +7,8 @@ import { formatAiError } from "./errors";
 import { native } from "./native";
 import type { ToolContext } from "../tools/tools";
 import {
-  formatSessionMemory,
   getSessionMemory,
+  recallTop,
 } from "../store/memoryStore";
 import { useMcpStore } from "@/modules/mcp";
 
@@ -26,6 +26,44 @@ export type ProjectMemoryEntry = {
 
 const MEM_START = "<!-- yamet-project-memory:start -->";
 const MEM_END = "<!-- yamet-project-memory:end -->";
+
+/**
+ * Marker isolating injected memory from model/user text (P1-4, hermes
+ * `StreamingContextScrubber`). The injected block is wrapped in this marker so
+ * a model echo of memory content can be stripped from being mistaken for user
+ * input, and so downstream scrubbing knows exactly which text came from the
+ * injected recall (vs. the conversation).
+ */
+export const MEMORY_NOTE = "[System note: recalled memory context]";
+export const MEMORY_NOTE_END = "[end recalled memory]";
+
+/**
+ * Scrub any echo of the recalled-memory block out of a model reply. The model
+ * sometimes quotes the injected context back; without stripping it, that echo
+ * can be misread as new user input on the next turn. (hermes
+ * StreamingContextScrubber.)
+ */
+export function scrubMemoryEcho(text: string, injected: string | null): string {
+  if (!injected) return text;
+  // The injected block already carries its isolation markers (see
+  // buildRecalledMemory). Reconstruct the exact echoed block to search for:
+  // if the caller passed bare content, wrap it; otherwise use it verbatim.
+  const block = injected.includes(MEMORY_NOTE)
+    ? injected
+    : `${MEMORY_NOTE}\n${injected}\n${MEMORY_NOTE_END}`;
+  const idx = text.indexOf(block);
+  if (idx !== -1) {
+    // Collapse to a single newline at the seam left by removing the block.
+    const left = text.slice(0, idx).replace(/\n$/, "");
+    const right = text.slice(idx + block.length).replace(/^\n/, "");
+    return left + "\n" + right;
+  }
+  // Fallback: strip any isolated note markers.
+  return text
+    .split(MEMORY_NOTE_END)
+    .map((s) => s.split(MEMORY_NOTE)[0])
+    .join("");
+}
 
 function memoryPath(workspaceRoot: string): string {
   return `${workspaceRoot.replace(/\/$/, "")}/YAMET.md`;
@@ -229,6 +267,8 @@ type Deps = {
   onUsage?: (delta: AgentUsageDelta) => void;
   onCompact?: (info: { droppedCount: number }) => void;
   onFinishMeta?: (info: { hitStepCap: boolean; finishReason: string }) => void;
+  onPhase?: (phase: "thinking" | "calling" | "observing" | "done") => void;
+  onDoomLoop?: () => void;
   getPlanMode?: () => boolean;
   /** Skill-scoped tool allowlist for this session (undefined = full tools). */
   getToolAllowlist?: () => string[] | undefined;
@@ -247,14 +287,14 @@ export function createContextAwareTransport(deps: Deps) {
     // connected servers appear and dropped ones disappear from the toolset.
     await useMcpStore.getState().refresh().catch(() => {});
     const live = deps.getLive();
+    // P1-4 recall-based injection: instead of blindly splicing the full
+    // YAMET.md + full session memory, recall only the relevant lines for the
+    // latest user query and wrap them in an isolation marker (hermes
+    // select_context + build_memory_context_block).
     const staticMemory = await readYametMd(live.workspaceRoot);
-    // Two-level project memory: static YAMET.md (cross-session, on disk) +
-    // this session's in-memory notes (writable mid-conversation). Merged and
-    // deduped so both show up in the system prompt without bloat.
-    const sessionMemory = formatSessionMemory(
-      getSessionMemory(deps.toolContext.getSessionId()),
-    );
-    const projectMemory = mergeProjectMemory(staticMemory, sessionMemory);
+    const sessionMemory = getSessionMemory(deps.toolContext.getSessionId());
+    const query = lastUserText(options.messages);
+    const projectMemory = buildRecalledMemory(staticMemory, sessionMemory, query);
     const envBlock = formatEnvBlock(live);
     const messagesForRun = envBlock
       ? injectEnvIntoLastUser(options.messages, envBlock)
@@ -269,6 +309,8 @@ export function createContextAwareTransport(deps: Deps) {
       onUsage: deps.onUsage,
       onCompact: deps.onCompact,
       onFinishMeta: deps.onFinishMeta,
+      onPhase: deps.onPhase,
+      onDoomLoop: deps.onDoomLoop,
       llamaCppBaseURL: deps.getLlamaCppBaseURL?.(),
       llamaCppModelId: deps.getLlamaCppModelId?.(),
       openaiCompatibleBaseURL: deps.getOpenaiCompatibleBaseURL?.(),
@@ -296,6 +338,49 @@ export function createContextAwareTransport(deps: Deps) {
       return null;
     },
   };
+}
+
+/** Extract the latest user text part for recall querying. */
+function lastUserText(messages: UIMessage[]): string {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m.role !== "user") continue;
+    const parts = m.parts as ReadonlyArray<{ type: string; text?: string }>;
+    for (let j = parts.length - 1; j >= 0; j--) {
+      if (parts[j].type === "text" && parts[j].text) return parts[j].text ?? "";
+    }
+  }
+  return "";
+}
+
+/**
+ * P1-4 recall-based memory injection: rank the combined static YAMET.md lines
+ * + session-memory entries against the user query, keep only the relevant hits,
+ * and wrap them in an isolation marker. Returns null when nothing relevant (or
+ * no memory exists) — keeping the prompt lean instead of splicing full memory.
+ */
+function buildRecalledMemory(
+  staticMd: string | null,
+  sessionEntries: { content: string }[],
+  query: string,
+): string | null {
+  const lines: string[] = [];
+  if (staticMd) {
+    lines.push(
+      ...staticMd
+        .split("\n")
+        .map((l) => l.trim())
+        .filter(Boolean),
+    );
+  }
+  for (const e of sessionEntries) lines.push(`- ${e.content}`);
+  if (lines.length === 0) return null;
+
+  const recalled = query.trim()
+    ? recallTop(lines, query, { limit: 8, threshold: 0 })
+    : lines.slice(0, 8);
+  if (recalled.length === 0) return null;
+  return `${MEMORY_NOTE}\n${recalled.join("\n")}\n${MEMORY_NOTE_END}`;
 }
 
 function injectEnvIntoLastUser(

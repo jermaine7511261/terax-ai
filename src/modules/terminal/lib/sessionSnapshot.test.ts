@@ -82,7 +82,7 @@ describe("terminal snapshots", () => {
   it("truncates oversized snapshots to the 4 MiB cap", async () => {
     const big = "a".repeat(5 * 1024 * 1024);
     await saveTerminalSnapshot(3, big);
-    const written = mockNative.writeFile.mock.calls[0]![1] as string;
+    const written = mockNative.writeFile.mock.calls[0]?.[1] as string;
     expect(written).toHaveLength(4 * 1024 * 1024);
   });
 

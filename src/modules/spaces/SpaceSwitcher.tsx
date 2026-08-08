@@ -325,8 +325,7 @@ export function SpaceSwitcher({
           ))}
         </div>
         {recents.length > 0 && (
-          <>
-            <div className="mt-1.5 border-t border-border/60 pt-1.5">
+          <div className="mt-1.5 border-t border-border/60 pt-1.5">
               <div className="flex items-center justify-between px-1.5 pb-1 pt-0.5">
                 <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/70">
                   {t("spaces.recent")}
@@ -363,7 +362,6 @@ export function SpaceSwitcher({
                 ))}
               </div>
             </div>
-          </>
         )}
         <div className="mt-1.5 border-t border-border/60 pt-1.5">
           <button

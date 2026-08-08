@@ -12,6 +12,7 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { AgentActivity } from "../store/agentActivityStore";
 import { useRecentActivities } from "../store/agentActivityStore";
+import { useChatStore } from "../store/chatStore";
 
 const ACTIVITY_COLORS: Record<
   AgentActivity["kind"],
@@ -32,10 +33,16 @@ const ACTIVITY_COLORS: Record<
     bg: "bg-violet-500/10",
     text: "text-violet-600",
   },
+  graph: {
+    icon: CodeIcon,
+    bg: "bg-amber-500/10",
+    text: "text-amber-600",
+  },
 };
 
 export function ActivityStrip() {
   const activities = useRecentActivities();
+  const meta = useChatStore((s) => s.agentMeta);
   if (activities.length === 0 || activities.every((a) => a.status === "done"))
     return null;
 
@@ -53,6 +60,21 @@ export function ActivityStrip() {
           {"Activity"}
         </span>
         {running > 0 && <Spinner className="size-2.5" />}
+        {meta.phase && running > 0 && (
+          <span className="rounded bg-muted px-1 py-0 text-[9px] uppercase tracking-wide text-muted-foreground">
+            {meta.phase}
+          </span>
+        )}
+        {meta.stepCount > 0 && (
+          <span className="text-[10px] tabular-nums text-muted-foreground/60">
+            {meta.stepCount}
+          </span>
+        )}
+        {meta.doomLoopDetected && (
+          <span className="rounded bg-destructive/10 px-1 py-0 text-[9px] font-medium text-destructive">
+            {"doom-loop"}
+          </span>
+        )}
         <Progress value={pct} className="h-1 flex-1" />
         <span className="text-[11px] tabular-nums font-mono text-muted-foreground">
           {done + activities.filter((a) => a.status === "error").length}/

@@ -9,6 +9,7 @@ import { BUILTIN_AGENTS } from "../lib/agents";
 import { useAgentsStore } from "./agentsStore";
 import { usePlanStore } from "./planStore";
 import { createContextAwareTransport } from "../lib/transport";
+import { autoSettleTurn } from "../lib/autoSettle";
 import type { ToolContext } from "../tools/tools";
 import {
   chats,
@@ -79,6 +80,16 @@ function makeChat(sessionId: string): Chat<UIMessage> {
     onStep: (step) => {
       useChatStore.getState().patchAgentMeta({ step });
     },
+    onPhase: (phase) => {
+      const cur = useChatStore.getState().agentMeta;
+      useChatStore.getState().patchAgentMeta({
+        phase,
+        stepCount: cur.stepCount + 1,
+      });
+    },
+    onDoomLoop: () => {
+      useChatStore.getState().patchAgentMeta({ doomLoopDetected: true });
+    },
     onCompact: (info) => {
       useChatStore.getState().patchAgentMeta({
         compactionNotice: { droppedCount: info.droppedCount, at: Date.now() },
@@ -86,6 +97,13 @@ function makeChat(sessionId: string): Chat<UIMessage> {
     },
     onFinishMeta: (info) => {
       useChatStore.getState().patchAgentMeta({ hitStepCap: info.hitStepCap });
+      // P1-4 auto-settle: when the run completes, distill the turn's tool-work
+      // summary into project memory (source:"auto") so future turns can recall
+      // it without the agent explicitly calling update_project_memory.
+      const chat = chats.get(sessionId);
+      if (chat && chat.messages && chat.messages.length > 0) {
+        autoSettleTurn(sessionId, chat.messages);
+      }
     },
     onUsage: (delta) => {
       const cur = useChatStore.getState().agentMeta.tokens;

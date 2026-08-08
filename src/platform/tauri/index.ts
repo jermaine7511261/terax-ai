@@ -23,6 +23,7 @@ export const tauriAdapter: IPlatformAdapter = {
   name: "tauri",
   ipc: tauriIpc,
   storage: defaultStorage,
+  createStorage: createTauriStorage,
   events: tauriEvents,
   path: tauriPath,
   window: tauriWindow,

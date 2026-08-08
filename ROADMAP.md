@@ -77,6 +77,7 @@ Yamet 是一个快速、轻量的 AI 原生终端（ADE，agentic development en
 - [x] MCP client：外部 MCP server（stdio / HTTP）工具接入，全部默认审批 + 脱敏
 - [x] Skill 升级：snippet 工具白名单（技能限定工具回合）+ 内置 `skills/` 目录约定
 - [x] 记忆增强：`list`/`delete` 工具、来源分组（tool/auto）、收尾 nudge、设置页浏览/编辑
+- [x] Multi-Agent / Graph Engineering 原生（第二十轮）：`delegate_many` 并发 Worker 委派 + 深度/预算上限；Graph 编排引擎（拓扑波浪 + 并行 + judge/human/merge + 断点续跑）；Loop 状态机可视化 + 健壮退出 + doom-loop；记忆召回式注入 + 标记隔离 + 自动沉淀；skill 后台自动策展；审批三态；压缩四元接口
 
 ### 网页预览
 

@@ -69,7 +69,7 @@ export function consumePendingGatewayMeta(): GatewayMessageMeta | null {
  * Send a text reply back through the gateway.  Called after the LLM has
  * produced a response for an inbound gateway message.
  */
-export async function sendGatewayReply(
+async function sendGatewayReply(
   meta: GatewayMessageMeta,
   text: string,
 ): Promise<void> {

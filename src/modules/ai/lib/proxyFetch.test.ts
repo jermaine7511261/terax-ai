@@ -21,7 +21,7 @@ type StreamArgs = {
   onEvent?: unknown;
 };
 
-const lastArg = () => mockInvoke.mock.calls[0]![1] as unknown as StreamArgs;
+const lastArg = () => mockInvoke.mock.calls[0]?.[1] as unknown as StreamArgs;
 
 class FakeChannel {
   onmessage: ((event: unknown) => void) | null = null;

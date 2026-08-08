@@ -1,3 +1,4 @@
+// biome-ignore-all lint/a11y/useSemanticElements: 拖拽放置区与悬停操作按钮使用 div+role 模式
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -171,7 +172,7 @@ export function ThemesSection() {
       />
 
       <div
-        role="presentation"
+        role="region"
         className="flex flex-col gap-2"
         onDragOver={(e) => {
           e.preventDefault();
@@ -276,10 +277,17 @@ export function ThemesSection() {
                       aria-label={translate("settingsThemes.editTheme", {
                         name: t.name,
                       })}
+                      tabIndex={-1}
                       className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
                       onClick={(e) => {
                         e.stopPropagation();
                         onEditTheme(t.id);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          onEditTheme(t.id);
+                        }
                       }}
                     >
                       <HugeiconsIcon
@@ -293,10 +301,17 @@ export function ThemesSection() {
                       aria-label={translate("settingsThemes.removeTheme", {
                         name: t.name,
                       })}
+                      tabIndex={-1}
                       className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-destructive"
                       onClick={(e) => {
                         e.stopPropagation();
                         void onRemoveCustomTheme(t.id);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          void onRemoveCustomTheme(t.id);
+                        }
                       }}
                     >
                       ×
@@ -351,7 +366,7 @@ export function ThemesSection() {
       </div>
 
       <div
-        role="presentation"
+        role="region"
         className="flex flex-col gap-2"
         onDragOver={(e) => {
           e.preventDefault();

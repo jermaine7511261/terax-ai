@@ -1,3 +1,4 @@
+// biome-ignore-all lint/style/noNonNullAssertion: 测试断言数据必然存在
 // @vitest-environment jsdom
 import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";

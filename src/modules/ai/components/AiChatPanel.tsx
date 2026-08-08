@@ -9,6 +9,7 @@ import {
 import { AiChatView } from "./AiChat";
 import { SessionBar } from "./SessionBar";
 import { TodoStrip } from "./TodoStrip";
+import { GraphRunPanel } from "./GraphRunPanel";
 
 /**
  * Full-screen chat view, rendered as the default home tab. Conversation and
@@ -76,6 +77,7 @@ function ChatBody({ sessionId }: { sessionId: string }) {
         )}
       </div>
       <TodoStrip sessionId={sessionId} />
+      <GraphRunPanel />
     </div>
   );
 }

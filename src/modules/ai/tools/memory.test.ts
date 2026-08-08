@@ -1,3 +1,4 @@
+// biome-ignore-all lint/style/noNonNullAssertion: 测试断言数据必然存在
 import type { ToolExecutionOptions } from "ai";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useMemoryStore } from "../store/memoryStore";
@@ -106,7 +107,7 @@ describe("update_project_memory", () => {
     expect(result.persisted).toBe(true);
 
     // In-session store holds the entry for the current session.
-    const sessionMem = useMemoryStore.getState().bySession["session"] ?? [];
+    const sessionMem = useMemoryStore.getState().bySession.session ?? [];
     expect(sessionMem).toHaveLength(1);
     expect(sessionMem[0].content).toBe("We use pnpm, never npm.");
     // Disk write happened once (append path, no id given).
@@ -126,7 +127,7 @@ describe("update_project_memory", () => {
     });
     expect(second.id).toBe(id);
 
-    const sessionMem = useMemoryStore.getState().bySession["session"] ?? [];
+    const sessionMem = useMemoryStore.getState().bySession.session ?? [];
     expect(sessionMem).toHaveLength(1);
     expect(sessionMem[0].content).toBe("fact two");
     // Append on the first (no id), update on the second (with id).
@@ -139,7 +140,7 @@ describe("update_project_memory", () => {
     expect(empty.ok).toBe(false);
     expect(empty.error).toContain("empty");
     expect(transportMock.appendProjectMemory).not.toHaveBeenCalled();
-    expect(useMemoryStore.getState().bySession["session"] ?? []).toHaveLength(
+    expect(useMemoryStore.getState().bySession.session ?? []).toHaveLength(
       0,
     );
   });
@@ -153,7 +154,7 @@ describe("update_project_memory", () => {
     expect(result.sessionOnly).toBe(true);
     expect(result.persisted).toBe(false);
     expect(transportMock.appendProjectMemory).not.toHaveBeenCalled();
-    const sessionMem = useMemoryStore.getState().bySession["session"] ?? [];
+    const sessionMem = useMemoryStore.getState().bySession.session ?? [];
     expect(sessionMem).toHaveLength(1);
   });
 
@@ -172,12 +173,12 @@ describe("update_project_memory", () => {
 describe("update_project_memory source", () => {
   it("marks auto-settled entries 'auto' and defaults to 'tool'", async () => {
     await runMemory(makeContext(), { entry: "settled fact", source: "auto" });
-    const autoEntry = useMemoryStore.getState().bySession["session"]?.[0];
+    const autoEntry = useMemoryStore.getState().bySession.session?.[0];
     expect(autoEntry?.source).toBe("auto");
 
     useMemoryStore.getState().clearSession("session");
     await runMemory(makeContext(), { entry: "agent fact" });
-    const toolEntry = useMemoryStore.getState().bySession["session"]?.[0];
+    const toolEntry = useMemoryStore.getState().bySession.session?.[0];
     expect(toolEntry?.source).toBe("tool");
   });
 });
@@ -222,7 +223,7 @@ describe("delete_project_memory", () => {
       toolOptions,
     )) as { ok: boolean };
     expect(res.ok).toBe(true);
-    expect(useMemoryStore.getState().bySession["session"] ?? []).toHaveLength(0);
+    expect(useMemoryStore.getState().bySession.session ?? []).toHaveLength(0);
     expect(transportMock.removeProjectMemory).toHaveBeenCalledWith(
       "/workspace",
       "session fact",

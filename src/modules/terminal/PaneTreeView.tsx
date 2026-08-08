@@ -1,3 +1,4 @@
+// biome-ignore-all lint/a11y/useSemanticElements: 终端面板叶子节点用 div+role=group 分组
 import {
   ResizableHandle,
   ResizablePanel,
@@ -35,6 +36,7 @@ export function PaneTreeView(props: Props) {
     const b = getBundle(node.id);
     return (
       <div
+        role="group"
         onMouseDownCapture={() => {
           if (!focused) onFocusLeaf(node.id);
         }}

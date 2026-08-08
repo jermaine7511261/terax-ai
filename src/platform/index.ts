@@ -74,8 +74,8 @@ export function invokeRaw<T>(
 ): Promise<T> {
   if (adapter) {
     const p = adapter;
-    if (p.ipc && "invokeRaw" in p.ipc && typeof (p.ipc as any).invokeRaw === "function") {
-      return (p.ipc as any).invokeRaw(cmd, body, options);
+    if (p.ipc && "invokeRaw" in p.ipc && typeof p.ipc.invokeRaw === "function") {
+      return p.ipc.invokeRaw<T>(cmd, body, options);
     }
   }
   // Not initialized / no raw support: fall back to the raw Tauri invoke
@@ -113,8 +113,9 @@ export function createStorage(filename: string, _options?: unknown): IStorageAda
     return require_t_storage()(filename);
   }
   const p = adapter;
-  if ("createStorage" in p && typeof (p as any).createStorage === "function") {
-    return (p as any).createStorage(filename);
+  const factory = p.createStorage;
+  if (factory) {
+    return factory(filename);
   }
   return p.storage;
 }
@@ -173,11 +174,11 @@ export function appConfigDir(): Promise<string> {
 import { platform as tauriOsPlatform, arch as tauriOsArch } from "@tauri-apps/plugin-os";
 /** OS name (win32/darwin/linux…). Sync in Tauri, async elsewhere. */
 export function getOsPlatform(): string {
-  if (adapter) return adapter.os.platform() as unknown as string;
+  if (adapter) return adapter.os.platform();
   return tauriOsPlatform();
 }
 export function getOsArch(): string {
-  if (adapter) return adapter.os.arch() as unknown as string;
+  if (adapter) return adapter.os.arch();
   return tauriOsArch();
 }
 

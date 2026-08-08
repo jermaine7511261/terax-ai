@@ -62,6 +62,11 @@ export type AgentMeta = {
   lastInputTokens: number;
   lastCachedTokens: number;
   hitStepCap: boolean;
+  /** Loop phase (P1-1): think-act-observe visibility. */
+  phase: "thinking" | "calling" | "observing" | "done" | null;
+  /** Doom-loop detected (opencode): same tool+args repeated. */
+  doomLoopDetected: boolean;
+  stepCount: number;
   compactionNotice: { droppedCount: number; at: number } | null;
 };
 
@@ -80,6 +85,9 @@ const IDLE_META: AgentMeta = {
   lastInputTokens: 0,
   lastCachedTokens: 0,
   hitStepCap: false,
+  phase: null,
+  doomLoopDetected: false,
+  stepCount: 0,
   compactionNotice: null,
 };
 
@@ -235,6 +243,10 @@ type StoreState = {
   setIncompleteTurn: (id: string, value: boolean) => void;
   hydrateSessions: () => Promise<void>;
   newSession: () => string;
+  /** Create a child (sub) session with an independent message history. */
+  createSubSession: (parentId: string, title?: string) => string;
+  /** Resolve the root session id (walk parentId chain to the top). */
+  resolveRootSessionId: (id: string) => string;
   switchSession: (id: string) => void;
   deleteSession: (id: string) => void;
   renameSession: (id: string, title: string) => void;
@@ -477,6 +489,42 @@ export const useChatStore = create<StoreState>((set, get) => ({
     void saveSessionsList(next);
     void saveActiveId(id);
     return id;
+  },
+
+  createSubSession: (parentId, title) => {
+    const id = newSessionId();
+    const now = Date.now();
+    const meta: SessionMeta = {
+      id,
+      title: title ?? "Sub task",
+      createdAt: now,
+      updatedAt: now,
+      parentId,
+    };
+    const next = [meta, ...get().sessions];
+    set({
+      sessions: next,
+      activeSessionId: id,
+      agentMeta: IDLE_META,
+      sessionApprovalArmed: false,
+    });
+    void saveSessionsList(next);
+    void saveActiveId(id);
+    return id;
+  },
+
+  resolveRootSessionId: (id) => {
+    const byId = new Map(get().sessions.map((s) => [s.id, s] as const));
+    let cur = id;
+    const seen = new Set<string>();
+    while (true) {
+      if (seen.has(cur)) break; // cycle guard
+      seen.add(cur);
+      const meta = byId.get(cur);
+      if (!meta?.parentId) return cur;
+      cur = meta.parentId;
+    }
+    return cur;
   },
 
   switchSession: (id) => {

@@ -13,7 +13,7 @@ import {
   Link04Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import type { SshTarget } from "@/modules/tabs";
 import { parseTarget } from "./lib/sshArgs";
@@ -73,7 +73,7 @@ export function RemotePanel({ onOpenRemoteFile }: Props) {
   const [tunnelBind, setTunnelBind] = useState("8080:localhost");
   const [tunnelRemote, setTunnelRemote] = useState("127.0.0.1:80");
 
-  const refreshTunnels = () => {
+  const refreshTunnels = useCallback(() => {
     if (!target) {
       setTunnels([]);
       return;
@@ -83,11 +83,11 @@ export function RemotePanel({ onOpenRemoteFile }: Props) {
     invoke<TunnelInfo[]>("ssh_tunnel_list")
       .then((list) => setTunnels(list))
       .catch(() => {});
-  };
+  }, [target]);
   useEffect(() => {
     refreshTunnels();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [target]);
+  }, [refreshTunnels]);
 
   const startTunnel = async () => {
     if (!target) {

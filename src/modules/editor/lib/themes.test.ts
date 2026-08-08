@@ -44,7 +44,7 @@ describe("EDITOR_THEME_EXT", () => {
   });
 
   it("provides a dark and light variant for paired themes", () => {
-    expect(EDITOR_THEME_EXT["kanagawa"]).toBeTruthy();
+    expect(EDITOR_THEME_EXT.kanagawa).toBeTruthy();
     expect(EDITOR_THEME_EXT["kanagawa-lotus"]).toBeTruthy();
     expect(EDITOR_THEME_EXT["xcode-dark"]).toBeTruthy();
     expect(EDITOR_THEME_EXT["xcode-light"]).toBeTruthy();

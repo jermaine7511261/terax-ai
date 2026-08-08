@@ -1,3 +1,4 @@
+// biome-ignore-all lint/style/noNonNullAssertion: 测试断言数据必然存在
 import { describe, expect, it } from "vitest";
 import type { LspCustomServer } from "@/modules/settings/store";
 import {

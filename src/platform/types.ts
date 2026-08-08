@@ -142,8 +142,8 @@ export interface IWebviewAdapter {
  * Web:   navigator.userAgent parsing.
  */
 export interface IOsAdapter {
-  platform(): Promise<string>;
-  arch(): Promise<string>;
+  platform(): string;
+  arch(): string;
 }
 
 // ── Dialog ──────────────────────────────────────────────────────────────────
@@ -276,6 +276,7 @@ export interface IPlatformAdapter {
   readonly name: "tauri" | "web" | "cli" | "tui";
   readonly ipc: IIpcAdapter;
   readonly storage: IStorageAdapter;
+  readonly createStorage?: (filename: string) => IStorageAdapter;
   readonly events: IEventAdapter;
   readonly path: IPathAdapter;
   readonly window: IWindowAdapter;

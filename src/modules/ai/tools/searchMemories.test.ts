@@ -35,7 +35,7 @@ describe("scoreHit", () => {
 
 describe("snippetAround", () => {
   it("slices around the first hit with ellipses", () => {
-    const text = "x".repeat(30) + "needle" + "y".repeat(30);
+    const text = `${"x".repeat(30)}needle${"y".repeat(30)}`;
     const s = snippetAround(text, ["needle"], 30);
     expect(s).toContain("needle");
     expect(s.length).toBeLessThanOrEqual(30 + 2);

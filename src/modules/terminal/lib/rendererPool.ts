@@ -397,7 +397,7 @@ function pickSlotFor(leafId: number): PickResult {
       best = s;
     }
   }
-  const chosen = best!;
+  const chosen = best ?? createSlot();
   return { slot: chosen, previousLeafId: chosen.currentLeafId };
 }
 

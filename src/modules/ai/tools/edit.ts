@@ -34,7 +34,7 @@ type PatchHunk = {
  * headers and `@@ -a,b +c,d @@` hunks. Tolerates missing line counts
  * (`@@ -5 +5 @@`). Returns files in diff order.
  */
-export function parseUnifiedDiff(text: string): PatchFile[] {
+function parseUnifiedDiff(text: string): PatchFile[] {
   const files: PatchFile[] = [];
   let current: PatchFile | null = null;
   let hunk: PatchHunk | null = null;
@@ -204,10 +204,12 @@ async function applyEdits(
           (e.old_string.length - e.new_string.length || 1) || 0;
       // Recover count via direct search to avoid divide-by-zero edge cases.
       let n = 0;
-      let i = 0;
-      while ((i = before.indexOf(e.old_string, i)) !== -1) {
+      for (
+        let i = before.indexOf(e.old_string);
+        i !== -1;
+        i = before.indexOf(e.old_string, i + e.old_string.length)
+      ) {
         n++;
-        i += e.old_string.length;
       }
       if (n === 0) {
         return {

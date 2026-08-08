@@ -1,9 +1,11 @@
 import { buildManagedAgentTools } from "./agent";
 import { buildCreateSkillTools } from "./createSkill";
+import { buildDelegateManyTools } from "./delegateMany";
 import { buildEditTools } from "./edit";
 import { buildExternalAgentTools } from "./externalAgent";
 import { buildFsTools } from "./fs";
 import { buildGitTools } from "./git";
+import { buildGraphTools } from "./graph";
 import { buildMcpTools } from "./mcp";
 import { buildMemoryTools } from "./memory";
 import { buildSearchMemoriesTools } from "./searchMemories";
@@ -45,6 +47,7 @@ export function buildTools(ctx: import("./context").ToolContext) {
     ...buildSearchTools(ctx),
     ...buildShellTools(ctx),
     ...buildSubagentTools(ctx),
+    ...buildDelegateManyTools(ctx),
     ...buildExternalAgentTools(ctx),
     ...buildTerminalTools(ctx),
     ...buildTodoTools(ctx),
@@ -52,6 +55,7 @@ export function buildTools(ctx: import("./context").ToolContext) {
     ...buildSearchMemoriesTools(ctx),
     ...buildManagedAgentTools(ctx),
     ...buildCreateSkillTools(ctx),
+    ...buildGraphTools(ctx),
     // Dynamic MCP tools (read from the live mcpStore; all needsApproval).
     ...buildMcpTools(),
   } as const;

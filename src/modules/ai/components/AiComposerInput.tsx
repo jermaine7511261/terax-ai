@@ -82,7 +82,7 @@ export function AiComposerInput() {
 
   useEffect(() => {
     autoresize(c.textareaRef.current);
-  }, [c.value, c.textareaRef]);
+  }, [c.textareaRef]);
 
   const updateTrigger = () => {
     const el = c.textareaRef.current;
@@ -136,6 +136,7 @@ export function AiComposerInput() {
 
   const fileTriggerOpen = fileTrigger !== null;
   const snippetTriggerOpen = trigger !== null;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: 以 trigger/fileQuery 状态变化作为重置信号（body 不直接引用）
   useEffect(() => {
     setActiveIndex(0);
   }, [snippetTriggerOpen, fileTriggerOpen, fileQuery]);

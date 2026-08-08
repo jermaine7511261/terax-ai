@@ -25,7 +25,6 @@ vi.mock("@/modules/terminal", () => ({
   writeToSession: terminalMock.writeToSession,
 }));
 
-import { writeToSession } from "@/modules/terminal";
 import { buildManagedAgentTools } from "./agent";
 
 const managed = {

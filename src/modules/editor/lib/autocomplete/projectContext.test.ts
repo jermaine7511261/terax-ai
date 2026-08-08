@@ -46,8 +46,8 @@ describe("getProjectContext", () => {
 
     const ctx = await getProjectContext("C:\\p1\\src\\deep\\file.ts");
     expect(ctx).not.toBeNull();
-    expect(ctx!.notes).toHaveLength(6000);
-    expect(ctx!.dir).toBe("C:\\p1\\src\\deep");
+    expect(ctx?.notes).toHaveLength(6000);
+    expect(ctx?.dir).toBe("C:\\p1\\src\\deep");
   });
 
   it("prefers AGENTS.md over the later candidates on the same dir", async () => {
@@ -55,7 +55,7 @@ describe("getProjectContext", () => {
       path.endsWith("AGENTS.md") ? text("agents") : text("other"),
     );
     const ctx = await getProjectContext("/p2/AGENTS.md");
-    expect(ctx!.notes).toBe("agents");
+    expect(ctx?.notes).toBe("agents");
   });
 
   it("collects sibling source files, most-recently-edited first, capped at 8", async () => {
@@ -72,10 +72,10 @@ describe("getProjectContext", () => {
 
     const ctx = await getProjectContext("/p3/src/self.ts");
     // 8 capped; most recent first => b.ts (mtime 3) before a.ts.
-    expect(ctx!.siblingSnippets).toHaveLength(8);
-    expect(ctx!.siblingSnippets[0].filename).toBe("b.ts");
+    expect(ctx?.siblingSnippets).toHaveLength(8);
+    expect(ctx?.siblingSnippets[0].filename).toBe("b.ts");
     expect(
-      ctx!.siblingSnippets.every((s) => s.head === "head"),
+      ctx?.siblingSnippets.every((s) => s.head === "head"),
     ).toBe(true);
   });
 
@@ -109,7 +109,7 @@ describe("getProjectContext", () => {
     mockNative.readFile.mockResolvedValue(text("n"));
     const ctx = await getProjectContext("/p6/a.ts");
     expect(ctx).not.toBeNull();
-    expect(ctx!.siblingSnippets).toEqual([]);
+    expect(ctx?.siblingSnippets).toEqual([]);
   });
 
   it("returns null when neither notes nor siblings are found", async () => {

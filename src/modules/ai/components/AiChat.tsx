@@ -127,9 +127,9 @@ const ContextChips = memo(function ContextChips({
 }) {
   return (
     <div className="mb-1 flex flex-wrap gap-1">
-      {chips.map((c, i) => (
+      {chips.map((c) => (
         <span
-          key={i}
+          key={`${c.kind}-${'name' in c ? c.name : `${c.source}-${c.lines}`}`}
           className="inline-flex items-center gap-1 rounded-md border border-border/50 bg-card/60 px-1.5 py-0.5 text-[10.5px] text-muted-foreground"
         >
           {chipIcon(c)}
@@ -245,7 +245,7 @@ export function AiChatView({
       if (lastUser) break;
     }
     if (lastUser) void sendMessage(lastUser);
-  }, [activeSessionId, messages, sendMessage]);
+  }, [activeSessionId, messages]);
 
   if (messages.length === 0) {
     return (
@@ -400,6 +400,11 @@ const RenderedMessage = memo(function RenderedMessage({
       break;
     }
   }
+
+  const groups = useMemo(() => buildPartGroups(message.parts as AnyPart[]), [
+    message.parts,
+  ]);
+
   if (message.role === "user") {
     const rawText = message.parts
       .filter((p): p is { type: "text"; text: string } => p.type === "text")
@@ -477,10 +482,6 @@ const RenderedMessage = memo(function RenderedMessage({
     );
   }
 
-  const groups = useMemo(() => buildPartGroups(message.parts as AnyPart[]), [
-    message.parts,
-  ]);
-
   return (
     <Message from={message.role}>
       <MessageContent>
@@ -546,16 +547,17 @@ function buildPartGroups(parts: AnyPart[]): Group[] {
   const out: Group[] = [];
   let run: { parts: AnyPart[]; startIdx: number } | null = null;
   const flushRun = () => {
-    if (!run) return;
-    if (run.parts.length >= 2) {
+    const current = run;
+    if (!current) return;
+    if (current.parts.length >= 2) {
       out.push({
         kind: "reads",
-        parts: run.parts,
-        key: `reads-${partKey(run.parts[0], run.startIdx)}`,
+        parts: current.parts,
+        key: `reads-${partKey(current.parts[0], current.startIdx)}`,
       });
     } else {
-      run.parts.forEach((p, k) => {
-        const idx = run!.startIdx + k;
+      current.parts.forEach((p, k) => {
+        const idx = current.startIdx + k;
         out.push({ kind: "single", part: p, idx, key: partKey(p, idx) });
       });
     }

@@ -1,3 +1,4 @@
+// biome-ignore-all lint/style/noNonNullAssertion: 测试断言数据必然存在
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@tauri-apps/api/core", () => ({

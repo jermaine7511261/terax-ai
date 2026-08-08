@@ -117,7 +117,7 @@ function buildRows(
 
   const walk = (parent: string, depth: number, parentIgnored: boolean) => {
     const node = tree.nodes[parent];
-    if (!node || node.status !== "loaded") return;
+    if (node?.status !== "loaded") return;
     for (const entry of node.entries) {
       const path = tree.joinPath(parent, entry.name);
       const isDir = entry.kind === "dir";
@@ -233,12 +233,12 @@ export const FileExplorer = memo(
       // the listed fields are the only inputs buildRows actually reads.
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [
-      rootPath,
-      tree.nodes,
-      tree.expanded,
-      tree.renaming,
-      tree.pendingCreate,
-      lookupGitStatus,
+      rootPath, 
+      tree.nodes, 
+      tree.expanded, 
+      tree.renaming, 
+      tree.pendingCreate, 
+      lookupGitStatus, tree
     ]);
 
     const rowActions = useMemo<RowActions>(
@@ -615,6 +615,7 @@ export const FileExplorer = memo(
     return (
       <div
         ref={containerRef}
+        role="tree"
         className="flex h-full flex-col outline-none"
         tabIndex={0}
         onKeyDown={handleKeyDown}

@@ -75,6 +75,9 @@ const IDLE_META: AgentMeta = {
   lastInputTokens: 0,
   lastCachedTokens: 0,
   hitStepCap: false,
+  phase: null,
+  doomLoopDetected: false,
+  stepCount: 0,
   compactionNotice: null,
 };
 
@@ -348,5 +351,56 @@ describe("chat cache", () => {
     touchChat("s-2", c2);
     touchChat("s-1", c1);
     expect(Array.from(chats.keys())).toEqual(["s-2", "s-1"]);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════
+// P2-2: sub-session parentID tree (H2)
+// ═══════════════════════════════════════════════════════════════════════
+describe("sub-session parentID tree", () => {
+  it("createSubSession creates a child with parentId and independent id", () => {
+    const parentId = useChatStore.getState().newSession();
+    const childId = useChatStore.getState().createSubSession(parentId);
+    const child = useChatStore
+      .getState()
+      .sessions.find((s) => s.id === childId);
+    expect(child).toBeDefined();
+    expect(child?.parentId).toBe(parentId);
+    expect(child?.title).toBe("Sub task");
+    expect(useChatStore.getState().activeSessionId).toBe(childId);
+  });
+
+  it("resolveRootSessionId walks the chain to the top root", () => {
+    const root = useChatStore.getState().newSession();
+    const child = useChatStore.getState().createSubSession(root);
+    const grandchild = useChatStore.getState().createSubSession(child);
+    expect(useChatStore.getState().resolveRootSessionId(grandchild)).toBe(root);
+    expect(useChatStore.getState().resolveRootSessionId(root)).toBe(root);
+  });
+
+  it("resolveRootSessionId is cycle-safe (guards against corrupt parent chains)", () => {
+    const st = useChatStore.getState();
+    const a = st.newSession();
+    const b = st.createSubSession(a);
+    // Corrupt: point a's parent back at b → cycle a<->b.
+    useChatStore.setState({
+      sessions: useChatStore
+        .getState()
+        .sessions.map((s) => (s.id === a ? { ...s, parentId: b } : s)),
+    });
+    // Must terminate (return the starting node rather than infinite-loop).
+    expect(useChatStore.getState().resolveRootSessionId(a)).toBe(a);
+  });
+
+  it("deleting a sub-session removes it from the tree", () => {
+    const root = useChatStore.getState().newSession();
+    const child = useChatStore.getState().createSubSession(root);
+    expect(
+      useChatStore.getState().sessions.some((s) => s.id === child),
+    ).toBe(true);
+    useChatStore.getState().deleteSession(child);
+    expect(
+      useChatStore.getState().sessions.some((s) => s.id === child),
+    ).toBe(false);
   });
 });

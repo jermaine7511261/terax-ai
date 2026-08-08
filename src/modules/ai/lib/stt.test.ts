@@ -57,7 +57,7 @@ describe("transcribeAudio (whispercpp)", () => {
     expect(init.method).toBe("POST");
     expect(init.body).toBeInstanceOf(FormData);
     expect(init.signal).toBeDefined();
-    expect(FakeAudioContext!.instances[0].closed).toBe(true);
+    expect(FakeAudioContext?.instances[0].closed).toBe(true);
   });
 
   it("uses the configured base URL stripped of trailing slashes", async () => {

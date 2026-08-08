@@ -567,9 +567,8 @@ const { folderNames } = Object.entries(folderIcons).reduce(
   ({ folderNames }, [name, icon]) => ({
     folderNames: {
       ...folderNames,
-      ...icon.folderNames?.reduce(
-        (a, c) => ({ ...a, [c]: `folder_${name}` }),
-        {},
+      ...Object.fromEntries(
+        icon.folderNames?.map((c) => [c, `folder_${name}`]) ?? [],
       ),
     },
   }),

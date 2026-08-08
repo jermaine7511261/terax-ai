@@ -1,7 +1,7 @@
-import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { getCurrentWebviewWindow, type WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import type { IWebviewAdapter, IWindowAdapter, UnlistenFn } from "../types";
 
-function wrapWebviewWindow(w: any): IWindowAdapter {
+function wrapWebviewWindow(w: WebviewWindow): IWindowAdapter {
   return {
     show: () => w.show(),
     hide: () => w.hide(),
@@ -18,18 +18,28 @@ function wrapWebviewWindow(w: any): IWindowAdapter {
     minimize: () => w.minimize(),
     center: () => w.center(),
     setResizable: (r) => w.setResizable(r),
-    onResized: (h) => w.onResized(h as any).then((u: UnlistenFn) => u),
-    onMoved: (h) => w.onMoved(h as any).then((u: UnlistenFn) => u),
+    onResized: (h) =>
+      w.onResized((e) => h({ payload: e.payload })).then((u: UnlistenFn) => u),
+    onMoved: (h) =>
+      w.onMoved((e) => h({ payload: e.payload })).then((u: UnlistenFn) => u),
     onFocusedChanged: (h) =>
-      w.onFocusChanged(h as any).then((u: UnlistenFn) => u),
+      w.onFocusChanged((e) => h({ payload: e.payload })).then((u: UnlistenFn) => u),
     onCloseRequested: (h) =>
-      w.onCloseRequested(h as any).then((u: UnlistenFn) => u),
+      w.onCloseRequested((e) => h({ payload: e as unknown })).then((u: UnlistenFn) => u),
     onFocusChanged: (h) =>
-      w.onFocusChanged(h as any).then((u: UnlistenFn) => u),
-    listen: (event, handler) =>
-      w.listen(event, handler as any).then((u: UnlistenFn) => u),
+      w.onFocusChanged((e) => h({ payload: e.payload })).then((u: UnlistenFn) => u),
+    listen: <T>(event: string, handler: (event: { payload: T }) => void) =>
+      w.listen(event, (e) => handler({ payload: e.payload as T })).then((u: UnlistenFn) => u),
     onDragDropEvent: (handler) =>
-      (w.onDragDropEvent?.(handler as any) ?? Promise.resolve(() => {})).then((u: UnlistenFn) => u),
+      (w.onDragDropEvent?.((e) =>
+        handler({
+          payload: e.payload as {
+            type: string;
+            paths: string[];
+            position: { x: number; y: number };
+          },
+        }),
+      ) ?? Promise.resolve(() => {})).then((u: UnlistenFn) => u),
     setFocus: () => w.setFocus(),
   };
 }

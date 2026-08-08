@@ -27,7 +27,7 @@ export function validateSkillFields(input: {
 }): string | null {
   if (!input.name.trim()) return "skill name cannot be empty";
   if (!input.prompt.trim()) return "skill prompt cannot be empty";
-  if (input.handle !== undefined && input.handle.trim()) {
+  if (input.handle?.trim()) {
     if (!HANDLE_RE.test(input.handle.trim())) {
       return `invalid handle '${input.handle}': must match /^[a-z0-9][a-z0-9_-]{0,62}[a-z0-9]$/`;
     }
@@ -53,6 +53,12 @@ export function buildSkillPayload(input: {
     name: input.name.trim(),
     description: input.description.trim(),
     prompt: input.prompt.trim(),
+    // P1-5: mark agent-created + stamp first activity so the background curator
+    // knows this skill is eligible for lifecycle maintenance.
+    agent_created: true,
+    created_at: Date.now(),
+    activity_ts: Date.now(),
+    usage_count: 0,
   };
   const handle = input.handle?.trim();
   if (handle) payload.handle = normalizeHandle(handle);

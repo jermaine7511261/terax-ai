@@ -2660,15 +2660,15 @@ const { languageIds, fileExtensions, fileNames } = Object.entries(
   ({ languageIds, fileExtensions, fileNames }, [name, icon]) => ({
     languageIds: {
       ...languageIds,
-      ...icon.languageIds?.reduce((a, c) => ({ ...a, [c]: name }), {}),
+      ...Object.fromEntries(icon.languageIds?.map((c) => [c, name]) ?? []),
     },
     fileExtensions: {
       ...fileExtensions,
-      ...icon.fileExtensions?.reduce((a, c) => ({ ...a, [c]: name }), {}),
+      ...Object.fromEntries(icon.fileExtensions?.map((c) => [c, name]) ?? []),
     },
     fileNames: {
       ...fileNames,
-      ...icon.fileNames?.reduce((a, c) => ({ ...a, [c]: name }), {}),
+      ...Object.fromEntries(icon.fileNames?.map((c) => [c, name]) ?? []),
     },
   }),
   {

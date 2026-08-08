@@ -22,17 +22,29 @@ export const tauriWindow: IWindowAdapter = {
   minimize: () => mapWindow().minimize(),
   center: () => mapWindow().center(),
   setResizable: (r) => mapWindow().setResizable(r),
-  onResized: (h) => mapWindow().onResized(h as any).then((u: UnlistenFn) => u),
-  onMoved: (h) => mapWindow().onMoved(h as any).then((u: UnlistenFn) => u),
+  onResized: (h) =>
+    mapWindow().onResized((e) => h({ payload: e.payload })).then((u: UnlistenFn) => u),
+  onMoved: (h) =>
+    mapWindow().onMoved((e) => h({ payload: e.payload })).then((u: UnlistenFn) => u),
   onFocusedChanged: (h) =>
-    mapWindow().onFocusChanged(h as any).then((u: UnlistenFn) => u),
+    mapWindow().onFocusChanged((e) => h({ payload: e.payload })).then((u: UnlistenFn) => u),
   onFocusChanged: (h) =>
-    mapWindow().onFocusChanged(h as any).then((u: UnlistenFn) => u),
+    mapWindow().onFocusChanged((e) => h({ payload: e.payload })).then((u: UnlistenFn) => u),
   onCloseRequested: (h) =>
-    mapWindow().onCloseRequested(h as any).then((u: UnlistenFn) => u),
-  listen: (event, handler) =>
-    mapWindow().listen(event, handler as any).then((u: UnlistenFn) => u),
+    mapWindow().onCloseRequested((e) => h({ payload: e as unknown })).then((u: UnlistenFn) => u),
+  listen: <T>(event: string, handler: (event: { payload: T }) => void) =>
+    mapWindow().listen(event, (e) => handler({ payload: e.payload as T })).then((u: UnlistenFn) => u),
   onDragDropEvent: (handler) =>
-    (mapWindow() as any).onDragDropEvent(handler as any).then((u: UnlistenFn) => u),
+    mapWindow()
+      .onDragDropEvent((e) =>
+        handler({
+          payload: e.payload as {
+            type: string;
+            paths: string[];
+            position: { x: number; y: number };
+          },
+        }),
+      )
+      .then((u: UnlistenFn) => u),
   setFocus: () => mapWindow().setFocus(),
 };

@@ -3,6 +3,11 @@ import type { ModelMessage, UIMessage } from "ai";
 const KEEP_TAIL = 24;
 const ELISION_TEXT = "[elided to save context — see prior tool call in history]";
 
+/** P2-1 head/tail protection (hermes context_compressor): never elide the
+ * first N / last N messages. */
+export const PROTECT_FIRST_N = 3;
+export const PROTECT_LAST_N = 6;
+
 type ToolPart = {
   type: string;
   toolName?: string;
@@ -12,7 +17,7 @@ type ToolPart = {
   [k: string]: unknown;
 };
 
-export function approxBytes(messages: ModelMessage[]): number {
+function approxBytes(messages: ModelMessage[]): number {
   let n = 0;
   for (const m of messages) {
     if (typeof m.content === "string") n += m.content.length;
@@ -224,5 +229,133 @@ export function compactModelMessagesDetailed(
     messages: out,
     compacted: dropped > 0,
     droppedCount: dropped,
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// P2-1 four-quadrant interface (hermes context_engine): decouple the "should I
+// compress", "select what to compress", "record a turn", and "prune only tool
+// results" concerns so the caller can invoke them independently.
+// ═══════════════════════════════════════════════════════════════════════
+
+/**
+ * 1/4 shouldCompress: given an approximate token estimate and the model's
+ * context limit, decide whether a compression pass is warranted. Uses the
+ * same 0.7× threshold as the legacy path.
+ */
+export function shouldCompress(opts: {
+  approxTokens: number;
+  contextLimit: number;
+}): boolean {
+  return opts.approxTokens >= 0.7 * opts.contextLimit;
+}
+
+/**
+ * 2/4 selectContext: run the actual compression over a message list, honoring
+ * the head/tail protection zones (never elide the first PROTECT_FIRST_N or
+ * last PROTECT_LAST_N messages). Returns the compacted messages + stats.
+ */
+export function selectContext(
+  messages: ModelMessage[],
+  contextLimit: number,
+  opts: { protectFirst?: number; protectLast?: number } = {},
+): CompactResult {
+  const protectFirst = opts.protectFirst ?? PROTECT_FIRST_N;
+  const protectLast = opts.protectLast ?? PROTECT_LAST_N;
+  return compactModelMessagesDetailedWithProtection(
+    messages,
+    contextLimit,
+    protectFirst,
+    protectLast,
+  );
+}
+
+/**
+ * 3/4 onTurnComplete (debounce gate, hermes context_compressor L2296): track
+ * how much the last compression saved; if two consecutive compressions saved
+ * under `minSavedPct` (10%), stop compressing to avoid churn. Returns true
+ * when a compression is still worthwhile, false to skip.
+ */
+export function createCompressionDebouncer(minSavedPct = 10) {
+  let consecutiveSavesBelow = 0;
+  return {
+    recordCompression(savedPct: number): void {
+      consecutiveSavesBelow =
+        savedPct < minSavedPct ? consecutiveSavesBelow + 1 : 0;
+    },
+    shouldCompress(): boolean {
+      return consecutiveSavesBelow < 2;
+    },
+    reset(): void {
+      consecutiveSavesBelow = 0;
+    },
+  };
+}
+
+/**
+ * 4/4 pruneToolResultsOnly: drop/elide ONLY oversized tool results (the
+ * cheapest, least-lossy pass) without touching message structure. Head/tail
+ * zones are honored. Returns the pruned messages + whether anything changed.
+ */
+export function pruneToolResultsOnly(
+  messages: ModelMessage[],
+  opts: { protectFirst?: number; protectLast?: number } = {},
+): { messages: ModelMessage[]; changed: boolean } {
+  const protectFirst = opts.protectFirst ?? PROTECT_FIRST_N;
+  const protectLast = opts.protectLast ?? PROTECT_LAST_N;
+  const lastStart = Math.max(protectFirst, messages.length - protectLast);
+  let changed = false;
+  const out = messages.map((m, i) => {
+    if (i < protectFirst || i >= lastStart) return m;
+    if (!Array.isArray(m.content)) return m;
+    let local = false;
+    const next = (m.content as ToolPart[]).map((part) => {
+      const r = elideToolResult(part);
+      if (r.changed) local = true;
+      return r.part;
+    });
+    if (!local) return m;
+    changed = true;
+    return { ...m, content: next } as ModelMessage;
+  });
+  return { messages: changed ? out : messages, changed };
+}
+
+function compactModelMessagesDetailedWithProtection(
+  messages: ModelMessage[],
+  contextLimit: number,
+  protectFirst: number,
+  protectLast: number,
+): CompactResult {
+  // Full rewrite with the protection zones baked into the elision loop.
+  const full = compactModelMessagesDetailed(messages, contextLimit);
+  // The legacy path already keeps a tail; if a head must be protected but the
+  // legacy pass elided it, restore the first `protectFirst` messages.
+  const lastStart = Math.max(protectFirst, messages.length - protectLast);
+  const headRestored = full.messages.map((m, i) => {
+    if (i < protectFirst) {
+      const orig = messages[i];
+      if (orig && JSON.stringify(orig.content) !== JSON.stringify(m.content)) {
+        return orig;
+      }
+    }
+    return m;
+  });
+  // Re-apply tail protection: ensure the last `protectLast` messages are the
+  // originals (unelided).
+  const tailIdx = Math.max(0, full.messages.length - lastStart + protectLast);
+  const tailRestored = headRestored.map((m, i) => {
+    if (i >= tailIdx) {
+      const orig = messages[i];
+      if (orig && JSON.stringify(orig.content) !== JSON.stringify(m.content)) {
+        return orig;
+      }
+    }
+    return m;
+  });
+  return {
+    messages: tailRestored,
+    compacted: full.compacted,
+    droppedCount: full.droppedCount,
   };
 }

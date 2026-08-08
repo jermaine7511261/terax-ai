@@ -6,6 +6,7 @@ vi.mock("./native", () => ({
 vi.mock("../store/memoryStore", () => ({
   formatSessionMemory: vi.fn(() => null),
   getSessionMemory: vi.fn(() => []),
+  recallTop: vi.fn((lines) => lines.slice(0, 3)),
 }));
 vi.mock("./agent", () => ({
   runAgentStream: vi.fn(),
@@ -18,11 +19,14 @@ import { native } from "./native";
 import { runAgentStream } from "./agent";
 import {
   appendProjectMemory,
+  MEMORY_NOTE,
+  MEMORY_NOTE_END,
   mergeProjectMemory,
   parseBlock,
   rebuildBlock,
   removeProjectMemory,
   renderEntry,
+  scrubMemoryEcho,
   stripContextBlock,
   updateProjectMemory,
 } from "./transport";
@@ -88,9 +92,9 @@ describe("mergeProjectMemory", () => {
   });
 
   it("caps the total at YAMET_MD_MAX_BYTES", () => {
-    const big = "- " + "x".repeat(40000);
+    const big = `- ${"x".repeat(40000)}`;
     const out = mergeProjectMemory(big, "- y");
-    expect(out!.length).toBe(32768);
+    expect(out?.length).toBe(32768);
   });
 });
 
@@ -157,5 +161,25 @@ describe("stripContextBlock", () => {
 
   it("leaves text without the block unchanged", () => {
     expect(stripContextBlock("plain")).toBe("plain");
+  });
+});
+
+describe("scrubMemoryEcho (P1-4 marker isolation)", () => {
+  const injected = `${MEMORY_NOTE}\n- use pnpm\n${MEMORY_NOTE_END}`;
+
+  it("strips a verbatim echo of the injected memory block", () => {
+    const reply = `I'll do that.\n${injected}\nLet's proceed.`;
+    expect(scrubMemoryEcho(reply, injected)).toBe("I'll do that.\nLet's proceed.");
+  });
+
+  it("leaves text unchanged when there was no injected memory", () => {
+    expect(scrubMemoryEcho("plain reply", null)).toBe("plain reply");
+  });
+
+  it("strips isolated note markers via the fallback path", () => {
+    const reply = `${MEMORY_NOTE} some echoed line ${MEMORY_NOTE_END} done`;
+    // The echoed content between the markers is also scrubbed, leaving only
+    // the text after the closing marker.
+    expect(scrubMemoryEcho(reply, injected)).toBe(" done");
   });
 });

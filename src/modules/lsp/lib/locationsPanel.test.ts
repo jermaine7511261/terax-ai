@@ -1,3 +1,4 @@
+// biome-ignore-all lint/style/noNonNullAssertion: 测试断言数据必然存在
 // @vitest-environment jsdom
 import { EditorState, type Transaction } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
@@ -108,11 +109,11 @@ describe("locationsPanel view / panel DOM", () => {
     const listEl = parent.querySelector(".cm-lsp-locations ul");
     const key = (k: string) =>
       new KeyboardEvent("keydown", { key: k, bubbles: true });
-    listEl!.dispatchEvent(key("ArrowDown"));
+    listEl?.dispatchEvent(key("ArrowDown"));
     expect(lis[1].classList.contains("cm-lsp-locations-active")).toBe(true);
-    listEl!.dispatchEvent(key("ArrowUp"));
+    listEl?.dispatchEvent(key("ArrowUp"));
     expect(lis[0].classList.contains("cm-lsp-locations-active")).toBe(true);
-    listEl!.dispatchEvent(key("Enter"));
+    listEl?.dispatchEvent(key("Enter"));
     expect(picked).toEqual([items[0]]);
     view.destroy();
   });
@@ -124,7 +125,7 @@ describe("locationsPanel view / panel DOM", () => {
       onPick: () => {},
     });
     const listEl = parent.querySelector(".cm-lsp-locations ul");
-    listEl!.dispatchEvent(
+    listEl?.dispatchEvent(
       new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
     );
     expect(view.state.field(locationsPanel)).toBeNull();

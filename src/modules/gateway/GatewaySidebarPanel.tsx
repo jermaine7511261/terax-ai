@@ -8,7 +8,7 @@ import {
   gatewayPlatforms,
   type PlatformStatus,
 } from "./api";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 /**
  * Sidebar IM-gateway view: lists connected platforms with their state and
@@ -20,13 +20,13 @@ export function GatewaySidebarPanel() {
   const [platforms, setPlatforms] = useState<PlatformStatus[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  const refresh = () => {
+  const refresh = useCallback(() => {
     void gatewayPlatforms().then(setPlatforms);
-  };
+  }, []);
 
   useEffect(() => {
     refresh();
-  }, []);
+  }, [refresh]);
 
   const connect = async (id: string) => {
     setBusyId(id);
@@ -128,6 +128,7 @@ function RefreshIcon() {
       strokeLinejoin="round"
       aria-hidden
     >
+      <title>Refresh</title>
       <path d="M3 12a9 9 0 0 1 15.5-6.2L21 8" />
       <path d="M21 3v5h-5" />
       <path d="M21 12a9 9 0 0 1-15.5 6.2L3 16" />

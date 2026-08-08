@@ -1,3 +1,4 @@
+// biome-ignore-all lint/a11y/useSemanticElements: 标签内下拉/关闭触发器嵌套在 TabsTrigger button 中，只能 span+role 模式
 import {
   ContextMenu,
   ContextMenuContent,
@@ -141,7 +142,7 @@ export function TabBar({
 
   useLayoutEffect(() => {
     measurePill();
-  }, [measurePill, activeId, tabs]);
+  }, [measurePill]);
 
   useEffect(() => {
     const list = listRef.current;
@@ -465,6 +466,7 @@ export function TabBar({
                     </span>
                     {t.kind === "editor" && t.dirty ? (
                       <span
+                        role="img"
                         aria-label={translate("editor.unsavedChanges")}
                         className="size-1.5 shrink-0 rounded-full bg-foreground/70"
                       />
@@ -474,10 +476,18 @@ export function TabBar({
                     <span
                       role="button"
                       aria-label={translate("tabs.closeTab")}
+                      tabIndex={-1}
                       data-no-drag
                       onClick={(e) => {
                         e.stopPropagation();
                         onClose(t.id);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          onClose(t.id);
+                        }
                       }}
                       className="rounded p-0.5 opacity-0 transition-opacity hover:bg-accent hover:opacity-100 group-hover:opacity-60"
                     >

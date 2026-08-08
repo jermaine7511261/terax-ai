@@ -21,13 +21,45 @@ import {
   selectSystemPrompt,
 } from "../config";
 import { buildTools, type ToolContext } from "../tools/tools";
-import { compactModelMessagesDetailed } from "./compact";
+import {
+  createCompressionDebouncer,
+  shouldCompress,
+  selectContext,
+} from "./compact";
+import {
+  detectDoomLoop,
+  phaseForStep,
+  pushToolCall,
+  type RecentToolCall,
+} from "./loop";
 import type { CustomEndpointKeys, ProviderKeys } from "./keyring";
 import { prepareAgentPrompt } from "./prompt";
 import { createProxyFetch } from "./proxyFetch";
 import type { ThinkingLength } from "@/modules/settings/store";
 
 const localProxyFetch = createProxyFetch({ allowPrivateNetwork: true });
+
+/** P2-1: module-level compression debounce gate shared across runs. */
+const compressionDebouncer = createCompressionDebouncer();
+
+/** Approx token count of model messages (bytes/4, same as compact.ts). */
+function approxBytesModelMessages(messages: { content: unknown }[]): number {
+  let n = 0;
+  for (const m of messages) {
+    if (typeof m.content === "string") n += m.content.length;
+    else if (Array.isArray(m.content)) {
+      for (const part of m.content as Array<Record<string, unknown>>) {
+        if (typeof part.text === "string") n += (part.text as string).length;
+        else if (part.type === "tool-result")
+          n += JSON.stringify(part.output ?? "").length;
+        else if (part.type === "tool-call")
+          n += JSON.stringify(part.input ?? "").length;
+        else n += 64;
+      }
+    }
+  }
+  return n;
+}
 
 /**
  * Filter a tool registry by an allowlist of tool ids.
@@ -330,6 +362,10 @@ export type RunAgentOptions = {
   onUsage?: (delta: AgentUsageDelta) => void;
   onCompact?: (info: { droppedCount: number }) => void;
   onFinishMeta?: (info: { hitStepCap: boolean; finishReason: string }) => void;
+  /** Loop phase visibility (P1-1): thinking/calling/observing/done. */
+  onPhase?: (phase: "thinking" | "calling" | "observing" | "done") => void;
+  /** Doom-loop detected (opencode): same tool+args repeated N times. */
+  onDoomLoop?: () => void;
   llamaCppBaseURL?: string;
   llamaCppModelId?: string;
   openaiCompatibleBaseURL?: string;
@@ -385,10 +421,23 @@ export async function runAgentStream(opts: RunAgentOptions) {
     ? endpoints.find((e) => e.id === endpointIdFromCompatModel(modelId))
         ?.contextLimit
     : opts.openaiCompatibleContextLimit;
-  const compact = compactModelMessagesDetailed(
-    prunedHistory,
-    getModelContextLimit(modelId, compatCtxOverride),
-  );
+  const contextLimit = getModelContextLimit(modelId, compatCtxOverride);
+  // P2-1 four-quadrant: decouple "should I compress" from "what to compress"
+  // with a debounce gate so churny near-threshold sessions don't re-compact
+  // every turn (hermes context_engine + context_compressor).
+  const approxTokens = approxBytesModelMessages(prunedHistory) / 4;
+  let compact: { messages: typeof prunedHistory; compacted: boolean; droppedCount: number };
+  if (shouldCompress({ approxTokens, contextLimit }) && compressionDebouncer.shouldCompress()) {
+    const r = selectContext(prunedHistory, contextLimit);
+    compact = r;
+    // Record the savings ratio to feed the debounce gate.
+    const saved = approxTokens - approxBytesModelMessages(r.messages) / 4;
+    compressionDebouncer.recordCompression(
+      approxTokens > 0 ? (saved / approxTokens) * 100 : 0,
+    );
+  } else {
+    compact = { messages: prunedHistory, compacted: false, droppedCount: 0 };
+  }
   const compactedHistory = compact.messages;
   if (compact.compacted) {
     opts.onCompact?.({ droppedCount: compact.droppedCount });
@@ -402,6 +451,7 @@ export async function runAgentStream(opts: RunAgentOptions) {
   );
 
   let stepsSeen = 0;
+  let recentToolCalls: RecentToolCall[] = [];
   // Map the user's thinking-length choice to a provider reasoning-effort
   // parameter (OpenAI-compatible "reasoning_effort": low/medium/high). "off"
   // omits the option entirely so providers that don't support it are unaffected.
@@ -427,14 +477,25 @@ export async function runAgentStream(opts: RunAgentOptions) {
     providerOptions,
     onStepFinish: (step) => {
       stepsSeen++;
+      // P1-1: loop phase visibility — emit think/act/observe.
+      const phase = phaseForStep(step);
+      opts.onPhase?.(phase);
+      const lastCall = step.toolCalls?.[step.toolCalls.length - 1];
+      if (lastCall) {
+        // Doom-loop detection: same tool + same args repeated.
+        recentToolCalls = pushToolCall(recentToolCalls, {
+          toolName: lastCall.toolName ?? "",
+          args: JSON.stringify(lastCall.input ?? {}),
+        });
+        if (detectDoomLoop(recentToolCalls)) opts.onDoomLoop?.();
+      }
       if (opts.onStep) {
-        const last = step.toolCalls?.[step.toolCalls.length - 1];
-        if (last) {
-          const label = TOOL_LABELS[last.toolName];
+        if (lastCall) {
+          const label = TOOL_LABELS[lastCall.toolName];
           opts.onStep(
             label
-              ? label((last.input ?? {}) as Record<string, unknown>)
-              : `Calling ${last.toolName}`,
+              ? label((lastCall.input ?? {}) as Record<string, unknown>)
+              : `Calling ${lastCall.toolName}`,
           );
         } else if (step.text) {
           opts.onStep("Writing");
@@ -455,6 +516,7 @@ export async function runAgentStream(opts: RunAgentOptions) {
     },
     onFinish: (result) => {
       opts.onStep?.(null);
+      opts.onPhase?.("done");
       const finishReason =
         (result as { finishReason?: string } | undefined)?.finishReason ?? "";
       opts.onFinishMeta?.({

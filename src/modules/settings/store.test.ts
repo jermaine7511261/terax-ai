@@ -198,7 +198,7 @@ describe("onPreferencesChange", () => {
       "yamet://prefs-changed",
       expect.any(Function),
     );
-    const handler = eventMock.listen.mock.calls[0]![1] as (e: {
+    const handler = eventMock.listen.mock.calls[0]?.[1] as (e: {
       payload: { key: string; value: string };
     }) => void;
     handler({ payload: { key: "themeId", value: "yamet-x" } });

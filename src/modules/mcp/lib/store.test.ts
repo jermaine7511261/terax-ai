@@ -63,9 +63,9 @@ describe("useMcpStore", () => {
       throw new Error("unexpected command");
     });
     const pending = useMcpStore.getState().connect("s1", null);
-    expect(useMcpStore.getState().busy["s1"]).toBe(true);
+    expect(useMcpStore.getState().busy.s1).toBe(true);
     await pending;
-    expect(useMcpStore.getState().busy["s1"]).toBeUndefined();
+    expect(useMcpStore.getState().busy.s1).toBeUndefined();
     expect(invokeMock).toHaveBeenCalledWith("mcp_server_connect", {
       id: "s1",
       root: null,
@@ -79,7 +79,7 @@ describe("useMcpStore", () => {
       if (cmd === "mcp_server_list") return [];
     });
     await expect(useMcpStore.getState().connect("s1", null)).rejects.toThrow("boom");
-    expect(useMcpStore.getState().busy["s1"]).toBeUndefined();
+    expect(useMcpStore.getState().busy.s1).toBeUndefined();
   });
 
   it("disconnect calls mcp_server_disconnect then refreshes", async () => {

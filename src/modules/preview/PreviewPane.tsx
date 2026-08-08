@@ -38,7 +38,7 @@ type Props = {
 const SUSPEND_AFTER_MS = 30_000;
 
 /** Classify a preview URL by what should render it: a web page, an image, or a PDF. */
-export function previewKindFromUrl(url: string): "web" | "image" | "pdf" {
+function previewKindFromUrl(url: string): "web" | "image" | "pdf" {
   if (!url) return "web";
   // Strip a possible query/hash fragment before checking the extension.
   const clean = url.split(/[?#]/)[0];
@@ -77,7 +77,7 @@ export const PreviewPane = forwardRef<PreviewPaneHandle, Props>(
     // Reset zoom when the previewed file changes.
     useEffect(() => {
       setZoom(1);
-    }, [url]);
+    }, []);
 
     // External url change (detected dev server, AI tool, tab restore): sync
     // the effective URL and record it in the per-pane history.
@@ -86,7 +86,7 @@ export const PreviewPane = forwardRef<PreviewPaneHandle, Props>(
       setEffectiveUrl(url);
       setNav((h) => pushNav(h, url));
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [url]);
+    }, [url, effectiveUrl]);
 
     const goBack = () => {
       setNav((h) => {

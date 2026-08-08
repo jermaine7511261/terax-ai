@@ -17,7 +17,11 @@ import { useAgentsStore } from "../store/agentsStore";
 import { useChatStore } from "../store/chatStore";
 import { useSnippetsStore } from "../store/snippetsStore";
 import { scanSkillsDir } from "../lib/skills";
+import { runBackgroundCurator } from "../lib/skillCuratorRunner";
+import { createStorage } from "@/platform";
 import type { FiredTask } from "../lib/scheduler";
+
+const curatorStore = createStorage("yamet-ai-skill-curator.json");
 
 /**
  * Startup wiring for the AI subsystem: loads provider keys (and keeps them in
@@ -110,6 +114,13 @@ export function useAiBootstrap(): {
       if (builtins.length > 0) {
         useSnippetsStore.getState().mergeBuiltin(builtins);
       }
+      // P1-5 background skill curator (inactivity-triggered): run at most once
+      // per hour; archives stale agent-created skills (non-destructive).
+      const lastRunAt = (await curatorStore.get<number>("lastRunAt")) ?? 0;
+      await runBackgroundCurator(root, {
+        lastRunAt,
+        setLastRunAt: (t) => void curatorStore.set("lastRunAt", t),
+      });
     })();
   }, [hydrateSessions]);
 

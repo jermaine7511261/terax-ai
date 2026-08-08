@@ -1,3 +1,4 @@
+// biome-ignore-all lint/style/noNonNullAssertion: 测试断言数据必然存在
 import { beforeEach, describe, expect, it } from "vitest";
 
 // managedAgentsStore is a self-contained zustand store (no lib/invoke deps),
@@ -42,7 +43,7 @@ describe("register", () => {
 
   it("honors a custom maxRounds", () => {
     register({ maxRounds: 7 });
-    expect(useManagedAgentsStore.getState().get(1)!.maxRounds).toBe(7);
+    expect(useManagedAgentsStore.getState().get(1)?.maxRounds).toBe(7);
   });
 
   it("allows cwd to be null", () => {
@@ -53,7 +54,7 @@ describe("register", () => {
       task: "t",
       cwd: null,
     });
-    expect(useManagedAgentsStore.getState().get(1)!.cwd).toBeNull();
+    expect(useManagedAgentsStore.getState().get(1)?.cwd).toBeNull();
   });
 });
 
@@ -61,7 +62,7 @@ describe("setPhase", () => {
   it("updates the phase", () => {
     register();
     useManagedAgentsStore.getState().setPhase(1, "working");
-    expect(useManagedAgentsStore.getState().get(1)!.phase).toBe("working");
+    expect(useManagedAgentsStore.getState().get(1)?.phase).toBe("working");
   });
 
   it("is a no-op for an unknown leaf", () => {
@@ -72,7 +73,7 @@ describe("setPhase", () => {
   it("is a no-op when the phase is unchanged", () => {
     register();
     useManagedAgentsStore.getState().setPhase(1, "spawning");
-    expect(useManagedAgentsStore.getState().get(1)!.phase).toBe("spawning");
+    expect(useManagedAgentsStore.getState().get(1)?.phase).toBe("spawning");
   });
 });
 
@@ -97,13 +98,13 @@ describe("setPendingReview", () => {
   it("sets pendingReview true", () => {
     register();
     useManagedAgentsStore.getState().setPendingReview(1, true);
-    expect(useManagedAgentsStore.getState().get(1)!.pendingReview).toBe(true);
+    expect(useManagedAgentsStore.getState().get(1)?.pendingReview).toBe(true);
   });
 
   it("is a no-op when unchanged", () => {
     register();
     useManagedAgentsStore.getState().setPendingReview(1, false);
-    expect(useManagedAgentsStore.getState().get(1)!.pendingReview).toBe(false);
+    expect(useManagedAgentsStore.getState().get(1)?.pendingReview).toBe(false);
   });
 
   it("is a no-op for an unknown leaf", () => {
@@ -146,14 +147,14 @@ describe("remove", () => {
 describe("get / getBySessionId", () => {
   it("get returns the matching agent or undefined", () => {
     register({ leafId: 1 });
-    expect(useManagedAgentsStore.getState().get(1)!.leafId).toBe(1);
+    expect(useManagedAgentsStore.getState().get(1)?.leafId).toBe(1);
     expect(useManagedAgentsStore.getState().get(999)).toBeUndefined();
   });
 
   it("getBySessionId finds an agent by session id", () => {
     register({ leafId: 1 });
     const a = useManagedAgentsStore.getState().getBySessionId("sess-1");
-    expect(a!.leafId).toBe(1);
+    expect(a?.leafId).toBe(1);
     expect(
       useManagedAgentsStore.getState().getBySessionId("missing"),
     ).toBeUndefined();

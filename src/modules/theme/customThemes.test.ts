@@ -154,11 +154,11 @@ describe("onCustomThemesChange", () => {
     await onCustomThemesChange(cb);
 
     expect(onChangeHandler).toBeDefined();
-    onChangeHandler!("themes");
+    onChangeHandler?.("themes");
     expect(cb).toHaveBeenCalledTimes(1);
 
     // Other keys are ignored.
-    onChangeHandler!("other-key");
+    onChangeHandler?.("other-key");
     expect(cb).toHaveBeenCalledTimes(1);
   });
 
@@ -168,7 +168,7 @@ describe("onCustomThemesChange", () => {
 
     expect(eventHandler).toBeDefined();
     expect(listen).toHaveBeenCalledWith(CHANGED_EVENT, expect.any(Function));
-    eventHandler!();
+    eventHandler?.();
     expect(cb).toHaveBeenCalledTimes(1);
   });
 
@@ -196,8 +196,8 @@ describe("onCustomThemesChange", () => {
     expect(onChangeHandler).toBeDefined();
     expect(eventHandler).toBeDefined();
 
-    onChangeHandler!("themes");
-    eventHandler!();
+    onChangeHandler?.("themes");
+    eventHandler?.();
     expect(cb).toHaveBeenCalledTimes(2);
 
     unlisten();
@@ -205,7 +205,7 @@ describe("onCustomThemesChange", () => {
     expect(unsubEvent).toHaveBeenCalledTimes(1);
     expect(eventHandler).toBeUndefined();
     // Local store subscription torn down — forwarding no longer fires cb.
-    onChangeHandler!("themes");
+    onChangeHandler?.("themes");
     expect(cb).toHaveBeenCalledTimes(2);
   });
 });

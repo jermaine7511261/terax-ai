@@ -86,6 +86,7 @@ export const TerminalPane = memo(
       onCwd: (c) => onCwd?.(leafId, c),
     });
 
+    // biome-ignore lint/correctness/useExhaustiveDependencies: 主题变化时重跑 applyTheme（信号依赖）
     useEffect(() => {
       // Defer one frame so CSS-variable token resolution sees the new class.
       const id = requestAnimationFrame(() => session.applyTheme());

@@ -1,3 +1,4 @@
+// biome-ignore-all lint/suspicious/noExplicitAny: 测试替身（transport 实例容器、mock Channel）需要宽松类型
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const invokeMock = vi.hoisted(() => vi.fn());
@@ -183,15 +184,15 @@ describe("acquireDocExtension session lifecycle", () => {
     const s = useLspRuntimeStore.getState().sessions;
     expect(Object.values(s)).toHaveLength(1);
     expect(Object.values(s)[0]).toMatchObject({ status: "running" });
-    handle!.release();
+    handle?.release();
     expect(clientDidClose).toHaveBeenCalled();
   });
 
   it("releases the handle idempotently", async () => {
     const handle = await acquireDocExtension(`${root}/a.ts`, "ts");
-    handle!.release();
+    handle?.release();
     const calls = clientDidClose.mock.calls.length;
-    handle!.release();
+    handle?.release();
     expect(clientDidClose.mock.calls.length).toBe(calls);
   });
 
@@ -213,7 +214,7 @@ describe("acquireDocExtension session lifecycle", () => {
     const uri = `file://${root}/a.ts`;
     notifyDocumentSaved(`${root}/a.ts`);
     expect(clientDidSave).toHaveBeenCalledWith(uri);
-    handle!.release();
+    handle?.release();
   });
 
   it("stopPresetSessions closes matching sessions gracefully", async () => {

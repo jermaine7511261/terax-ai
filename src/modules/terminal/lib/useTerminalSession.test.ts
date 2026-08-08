@@ -1,3 +1,4 @@
+// biome-ignore-all lint/style/noNonNullAssertion: 测试断言数据必然存在
 // @vitest-environment jsdom
 // Tests for the module-level session lifecycle of useTerminalSession.ts:
 // session creation, pty onData/onExit wiring, resize/kick/close forwarding,
@@ -238,7 +239,7 @@ describe("useTerminalSession — pty callback wiring", () => {
     onData(enc.encode("queued"));
     expect(lastAcquire).not.toBeNull();
     const drained: string[] = [];
-    lastAcquire!.drainRing((b) => drained.push(dec.decode(b)));
+    lastAcquire?.drainRing((b) => drained.push(dec.decode(b)));
     expect(drained.join("")).toBe("queued");
   });
 
@@ -257,7 +258,7 @@ describe("useTerminalSession — pty callback wiring", () => {
     const onCwd = vi.fn();
     mount(1, { onCwd });
     await waitFor(() => expect(openPty).toHaveBeenCalled());
-    lastAcquire!.registerOsc({} as never);
+    lastAcquire?.registerOsc({} as never);
     expect(oscMock.registerCwdHandler).toHaveBeenCalled();
     const cb = oscMock.__cwdCb!;
     cb("/repo/src");

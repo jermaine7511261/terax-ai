@@ -46,7 +46,7 @@ describe("derived language exports", () => {
     expect(ALL_LANGUAGES.length).toBe(LANGUAGES.length);
     for (const l of ALL_LANGUAGES) {
       const def = LANGUAGES.find((d) => d.name === l.name);
-      expect(l.ext).toBe(def!.extensions[0]);
+      expect(l.ext).toBe(def?.extensions[0]);
     }
   });
 

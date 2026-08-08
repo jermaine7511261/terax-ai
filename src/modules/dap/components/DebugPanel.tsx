@@ -1,3 +1,4 @@
+// biome-ignore-all lint/suspicious/noTemplateCurlyInString: launch.json 模板占位符（${file} 等）需要字面保留
 import { invoke } from "@/platform";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/lib/i18n";

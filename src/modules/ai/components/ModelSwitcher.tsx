@@ -9,7 +9,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n";
 import { openSettingsWindow } from "@/modules/settings/openSettingsWindow";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   ArrowDown01Icon,
   DeepseekIcon,
@@ -53,8 +53,10 @@ function ModelSection() {
   const customEndpoints = usePreferencesStore((s) => s.customEndpoints);
   const [search, setSearch] = useState("");
 
-  const hasKeyFor = (id: ProviderId) =>
-    providerNeedsKey(id) ? !!apiKeys[id] : true;
+  const hasKeyFor = useCallback(
+    (id: ProviderId) => (providerNeedsKey(id) ? !!apiKeys[id] : true),
+    [apiKeys],
+  );
 
   const epModelInfos = useMemo(
     () =>
@@ -81,7 +83,7 @@ function ModelSection() {
     }
     return pool;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, apiKeys, epModelInfos]);
+  }, [search, epModelInfos, hasKeyFor]);
 
   return (
     <>

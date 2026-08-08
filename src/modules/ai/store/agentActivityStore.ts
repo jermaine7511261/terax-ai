@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export type ActivityKind = "subagent" | "coding" | "external";
+export type ActivityKind = "subagent" | "coding" | "external" | "graph";
 
 export type ActivityStatus = "running" | "done" | "error";
 
@@ -15,6 +15,16 @@ export type AgentActivity = {
   durationMs?: number;
   summary?: string;
   stepCount?: number;
+  /**
+   * Delegation depth in the worker tree (root parent = 0). Used by the panel
+   * to indent/nest concurrent workers (P0-2).
+   */
+  depth?: number;
+  /** Parent activity id (opencode parentID tree). */
+  parentId?: string;
+  /** Group key shared by a parallel `delegate_many` fan-out, so its workers
+   * render as one visually-grouped cluster. */
+  group?: string;
 };
 
 type State = {
