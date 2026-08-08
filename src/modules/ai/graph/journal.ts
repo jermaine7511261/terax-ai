@@ -50,6 +50,7 @@ export async function loadJournalEntry(
   }
 }
 
+/** @internal Graph checkpoint cleanup — called by engine on explicit reset. */
 export async function clearJournalEntry(graphId: string): Promise<void> {
   try {
     await store.delete(`${KEY_PREFIX}${graphId}`);

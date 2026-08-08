@@ -26,7 +26,7 @@ const TYPE_KEYS = Object.keys(SUBAGENTS) as [SubagentType, ...SubagentType[]];
 export const MAX_PARALLEL_WORKERS = 4;
 
 /** Per-worker step budget for delegate_many (hermes 父/子 budget缩小版). */
-export const WORKER_STEP_BUDGET = 8;
+const WORKER_STEP_BUDGET = 8;
 
 export type DelegateWorkerResult = {
   type: SubagentType;

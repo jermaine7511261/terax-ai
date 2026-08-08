@@ -6,7 +6,7 @@ const ELISION_TEXT = "[elided to save context — see prior tool call in history
 /** P2-1 head/tail protection (hermes context_compressor): never elide the
  * first N / last N messages. */
 export const PROTECT_FIRST_N = 3;
-export const PROTECT_LAST_N = 6;
+const PROTECT_LAST_N = 6;
 
 type ToolPart = {
   type: string;

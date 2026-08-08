@@ -29,7 +29,9 @@
     "size": "size-limit",
     "knip": "knip",
     "verify": "powershell -ExecutionPolicy Bypass -File scripts/verify.ps1",
-    "version-bump": "node scripts/version-bump.mjs"
+    "version-bump": "node scripts/version-bump.mjs",
+    "web:server": "tsx src/platform/web/server/index.ts",
+    "web:server:dev": "tsx watch src/platform/web/server/index.ts"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^2.0.51",
@@ -135,6 +137,8 @@
     "typescript": "~6.0.3",
     "vite": "^8.1.5",
     "vite-plugin-inspect": "^11.4.1",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.10",
+    "tsx": "^4.19.0",
+    "ws": "^8.18.0"
   }
 }

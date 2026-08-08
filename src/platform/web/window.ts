@@ -1,41 +1,100 @@
-import type { IWindowAdapter } from "../types";
+/**
+ * Browser window management adapter.
+ * Maps Tauri window operations to browser equivalents.
+ */
+
+import type { IWindowAdapter, UnlistenFn } from "../types";
+
+// Simple event bus for window events
+type Listener = (event: { payload: unknown }) => void;
+const eventBus = new Map<string, Set<Listener>>();
+
+function onBrowserEvent(event: string, listener: Listener): UnlistenFn {
+  if (!eventBus.has(event)) eventBus.set(event, new Set());
+  eventBus.get(event)!.add(listener);
+  return () => eventBus.get(event)?.delete(listener);
+}
+
+// Wire browser events to the bus
+if (typeof window !== "undefined") {
+  window.addEventListener("resize", () => {
+    eventBus.get("resized")?.forEach((fn) => fn({ payload: {} }));
+  });
+  window.addEventListener("focus", () => {
+    eventBus.get("focus")?.forEach((fn) => fn({ payload: true }));
+  });
+  window.addEventListener("blur", () => {
+    eventBus.get("focus")?.forEach((fn) => fn({ payload: false }));
+  });
+}
+
+const noop = async () => {};
 
 export const webWindow: IWindowAdapter = {
-  async show() {},
-  async hide() {},
-  async close() {
+  show: noop,
+  hide: noop,
+  close() {
     window.close();
+    return Promise.resolve();
   },
-  async setTitle(title: string) {
+  setTitle(title: string) {
     document.title = title;
+    return Promise.resolve();
   },
-  async isMaximized() {
-    return document.fullscreenElement !== null;
+  isMaximized() {
+    return Promise.resolve(!!document.fullscreenElement);
   },
-  async maximize() {
-    document.documentElement.requestFullscreen?.();
+  maximize() {
+    return document.documentElement.requestFullscreen().then(() => {}).catch(() => {});
   },
-  async unmaximize() {
-    document.exitFullscreen?.();
+  unmaximize() {
+    return document.exitFullscreen().then(() => {}).catch(() => {});
   },
-  async toggleMaximize() {
-    if (document.fullscreenElement) await document.exitFullscreen?.();
-    else await document.documentElement.requestFullscreen?.();
+  toggleMaximize() {
+    if (document.fullscreenElement) return this.unmaximize();
+    return this.maximize();
   },
-  async isMinimized() {
-    return false;
+  isMinimized() {
+    return Promise.resolve(false); // No concept of minimized in browser
   },
-  async minimize() {
-    // No browser equivalent
+  minimize() {
+    return Promise.resolve(); // No-op in browser
   },
-  async center() {},
-  async setResizable() {},
-  onResized: () => Promise.resolve(() => {}),
-  onMoved: () => Promise.resolve(() => {}),
-  onFocusedChanged: () => Promise.resolve(() => {}),
-  onFocusChanged: () => Promise.resolve(() => {}),
-  onCloseRequested: () => Promise.resolve(() => {}),
-  listen: () => Promise.resolve(() => {}),
-  onDragDropEvent: () => Promise.resolve(() => {}),
-  setFocus: async () => {},
+  center() {
+    return Promise.resolve(); // No-op in browser
+  },
+  setResizable(_resizable: boolean) {
+    return Promise.resolve(); // Not controllable in browser
+  },
+  onResized(handler) {
+    return onBrowserEvent("resized", handler);
+  },
+  onMoved(_handler) {
+    return Promise.resolve(() => {}); // No move events in browser
+  },
+  onFocusedChanged(handler) {
+    return onBrowserEvent("focus", handler);
+  },
+  onFocusChanged(handler) {
+    return onBrowserEvent("focus", handler);
+  },
+  onCloseRequested(handler) {
+    // Warn before unload
+    const fn = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      handler({ payload: {} });
+    };
+    window.addEventListener("beforeunload", fn);
+    return Promise.resolve(() => window.removeEventListener("beforeunload", fn));
+  },
+  listen(event: string, handler) {
+    return onBrowserEvent(event, handler);
+  },
+  onDragDropEvent(_handler) {
+    return Promise.resolve(() => {}); // No drag-drop in browser (use File API instead)
+  },
+  setFocus() {
+    window.focus();
+    return Promise.resolve();
+  },
 };
