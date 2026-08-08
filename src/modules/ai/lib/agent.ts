@@ -30,7 +30,6 @@ import {
   detectDoomLoop,
   phaseForStep,
   pushToolCall,
-  robustExitStopCondition,
   type RecentToolCall,
 } from "./loop";
 import { scrubMemoryEcho } from "./memoryMarker";
@@ -480,13 +479,13 @@ export async function runAgentStream(opts: RunAgentOptions) {
     messages: prompt.messages,
     allowSystemInMessages: false,
     tools: filterTools(buildTools(opts.toolContext), opts.toolAllowlist),
-    // P1-1 robust exit: step cap + "stop as soon as the model has no pending
-    // tool call" (opencode) instead of trusting stop_reason alone. The two
-    // conditions share the same max so they can't conflict.
-    stopWhen: [
-      stepCountIs(MAX_AGENT_STEPS),
-      robustExitStopCondition(MAX_AGENT_STEPS),
-    ],
+    // P1-1 loop cap: the AI SDK's own multi-step loop already handles robust
+    // exit (it only consults stopWhen once pending tool calls have executed and
+    // their results are folded back into the step). Adding a custom robust-exit
+    // stop condition here raced the tool-result fold-in and could end the stream
+    // with an assistant tool-call that had no following tool message — which the
+    // provider rejects on the next turn. `stepCountIs` alone is the safe cap.
+    stopWhen: stepCountIs(MAX_AGENT_STEPS),
     abortSignal: opts.abortSignal,
     providerOptions,
     onStepFinish: (step) => {

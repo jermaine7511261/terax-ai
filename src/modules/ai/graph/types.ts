@@ -52,7 +52,7 @@ export type GraphRunState = {
   stepCount?: number;
 };
 
-export type GraphRunStatus = "running" | "done" | "failed" | "cancelled";
+type GraphRunStatus = "running" | "done" | "failed" | "cancelled";
 
 export type GraphRun = {
   graphId: string;

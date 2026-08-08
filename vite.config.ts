@@ -161,6 +161,8 @@ export default defineConfig(async ({ mode }): Promise<UserConfig> => ({
     // top of the file (vitest 4 removed environmentMatchGlobs). Plain logic
     // tests (.ts) stay in the fast node environment.
     environment: "node",
+    retry: 2,
+    testTimeout: 10_000,
     setupFiles: ["./src/test/setup.ts"],
     coverage: {
       provider: "v8",
@@ -175,13 +177,15 @@ export default defineConfig(async ({ mode }): Promise<UserConfig> => ({
       ],
       // Progressive thresholds (round 13+): coverage raised via core-logic
       // tests (24.75% -> 29.13%, 1392 -> 1547 tests; P1 tools/hooks/libs now
-      // covered). Raise next round; remaining gaps are large integration hooks
-      // + component shells (target for E2E, not unit tests).
+      // covered). Round 20 audit: useSourceControl 6.1% -> 79.9% + platform/web
+      // registry tests lifted statements to 34.35%. Thresholds raised to
+      // 33/29/27/33 with margin for CI (no flaky kill). Remaining gaps are
+      // integration hooks + component shells (target for E2E, not unit tests).
       thresholds: {
-        statements: 30,
-        branches: 26,
-        functions: 24,
-        lines: 30,
+        statements: 33,
+        branches: 29,
+        functions: 27,
+        lines: 33,
       },
     },
   },

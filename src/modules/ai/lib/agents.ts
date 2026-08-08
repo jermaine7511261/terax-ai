@@ -10,7 +10,7 @@ export type AgentIconId =
   | "spark";
 
 /** Agent visibility mode (opencode agent schema): where the agent is offered. */
-export type AgentMode = "subagent" | "primary" | "all";
+type AgentMode = "subagent" | "primary" | "all";
 
 export type Agent = {
   id: string;

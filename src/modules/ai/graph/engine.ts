@@ -20,7 +20,7 @@ import type {
  * unit-testable without a real LLM or UI.
  */
 
-export type NodeResult = { output?: string; stepCount?: number };
+type NodeResult = { output?: string; stepCount?: number };
 
 export type GraphEngineDeps = {
   /** Run an agent node by delegating to a subagent. */
