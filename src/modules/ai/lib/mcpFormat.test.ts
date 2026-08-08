@@ -19,7 +19,7 @@ describe("sanitizeToolName", () => {
   });
 
   it("truncates to 60 chars", () => {
-    const long = "mcp_" + "a".repeat(100);
+    const long = `mcp_${"a".repeat(100)}`;
     expect(sanitizeToolName(long).length).toBe(60);
   });
 

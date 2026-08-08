@@ -40,8 +40,8 @@ register("shell_run_command", async (args) => {
       clearTimeout(timer);
       // Truncate very long output
       const MAX = 1024 * 1024;
-      if (stdout.length > MAX) stdout = stdout.slice(0, MAX) + "\n... (truncated)";
-      if (stderr.length > MAX) stderr = stderr.slice(0, MAX) + "\n... (truncated)";
+      if (stdout.length > MAX) stdout = `${stdout.slice(0, MAX)}\n... (truncated)`;
+      if (stderr.length > MAX) stderr = `${stderr.slice(0, MAX)}\n... (truncated)`;
       resolve({
         stdout,
         stderr,

@@ -19,38 +19,51 @@ function parseDdgResults(html: string, maxResults: number): SearchHit[] {
   const blocks = html.split('class="result__body"');
   for (let i = 1; i < blocks.length && hits.length < maxResults; i++) {
     const block = blocks[i];
-    const titleMatch = block.match(
-      /class="result__a"[^>]*>(.*?)<\/a>/s,
-    );
+    const titleMatch = block.match(/class="result__a"[^>]*>(.*?)<\/a>/s);
     const hrefMatch = block.match(/class="result__a"[^>]*href="([^"]+)"/);
     const snippetMatch = block.match(
       /class="result__snippet"[^>]*>(.*?)<\/a>/s,
     );
-    const title = titleMatch
-      ? stripTags(titleMatch[1]).trim()
-      : "";
-    const href = hrefMatch ? decodeEntities(hrefMatch[1]) : "";
-    const snippet = snippetMatch
-      ? stripTags(snippetMatch[1]).trim()
-      : "";
+    const title = titleMatch ? stripTags(titleMatch[1]).trim() : "";
+    const href = hrefMatch ? resolveSearchUrl(hrefMatch[1]) : "";
+    const snippet = snippetMatch ? stripTags(snippetMatch[1]).trim() : "";
     if (title && href) {
       hits.push({ title, url: href, snippet });
     }
   }
   // Fallback: regex over the whole HTML if block splitting found nothing.
   if (hits.length === 0) {
-    const re =
-      /<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>(.*?)<\/a>/gs;
-    let m: RegExpExecArray | null;
-    while ((m = re.exec(html)) !== null && hits.length < maxResults) {
+    const re = /<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>(.*?)<\/a>/gs;
+    let m = re.exec(html);
+    while (m !== null && hits.length < maxResults) {
       hits.push({
         title: stripTags(m[2]).trim(),
-        url: decodeEntities(m[1]),
+        url: resolveSearchUrl(m[1]),
         snippet: "",
       });
+      m = re.exec(html);
     }
   }
   return hits;
+}
+
+/**
+ * DDG's html endpoint wraps every result link in a protocol-relative tracking
+ * redirect (`//duckduckgo.com/l/?uddg=<urlencoded>`). Unwrap it to the real
+ * target: fetch_url rejects protocol-relative URLs and duckduckgo.com is not
+ * in its domain allowlist, so returning the raw href breaks the
+ * web_search -> fetch_url chain. Falls back to the raw href for direct links.
+ */
+function resolveSearchUrl(rawHref: string): string {
+  const href = decodeEntities(rawHref);
+  const qIndex = href.indexOf("?");
+  if (qIndex !== -1) {
+    const uddg = new URLSearchParams(href.slice(qIndex + 1)).get("uddg");
+    if (uddg && /^https?:\/\//i.test(uddg)) {
+      return uddg;
+    }
+  }
+  return href;
 }
 
 function stripTags(s: string): string {
@@ -143,7 +156,7 @@ export function buildNetTools(_ctx: ToolContext) {
           .describe("Maximum results to return (default 5, max 10)."),
       }),
       execute: async ({ query, max_results }) => {
-        if (!query || !query.trim()) {
+        if (!query?.trim()) {
           return { error: "query is required" };
         }
         const max = Math.min(max_results ?? 5, 10);
@@ -160,7 +173,7 @@ export function buildNetTools(_ctx: ToolContext) {
           return {
             query,
             results,
-            truncated: results.length > 0,
+            truncated: results.length >= max,
           };
         } catch (e) {
           return { error: String(e) };

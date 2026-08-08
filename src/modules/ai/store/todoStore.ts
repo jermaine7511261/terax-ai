@@ -27,7 +27,13 @@ export const useTodosStore = create<TodosState>((set, get) => ({
       const nextHydrated = new Set(s.hydrated);
       nextHydrated.add(sessionId);
       return {
-        bySession: { ...s.bySession, [sessionId]: todos },
+        bySession: {
+          ...s.bySession,
+          // The agent can write todos while this persistence read is in
+          // flight (fast model + slow first store read); the on-disk
+          // snapshot is then stale. Keep the live in-memory list.
+          [sessionId]: s.bySession[sessionId] ?? todos,
+        },
         hydrated: nextHydrated,
       };
     });

@@ -12,9 +12,9 @@ vi.mock("../lib/todos", () => ({
 }));
 
 import {
+  deleteTodos as persistDelete,
   loadTodos as persistLoad,
   saveTodos as persistSave,
-  deleteTodos as persistDelete,
   type Todo,
 } from "../lib/todos";
 import { getTodos, useTodosStore } from "./todoStore";
@@ -83,6 +83,27 @@ describe("useTodosStore", () => {
       ]);
     });
 
+    it("does not clobber todos written while the persistence read is in flight", async () => {
+      let resolveLoad!: (v: Todo[]) => void;
+      mockedLoad.mockReturnValue(
+        new Promise<Todo[]>((resolve) => {
+          resolveLoad = resolve;
+        }),
+      );
+      const pending = useTodosStore.getState().hydrate("sess-1");
+
+      // Agent writes todos before the stale persistence read resolves.
+      useTodosStore.getState().setTodos("sess-1", [makeTodo({ id: "live" })]);
+
+      resolveLoad([]);
+      await pending;
+
+      expect(useTodosStore.getState().bySession["sess-1"]).toEqual([
+        makeTodo({ id: "live" }),
+      ]);
+      expect(useTodosStore.getState().hydrated.has("sess-1")).toBe(true);
+    });
+
     it("tracks hydration per session independently", async () => {
       mockedLoad.mockResolvedValue([]);
       await useTodosStore.getState().hydrate("sess-1");
@@ -108,9 +129,9 @@ describe("useTodosStore", () => {
       useTodosStore.getState().setTodos("sess-1", [makeTodo({ id: "a" })]);
       useTodosStore.getState().setTodos("sess-1", [makeTodo({ id: "b" })]);
 
-      expect(useTodosStore.getState().bySession["sess-1"].map((t) => t.id)).toEqual([
-        "b",
-      ]);
+      expect(
+        useTodosStore.getState().bySession["sess-1"].map((t) => t.id),
+      ).toEqual(["b"]);
       expect(mockedSave).toHaveBeenLastCalledWith("sess-1", [
         makeTodo({ id: "b" }),
       ]);

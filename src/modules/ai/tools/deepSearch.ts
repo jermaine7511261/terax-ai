@@ -101,7 +101,7 @@ export function buildDeepSearchTools(
           .describe("Number of independent sub-questions to research (default 4, max 6)."),
       }),
       execute: async ({ query, breadth }): Promise<DeepResearchResult> => {
-        if (!query || !query.trim()) {
+        if (!query?.trim()) {
           return {
             ok: false,
             query,

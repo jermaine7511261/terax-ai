@@ -17,7 +17,6 @@ vi.mock("@/platform", () => ({
   }),
 }));
 
-import { loadJournalEntry, saveJournalEntry } from "./journal";
 
 beforeEach(() => {
   journalData.clear();
@@ -127,7 +126,7 @@ describe("GraphEngine (P0-1, L4 + H6)", () => {
     const d = makeDeps();
     d.judge.mockResolvedValue("target-2");
     const eng = new GraphEngine(d as never);
-    let executed: string[] = [];
+    const executed: string[] = [];
     d.runAgent.mockImplementation(async (node: GraphNode) => {
       executed.push(node.id);
       return { output: "x", stepCount: 1 };

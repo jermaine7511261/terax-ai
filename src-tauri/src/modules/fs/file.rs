@@ -17,7 +17,7 @@ const BINARY_SNIFF_BYTES: usize = 8 * 1024;
 /// bounding an abnormal caller from writing multi-GB garbage to disk.
 const MAX_WRITE_BYTES: usize = 64 * 1024 * 1024;
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum ReadResult {
     Text {
@@ -103,10 +103,10 @@ pub fn fs_read_file_impl(
             e
         })?;
     }
-    read_file_sync(&target, force.unwrap_or(false))
+    read_file_sync(&target, force.unwrap_or(false), source.as_deref() == Some("ai"))
 }
 
-fn read_file_sync(p: &Path, force: bool) -> Result<ReadResult, String> {
+fn read_file_sync(p: &Path, force: bool, extract_docs: bool) -> Result<ReadResult, String> {
     let meta = std::fs::metadata(p).map_err(|e| {
         log::debug!("fs_read_file stat({}) failed: {e}", p.display());
         e.to_string()
@@ -126,6 +126,26 @@ fn read_file_sync(p: &Path, force: bool) -> Result<ReadResult, String> {
         log::debug!("fs_read_file read({}) failed: {e}", p.display());
         e.to_string()
     })?;
+
+    // Office documents (PDF / PPTX / DOCX / XLSX): sniff magic + extension and
+    // extract text so the AI tool can read them like a text file. Scoped to the
+    // AI read path: the editor/explorer must keep seeing these as binary so the
+    // PDF iframe preview keeps working and a save can never clobber the binary
+    // document with extracted text.
+    if extract_docs {
+        let path_str = p.to_string_lossy().into_owned();
+        if let Some(result) = super::document::extract_document(&bytes, &path_str) {
+            let mtime = mtime_millis(&meta);
+            return Ok(match result {
+                ReadResult::Text { content, .. } => ReadResult::Text {
+                    content,
+                    size,
+                    mtime,
+                },
+                other => other,
+            });
+        }
+    }
 
     // UTF-16 (LE/BE) BOM takes priority over the null-byte sniff: Windows
     // tools routinely write UTF-16 text files, which the NUL sniff would
@@ -184,7 +204,7 @@ struct FileWrittenEvent {
 
 /// Atomic write via O_EXCL tempfile in the target's parent, then rename.
 /// The random suffix is what blocks pre-staged symlink attacks.
-fn write_atomic(target: &Path, content: &[u8]) -> std::io::Result<()> {
+pub(super) fn write_atomic(target: &Path, content: &[u8]) -> std::io::Result<()> {
     let parent = target.parent().ok_or_else(|| {
         std::io::Error::new(std::io::ErrorKind::InvalidInput, "path has no parent")
     })?;
@@ -338,8 +358,8 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let f = dir.path().join("a.txt");
         std::fs::write(&f, b"hello world").unwrap();
-        match read_file_sync(&f, false).unwrap() {
-            ReadResult::Text {
+            match read_file_sync(&f, false, false).unwrap() {
+                 ReadResult::Text {
                 content,
                 size,
                 mtime,
@@ -358,7 +378,7 @@ mod tests {
         let f = dir.path().join("a.bin");
         std::fs::write(&f, b"PNG\0\x89image").unwrap();
         assert!(matches!(
-            read_file_sync(&f, false).unwrap(),
+            read_file_sync(&f, false, false).unwrap(),
             ReadResult::Binary { .. }
         ));
     }
@@ -371,7 +391,7 @@ mod tests {
         // UTF-16 BOM prefix: must still classify as binary.
         std::fs::write(&f, [0xc3, 0x28, 0xf0, 0x28]).unwrap();
         assert!(matches!(
-            read_file_sync(&f, false).unwrap(),
+            read_file_sync(&f, false, false).unwrap(),
             ReadResult::Binary { .. }
         ));
     }
@@ -385,7 +405,7 @@ mod tests {
             bytes.extend_from_slice(&unit.to_le_bytes());
         }
         std::fs::write(&f, &bytes).unwrap();
-        match read_file_sync(&f, false).unwrap() {
+        match read_file_sync(&f, false, false).unwrap() {
             ReadResult::Text {
                 content,
                 size,
@@ -408,7 +428,7 @@ mod tests {
             bytes.extend_from_slice(&unit.to_be_bytes());
         }
         std::fs::write(&f, &bytes).unwrap();
-        match read_file_sync(&f, false).unwrap() {
+        match read_file_sync(&f, false, false).unwrap() {
             ReadResult::Text {
                 content,
                 size,
@@ -430,16 +450,44 @@ mod tests {
     }
 
     #[test]
+    fn office_document_extraction_is_ai_path_only() {
+        // Build a real docx (zip with text content). On the editor path the
+        // null-byte sniff classifies it as binary (so the PDF/office preview
+        // path in the UI still works and a save can't clobber the binary); on
+        // the AI path it is parsed to text.
+        let bytes = super::super::document::build_docx(&["# Title", "Hello body"]).unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let f = dir.path().join("doc.docx");
+        std::fs::write(&f, &bytes).unwrap();
+
+        assert!(
+            matches!(
+                read_file_sync(&f, false, false).unwrap(),
+                ReadResult::Binary { .. }
+            ),
+            "editor-path read of an office doc must stay binary"
+        );
+
+        match read_file_sync(&f, false, true).unwrap() {
+            ReadResult::Text { content, .. } => {
+                assert!(content.contains("Title"), "got: {content}");
+                assert!(content.contains("Hello body"), "got: {content}");
+            }
+            other => panic!("expected extracted text, got {other:?}"),
+        }
+    }
+
+    #[test]
     fn force_lifts_the_default_size_limit() {
         let dir = tempfile::tempdir().unwrap();
         let f = dir.path().join("big.txt");
         std::fs::write(&f, vec![b'a'; (MAX_READ_BYTES + 1) as usize]).unwrap();
         assert!(matches!(
-            read_file_sync(&f, false).unwrap(),
+            read_file_sync(&f, false, false).unwrap(),
             ReadResult::TooLarge { .. }
         ));
         assert!(matches!(
-            read_file_sync(&f, true).unwrap(),
+            read_file_sync(&f, true, false).unwrap(),
             ReadResult::Text { .. }
         ));
     }

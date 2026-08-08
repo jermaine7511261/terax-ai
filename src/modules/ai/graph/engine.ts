@@ -136,10 +136,12 @@ export class GraphEngine {
     );
     const order: RuntimeNode[] = [];
     while (queue.length > 0) {
-      const n = queue.shift()!;
+      const n = queue.shift();
+      if (!n) break;
       order.push(n);
       for (const e of n.out) {
-        const t = run.nodes.get(e.to)!;
+        const t = run.nodes.get(e.to);
+        if (!t) continue;
         indegree.set(e.to, (indegree.get(e.to) ?? 1) - 1);
         if (indegree.get(e.to) === 0) queue.push(t);
       }
@@ -240,7 +242,8 @@ export class GraphEngine {
   }
 
   private async executeNode(n: RuntimeNode): Promise<void> {
-    const run = this.currentRun!;
+    const run = this.currentRun;
+    if (!run) return;
     const deps = run.deps;
     const now = Date.now();
     n.state = {
@@ -256,7 +259,7 @@ export class GraphEngine {
       n.context = [...n.in]
         .map((e) => {
           const pred = run.nodes.get(e.from);
-          return pred && pred.state.output
+          return pred?.state.output
             ? `[from ${pred.def.name ?? pred.def.id}]\n${pred.state.output}`
             : "";
         })
@@ -315,14 +318,14 @@ export class GraphEngine {
             }
           }
           while (queue.length > 0) {
-            const id = queue.shift()!;
+            const id = queue.shift();
+            if (id === undefined) break;
             const node = run.nodes.get(id);
             if (!node) continue;
             for (const e of node.out) {
               const child = run.nodes.get(e.to);
               if (
-                !child ||
-                child.state.status !== "pending" ||
+                child?.state.status !== "pending" ||
                 cancelled.has(e.to)
               ) {
                 continue;

@@ -1,7 +1,7 @@
 //! DAP (Debug Adapter Protocol) message types.
 //! Wire protocol per https://microsoft.github.io/debug-adapter-protocol/.
 //! Transport framing is the LSP-style Content-Length base protocol, shared
-//! with the LSP module via `crate::modules::framing`.
+//! with the LSP module via `crate::modules::lsp::framing`.
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;

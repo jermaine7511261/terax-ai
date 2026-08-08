@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const nativeMock = vi.hoisted(() => ({
   webFetch: vi.fn(),
@@ -21,9 +21,10 @@ function makeContext() {
 const tools = buildNetTools(makeContext() as never);
 const fetchUrl = tools.fetch_url;
 if (!fetchUrl.execute) throw new Error("fetch_url execute missing");
-const execute = fetchUrl.execute as unknown as (
-  args: { url: string; max_chars?: number },
-) => Promise<Record<string, unknown>>;
+const execute = fetchUrl.execute as unknown as (args: {
+  url: string;
+  max_chars?: number;
+}) => Promise<Record<string, unknown>>;
 
 describe("fetch_url tool", () => {
   beforeEach(() => {
@@ -151,5 +152,51 @@ describe("web_search tool (DuckDuckGo)", () => {
     const res = await searchExecute({ query: "zzzqqq" });
     expect(Array.isArray(res.results)).toBe(true);
     expect(res.results as unknown[]).toHaveLength(0);
+  });
+
+  it("unwraps DDG tracking-redirect hrefs to real URLs", async () => {
+    // Real html.duckduckgo.com/html/ shape (verified 2026-08-08): result links
+    // are protocol-relative `//duckduckgo.com/l/?uddg=<urlencoded>` redirects.
+    nativeMock.httpGetText.mockResolvedValue({
+      status: 200,
+      text: `
+        <div class="links_main links_deep result__body">
+          <a rel="nofollow" class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Frust%2Dlang.github.io%2Fasync%2Dbook%2F&amp;rut=632883697d8adf14f9b6790b16cb39611a2065fc06663d3">The Rust Programming Language</a>
+          <a class="result__snippet" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Frust%2Dlang.github.io%2Fasync%2Dbook%2F&amp;rut=632883697d8adf14f9b6790b16cb39611a2065fc06663d3">A book about Rust</a>
+        </div>
+        <div class="links_main links_deep result__body">
+          <a rel="nofollow" class="result__a" href="https://docs.rs/reqwest/latest">reqwest</a>
+          <a class="result__snippet" href="https://docs.rs/reqwest/latest">HTTP client</a>
+        </div>
+      `,
+    });
+    const res = await searchExecute({ query: "rust" });
+    const results = res.results as { title: string; url: string }[];
+    expect(results).toHaveLength(2);
+    expect(results[0].url).toBe("https://rust-lang.github.io/async-book/");
+    expect(results[1].url).toBe("https://docs.rs/reqwest/latest");
+  });
+
+  it("marks truncated only when the max_results cap is reached", async () => {
+    const tenResults = Array.from(
+      { length: 10 },
+      (_, i) => `
+      <div class="result__body">
+        <a class="result__a" href="https://example.com/${i}">result ${i}</a>
+        <a class="result__snippet" href="https://example.com/${i}">snippet</a>
+      </div>`,
+    ).join("");
+    nativeMock.httpGetText.mockResolvedValue({ status: 200, text: tenResults });
+    const capped = await searchExecute({ query: "x", max_results: 5 });
+    expect(capped.results as unknown[]).toHaveLength(5);
+    expect(capped.truncated).toBe(true);
+
+    nativeMock.httpGetText.mockResolvedValue({
+      status: 200,
+      text: '<div class="result__body"><a class="result__a" href="https://example.com/1">one</a><a class="result__snippet" href="https://example.com/1">s</a></div>',
+    });
+    const complete = await searchExecute({ query: "x", max_results: 5 });
+    expect(complete.results as unknown[]).toHaveLength(1);
+    expect(complete.truncated).toBe(false);
   });
 });

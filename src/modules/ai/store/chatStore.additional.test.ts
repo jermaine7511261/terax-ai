@@ -133,7 +133,7 @@ describe("session lifecycle", () => {
 describe("sessionToolAllowlist", () => {
   it("set/get round-trips for a session", () => {
     useChatStore.getState().setSessionToolAllowlist("s1", ["read_file", "grep"]);
-    expect(useChatStore.getState().sessionToolAllowlist["s1"]).toEqual([
+    expect(useChatStore.getState().sessionToolAllowlist.s1).toEqual([
       "read_file",
       "grep",
     ]);
@@ -142,7 +142,7 @@ describe("sessionToolAllowlist", () => {
   it("undefined clears the allowlist", () => {
     useChatStore.getState().setSessionToolAllowlist("s1", ["read_file"]);
     useChatStore.getState().setSessionToolAllowlist("s1", undefined);
-    expect(useChatStore.getState().sessionToolAllowlist["s1"]).toBeUndefined();
+    expect(useChatStore.getState().sessionToolAllowlist.s1).toBeUndefined();
   });
 });
 

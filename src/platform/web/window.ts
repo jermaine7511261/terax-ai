@@ -14,20 +14,26 @@ const eventBus = new Map<string, Set<Listener>>();
 
 function onBrowserEvent<T>(event: string, listener: Listened<T>): Promise<UnlistenFn> {
   if (!eventBus.has(event)) eventBus.set(event, new Set());
-  eventBus.get(event)!.add(listener as Listener);
+  eventBus.get(event)?.add(listener as Listener);
   return Promise.resolve(() => eventBus.get(event)?.delete(listener as Listener));
 }
 
 // Wire browser events to the bus
 if (typeof window !== "undefined") {
   window.addEventListener("resize", () => {
-    eventBus.get("resized")?.forEach((fn) => fn({ payload: {} }));
+    eventBus.get("resized")?.forEach((fn) => {
+      fn({ payload: {} });
+    });
   });
   window.addEventListener("focus", () => {
-    eventBus.get("focus")?.forEach((fn) => fn({ payload: true }));
+    eventBus.get("focus")?.forEach((fn) => {
+      fn({ payload: true });
+    });
   });
   window.addEventListener("blur", () => {
-    eventBus.get("focus")?.forEach((fn) => fn({ payload: false }));
+    eventBus.get("focus")?.forEach((fn) => {
+      fn({ payload: false });
+    });
   });
 }
 

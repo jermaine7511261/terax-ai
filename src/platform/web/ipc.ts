@@ -170,7 +170,7 @@ class WebSocketTransport {
         reject,
         timer,
       });
-      this.ws!.send(JSON.stringify({ id, cmd, args }));
+      this.ws?.send(JSON.stringify({ id, cmd, args }));
     });
   }
 

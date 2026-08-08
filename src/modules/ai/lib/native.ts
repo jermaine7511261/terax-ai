@@ -206,6 +206,79 @@ export const native = {
       source: "ai",
       workspace: currentWorkspaceEnv(),
     }),
+  createDocx: (path: string, lines: string[]) =>
+    invoke<number>("fs_create_docx", {
+      path,
+      lines,
+      source: "ai",
+      workspace: currentWorkspaceEnv(),
+    }),
+  createXlsx: (path: string, rows: string[][]) =>
+    invoke<number>("fs_create_xlsx", {
+      path,
+      rows,
+      source: "ai",
+      workspace: currentWorkspaceEnv(),
+    }),
+  createPptx: (path: string, slides: string[]) =>
+    invoke<number>("fs_create_pptx", {
+      path,
+      slides,
+      source: "ai",
+      workspace: currentWorkspaceEnv(),
+    }),
+  createPdf: (path: string, lines: string[]) =>
+    invoke<number>("fs_create_pdf", {
+      path,
+      lines,
+      source: "ai",
+      workspace: currentWorkspaceEnv(),
+    }),
+  editDocx: (path: string, replacements: string[][]) =>
+    invoke<number>("fs_edit_docx", {
+      path,
+      replacements,
+      source: "ai",
+      workspace: currentWorkspaceEnv(),
+    }),
+  editPptx: (path: string, replacements: string[][]) =>
+    invoke<number>("fs_edit_pptx", {
+      path,
+      replacements,
+      source: "ai",
+      workspace: currentWorkspaceEnv(),
+    }),
+  editXlsx: (
+    path: string,
+    cells: { sheet: number; cell: string; kind?: string; value: string }[],
+  ) =>
+    invoke<number>("fs_edit_xlsx", {
+      path,
+      cells,
+      source: "ai",
+      workspace: currentWorkspaceEnv(),
+    }),
+  pdfMerge: (files: string[], output: string) =>
+    invoke<number>("fs_pdf_merge", {
+      files,
+      output,
+      source: "ai",
+      workspace: currentWorkspaceEnv(),
+    }),
+  pdfEncrypt: (
+    input: string,
+    output: string,
+    userPassword?: string,
+    ownerPassword?: string,
+  ) =>
+    invoke<number>("fs_pdf_encrypt", {
+      input,
+      output,
+      user_password: userPassword ?? null,
+      owner_password: ownerPassword ?? null,
+      source: "ai",
+      workspace: currentWorkspaceEnv(),
+    }),
   canonicalize: (path: string) =>
     invoke<string>("fs_canonicalize", {
       path,

@@ -35,7 +35,7 @@ export function scrubMemoryEcho(
     // Collapse to a single newline at the seam left by removing the block.
     const left = text.slice(0, idx).replace(/\n$/, "");
     const right = text.slice(idx + block.length).replace(/^\n/, "");
-    return left + "\n" + right;
+    return `${left}\n${right}`;
   }
   // Fallback: strip any isolated note markers.
   return text

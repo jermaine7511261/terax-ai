@@ -47,6 +47,100 @@ describe("native workspace/fs wrappers", () => {
     });
   });
 
+  it("createDocx / createXlsx / createPptx forward payload + source + workspace", async () => {
+    mockInvoke.mockResolvedValue(42);
+    await native.createDocx("/o.docx", ["# T"]);
+    expect(mockInvoke).toHaveBeenCalledWith("fs_create_docx", {
+      path: "/o.docx",
+      lines: ["# T"],
+      source: "ai",
+      workspace: "default",
+    });
+
+    await native.createXlsx("/o.xlsx", [["A"]]);
+    expect(mockInvoke).toHaveBeenCalledWith("fs_create_xlsx", {
+      path: "/o.xlsx",
+      rows: [["A"]],
+      source: "ai",
+      workspace: "default",
+    });
+
+    await native.createPptx("/o.pptx", ["S"]);
+    expect(mockInvoke).toHaveBeenCalledWith("fs_create_pptx", {
+      path: "/o.pptx",
+      slides: ["S"],
+      source: "ai",
+      workspace: "default",
+    });
+  });
+
+  it("pdfMerge / pdfEncrypt forward paths + source + workspace", async () => {
+    mockInvoke.mockResolvedValue(1024);
+    await native.pdfMerge(["/a.pdf", "/b.pdf"], "/m.pdf");
+    expect(mockInvoke).toHaveBeenCalledWith("fs_pdf_merge", {
+      files: ["/a.pdf", "/b.pdf"],
+      output: "/m.pdf",
+      source: "ai",
+      workspace: "default",
+    });
+
+    await native.pdfEncrypt("/a.pdf", "/e.pdf", "pw", "owner");
+    expect(mockInvoke).toHaveBeenCalledWith("fs_pdf_encrypt", {
+      input: "/a.pdf",
+      output: "/e.pdf",
+      user_password: "pw",
+      owner_password: "owner",
+      source: "ai",
+      workspace: "default",
+    });
+
+    // Optional passwords default to null.
+    await native.pdfEncrypt("/a.pdf", "/e.pdf");
+    expect(mockInvoke).toHaveBeenLastCalledWith("fs_pdf_encrypt", {
+      input: "/a.pdf",
+      output: "/e.pdf",
+      user_password: null,
+      owner_password: null,
+      source: "ai",
+      workspace: "default",
+    });
+  });
+
+  it("createPdf / editDocx / editXlsx / editPptx forward payload + source", async () => {
+    mockInvoke.mockResolvedValue(1);
+    await native.createPdf("/o.pdf", ["# T"]);
+    expect(mockInvoke).toHaveBeenCalledWith("fs_create_pdf", {
+      path: "/o.pdf",
+      lines: ["# T"],
+      source: "ai",
+      workspace: "default",
+    });
+
+    await native.editDocx("/d.docx", [["a", "b"]]);
+    expect(mockInvoke).toHaveBeenCalledWith("fs_edit_docx", {
+      path: "/d.docx",
+      replacements: [["a", "b"]],
+      source: "ai",
+      workspace: "default",
+    });
+
+    await native.editPptx("/p.pptx", [["x", "y"]]);
+    expect(mockInvoke).toHaveBeenCalledWith("fs_edit_pptx", {
+      path: "/p.pptx",
+      replacements: [["x", "y"]],
+      source: "ai",
+      workspace: "default",
+    });
+
+    await native.editXlsx("/s.xlsx", [{ sheet: 0, cell: "A1", kind: "number", value: "5" }]);
+    expect(mockInvoke).toHaveBeenCalledWith("fs_edit_xlsx", {
+      path: "/s.xlsx",
+      cells: [{ sheet: 0, cell: "A1", kind: "number", value: "5" }],
+      source: "ai",
+      workspace: "default",
+    });
+  });
+
   it("readDir forces showHidden false for agent safety", async () => {
     mockInvoke.mockResolvedValue([]);
     await native.readDir("/a");

@@ -19,7 +19,7 @@ export const webPath: IPathAdapter = {
     let result = filtered[0].replace(/\/+$/, "");
     for (let i = 1; i < filtered.length; i++) {
       const seg = filtered[i].replace(/^\/+/, "").replace(/\/+$/, "");
-      result += "/" + seg;
+      result += `/${seg}`;
     }
     return result || "/";
   },

@@ -82,7 +82,12 @@ if (blockStart < 0) {
       for (const m of t.matchAll(invokeRe)) used.add(m[1]);
     }
   }
-  const unknownInvokes = [...used].filter((cmd) => !unique.includes(cmd)).sort();
+  // Skip the `__` namespace: Tauri-internal commands (e.g. `__register_channel`
+  // used by the web-platform Channel shim) are not user commands and never
+  // appear in generate_handler!.
+  const unknownInvokes = [...used]
+    .filter((cmd) => !cmd.startsWith("__") && !unique.includes(cmd))
+    .sort();
   if (unknownInvokes.length) {
     fail(`前端 invoke() 调用了未注册的命令: ${unknownInvokes.join(", ")}`);
   }

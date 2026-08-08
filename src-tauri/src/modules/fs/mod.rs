@@ -1,3 +1,4 @@
+pub mod document;
 pub mod file;
 pub mod grep;
 pub mod index_cache;

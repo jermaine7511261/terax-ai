@@ -197,7 +197,7 @@ export function mergeAgentOverrides(
       description: ov.description ?? base?.description ?? "",
       instructions: ov.instructions ?? base?.instructions ?? "",
       icon: ov.icon ?? base?.icon ?? "spark",
-      builtIn: base ? true : false,
+      builtIn: !!base,
       mode: ov.mode ?? base?.mode,
       hidden: ov.hidden ?? base?.hidden,
     };
