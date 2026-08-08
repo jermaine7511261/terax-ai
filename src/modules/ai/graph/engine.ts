@@ -298,16 +298,43 @@ export class GraphEngine {
             output: target,
             finishedAt: Date.now(),
           };
-          // Only follow the chosen edge. Prune the unchosen sibling targets by
-          // marking them "cancelled" so their later wave no-ops (isTerminal).
+          // Only follow the chosen edge. Prune the unchosen branches
+          // transitively: an unchosen root is cancelled directly; a deeper
+          // node is cancelled only when ALL its predecessors are cancelled
+          // (so a merge/diamond fed by a live branch is NOT killed). Marking
+          // cancelled makes the later wave no-op via isTerminal.
+          const cancelled = new Set<string>();
+          const queue: string[] = [];
           for (const e of n.out) {
             if (e.to === target) continue;
-            const sibling = run.nodes.get(e.to);
-            if (sibling && sibling.state.status === "pending") {
-              sibling.state = {
-                nodeId: sibling.def.id,
-                status: "cancelled",
-              };
+            const root = run.nodes.get(e.to);
+            if (root && root.state.status === "pending") {
+              root.state = { nodeId: root.def.id, status: "cancelled" };
+              cancelled.add(e.to);
+              queue.push(e.to);
+            }
+          }
+          while (queue.length > 0) {
+            const id = queue.shift()!;
+            const node = run.nodes.get(id);
+            if (!node) continue;
+            for (const e of node.out) {
+              const child = run.nodes.get(e.to);
+              if (
+                !child ||
+                child.state.status !== "pending" ||
+                cancelled.has(e.to)
+              ) {
+                continue;
+              }
+              const allPredsCancelled = child.in.every((ie) =>
+                cancelled.has(ie.from),
+              );
+              if (allPredsCancelled) {
+                child.state = { nodeId: child.def.id, status: "cancelled" };
+                cancelled.add(e.to);
+                queue.push(e.to);
+              }
             }
           }
           deps.emit({

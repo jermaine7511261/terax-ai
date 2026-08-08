@@ -9,7 +9,7 @@ import { BUILTIN_AGENTS } from "../lib/agents";
 import { useAgentsStore } from "./agentsStore";
 import { usePlanStore } from "./planStore";
 import { createContextAwareTransport } from "../lib/transport";
-import { autoSettleTurn } from "../lib/autoSettle";
+import { autoSettleText } from "../lib/autoSettle";
 import type { ToolContext } from "../tools/tools";
 import {
   chats,
@@ -100,9 +100,12 @@ function makeChat(sessionId: string): Chat<UIMessage> {
       // P1-4 auto-settle: when the run completes, distill the turn's tool-work
       // summary into project memory (source:"auto") so future turns can recall
       // it without the agent explicitly calling update_project_memory.
-      const chat = chats.get(sessionId);
-      if (chat && chat.messages && chat.messages.length > 0) {
-        autoSettleTurn(sessionId, chat.messages);
+      // NOTE: use `finalText` (captured in the transport onFinish) instead of
+      // chat.messages — the Chat store appends the streamed assistant message
+      // only AFTER this callback returns, so reading chat.messages here would
+      // settle the previous turn's text (and dedup would then suppress it).
+      if (info.finalText && info.stepsSeen && info.stepsSeen > 0) {
+        autoSettleText(sessionId, info.finalText);
       }
     },
     onUsage: (delta) => {

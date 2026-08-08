@@ -96,7 +96,12 @@ export function buildGraphTools(ctx: ToolContext) {
       }),
       needsApproval: true,
       execute: async ({ graph, resume }) => {
-        let def;
+        let def: {
+          id?: string;
+          name?: string;
+          nodes: unknown[];
+          edges: unknown[];
+        };
         try {
           def = JSON.parse(graph);
         } catch (e) {

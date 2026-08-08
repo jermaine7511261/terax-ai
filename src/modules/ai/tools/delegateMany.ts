@@ -157,7 +157,9 @@ Parallelism is capped at ${MAX_PARALLEL_WORKERS} workers; deeper nesting (beyond
           ok: results.every((r) => r.ok),
           results,
           requested: tasks.length,
-          spawned: results.length,
+          // Only count workers that actually ran (budget-rejected ones never
+          // spawned a subagent — they return a synthetic failure result).
+          spawned: results.filter((r) => !r.error?.includes("budget exhausted")).length,
           depth,
           skipped,
         };
@@ -183,7 +185,9 @@ async function runWorker(
   wc: WorkerCtx,
 ): Promise<DelegateWorkerResult> {
   if (!tryConsumeStep()) {
-    refundStep();
+    // Do NOT refund here: consume() failed, so the budget wasn't taken. A
+    // refund would roll `used` back and let the next worker through, turning
+    // the cap into "every other worker is rejected".
     return {
       type: t.type,
       prompt: t.prompt,

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+  autoSettleText,
   autoSettleTurn,
   lastAssistantText,
   normalizeAutoSettle,
@@ -86,5 +87,20 @@ describe("settleAutoMemory / autoSettleTurn", () => {
     const second = settleAutoMemory("s-1", "The build command is pnpm build for this project");
     expect(second).toBeNull();
     expect(useMemoryStore.getState().bySession["s-1"].length).toBe(1);
+  });
+  it("settles from the transport's final text snapshot (P1-4)", () => {
+    const note = autoSettleText(
+      "s-1",
+      "We standardized on pnpm for package management",
+      true,
+    );
+    expect(note).toContain("pnpm");
+    const entries = useMemoryStore.getState().bySession["s-1"] ?? [];
+    expect(entries.length).toBe(1);
+    expect(entries[0].source).toBe("auto");
+  });
+  it("does not settle when the turn used no tools", () => {
+    expect(autoSettleText("s-1", "just a chat reply", false)).toBeNull();
+    expect(useMemoryStore.getState().bySession["s-1"] ?? []).toHaveLength(0);
   });
 });

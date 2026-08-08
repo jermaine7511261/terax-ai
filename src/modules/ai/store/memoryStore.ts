@@ -85,9 +85,25 @@ export function recallScore(line: string, query: string): number {
   );
   if (tokens.length === 0) return 0;
   const lineLower = line.toLowerCase();
-  let hits = 0;
-  for (const t of tokens) if (lineLower.includes(t)) hits++;
-  return hits / tokens.length;
+  let score = 0;
+  for (const t of tokens) {
+    if (/[\p{Script=Han}]/u.test(t)) {
+      // CJK has no spaces: a whole sentence is one token, so `includes(t)`
+      // would only match verbatim. Use 2-gram overlap instead so a longer
+      // query (e.g. "记忆注入全量拼接") still recalls lines containing any of
+      // its bigrams ("记忆"/"注入"/…). Score = matched grams / total grams.
+      const grams = new Set<string>();
+      for (let i = 0; i < t.length - 1; i++) grams.add(t.slice(i, i + 2));
+      if (grams.size === 0) continue;
+      let hit = 0;
+      for (const g of grams) if (lineLower.includes(g)) hit++;
+      score += hit / grams.size;
+    } else {
+      // Latin/alnum tokens keep exact-word semantics.
+      if (lineLower.includes(t)) score += 1;
+    }
+  }
+  return score / tokens.length;
 }
 
 const STOPWORDS = new Set([

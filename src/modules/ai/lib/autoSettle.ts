@@ -94,3 +94,19 @@ export function autoSettleTurn(
   if (!turnUsedTools(messages)) return null;
   return settleAutoMemory(sessionId, lastAssistantText(messages));
 }
+
+/**
+ * Auto-settle from the transport's final-text snapshot (P1-4). The Chat store
+ * appends the streamed assistant message after the transport onFinish returns,
+ * so the caller passes the run's own final text here rather than re-reading
+ * chat.messages (which would be the previous turn). `usedTools` mirrors
+ * `turnUsedTools` so we only settle turns that actually did tool work.
+ */
+export function autoSettleText(
+  sessionId: string | null,
+  finalText: string,
+  usedTools = true,
+): string | null {
+  if (!usedTools) return null;
+  return settleAutoMemory(sessionId, finalText);
+}

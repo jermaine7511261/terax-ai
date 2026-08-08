@@ -30,6 +30,7 @@ import {
   detectDoomLoop,
   phaseForStep,
   pushToolCall,
+  robustExitStopCondition,
   type RecentToolCall,
 } from "./loop";
 import type { CustomEndpointKeys, ProviderKeys } from "./keyring";
@@ -361,7 +362,13 @@ export type RunAgentOptions = {
   onStep?: (step: string | null) => void;
   onUsage?: (delta: AgentUsageDelta) => void;
   onCompact?: (info: { droppedCount: number }) => void;
-  onFinishMeta?: (info: { hitStepCap: boolean; finishReason: string }) => void;
+  onFinishMeta?: (info: {
+    hitStepCap: boolean;
+    finishReason: string;
+    /** Final assistant text of THIS run (settled into auto-memory, P1-4). */
+    finalText?: string;
+    stepsSeen?: number;
+  }) => void;
   /** Loop phase visibility (P1-1): thinking/calling/observing/done. */
   onPhase?: (phase: "thinking" | "calling" | "observing" | "done") => void;
   /** Doom-loop detected (opencode): same tool+args repeated N times. */
@@ -472,7 +479,13 @@ export async function runAgentStream(opts: RunAgentOptions) {
     messages: prompt.messages,
     allowSystemInMessages: false,
     tools: filterTools(buildTools(opts.toolContext), opts.toolAllowlist),
-    stopWhen: stepCountIs(MAX_AGENT_STEPS),
+    // P1-1 robust exit: step cap + "stop as soon as the model has no pending
+    // tool call" (opencode) instead of trusting stop_reason alone. The two
+    // conditions share the same max so they can't conflict.
+    stopWhen: [
+      stepCountIs(MAX_AGENT_STEPS),
+      robustExitStopCondition(MAX_AGENT_STEPS),
+    ],
     abortSignal: opts.abortSignal,
     providerOptions,
     onStepFinish: (step) => {
@@ -522,6 +535,12 @@ export async function runAgentStream(opts: RunAgentOptions) {
       opts.onFinishMeta?.({
         hitStepCap: stepsSeen >= MAX_AGENT_STEPS,
         finishReason,
+        // P1-4 auto-settle: the stream's final text is only available here, on
+        // the transport's onFinish — the Chat store updates its messages AFTER
+        // this callback returns (it consumes the returned UIMessageStream), so
+        // reading chat.messages here would settle the PREVIOUS turn's text.
+        finalText: (result as { text?: string }).text ?? "",
+        stepsSeen,
       });
     },
   });

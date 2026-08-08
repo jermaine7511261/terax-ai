@@ -140,4 +140,25 @@ describe("delegate_many (P0-2 parallel workers)", () => {
   it("caps concurrency at MAX_PARALLEL_WORKERS", () => {
     expect(MAX_PARALLEL_WORKERS).toBe(4);
   });
+
+  it("rejects workers beyond the step budget without refund rollback", async () => {
+    vi.mocked(runSubagent).mockImplementation(async () => ({
+      summary: "ok",
+      stepCount: 1,
+      durationMs: 0,
+    }));
+    // 9 tasks > WORKER_STEP_BUDGET (8): exactly 8 may spawn; the 9th must be
+    // rejected with "worker budget exhausted" (a buggy refund would instead let
+    // every other worker through, so this asserts the cap holds continuously).
+    const tasks = Array.from({ length: 9 }, (_, i) => ({
+      type: "explore" as const,
+      prompt: `task ${i}`,
+    }));
+    const res = await tool().execute({ tasks });
+    expect(runSubagent).toHaveBeenCalledTimes(8);
+    const exhausted = res.results.filter((r) => !r.ok && r.error?.includes("budget"));
+    expect(exhausted).toHaveLength(1);
+    expect(res.requested).toBe(9);
+    expect(res.spawned).toBe(8);
+  });
 });

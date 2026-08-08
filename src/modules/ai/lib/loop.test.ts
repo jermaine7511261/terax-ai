@@ -3,6 +3,7 @@ import {
   detectDoomLoop,
   phaseForStep,
   pushToolCall,
+  robustExitStopCondition,
   shouldExitLoop,
 } from "./loop";
 
@@ -50,6 +51,45 @@ describe("shouldExitLoop (robust exit)", () => {
         maxSteps: 24,
       }),
     ).toBe(true);
+  });
+});
+
+describe("robustExitStopCondition (P1-1 wired into stopWhen)", () => {
+  const stop = robustExitStopCondition(24);
+  it("does NOT stop when the last step still has a pending tool call", () => {
+    expect(
+      stop({
+        steps: [
+          {
+            finishReason: "tool-calls",
+            toolCalls: [{ name: "read_file" }],
+            toolResults: [], // tool call not yet resolved → pending
+          },
+        ],
+      }),
+    ).toBe(false);
+  });
+  it("stops when the last step resolved its tools and produced a final answer", () => {
+    expect(
+      stop({
+        steps: [
+          { finishReason: "stop", toolCalls: [], toolResults: [] },
+        ],
+      }),
+    ).toBe(true);
+  });
+  it("hard-stops at the step cap even with pending tools", () => {
+    const capped = robustExitStopCondition(1);
+    expect(
+      capped({
+        steps: [
+          { finishReason: "tool-calls", toolCalls: [{ name: "x" }], toolResults: [] },
+        ],
+      }),
+    ).toBe(true);
+  });
+  it("returns true when there are no steps yet", () => {
+    expect(stop({ steps: [] })).toBe(true);
   });
 });
 

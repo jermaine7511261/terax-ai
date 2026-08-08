@@ -147,7 +147,15 @@ export const useGraphStore = create<GraphStore>((set, get) => ({
     void outcome;
   },
 
-  cancel: () => get().engine.cancel(),
+  cancel: () => {
+    // Release any pending human gate first: the engine awaits askHuman, and
+    // without resolving it `engine.run()` would hang forever after a cancel.
+    // Resolving false + the engine's own `cancelled` check makes the human
+    // node unwind without marking it failed.
+    for (const resolve of humanResolvers.values()) resolve(false);
+    humanResolvers.clear();
+    get().engine.cancel();
+  },
 
   getStateOf: (runId, nodeId) => get().runs[runId]?.nodes[nodeId],
 }));

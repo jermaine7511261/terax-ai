@@ -9,12 +9,13 @@ import {
   CheckmarkCircleIcon,
   GitBranchIcon,
   GitMergeIcon,
-  SquareIcon,
+  type SquareIcon,
   UserIcon,
   WorkflowSquareIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { NodeKind, NodeStatus } from "../graph/types";
+
 import { useGraphStore } from "../graph/store";
 
 const KIND_ICON: Record<NodeKind, typeof SquareIcon> = {

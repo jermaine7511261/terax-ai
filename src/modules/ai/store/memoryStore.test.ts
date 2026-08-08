@@ -66,6 +66,15 @@ describe("recallScore (P1-4 relevance)", () => {
     expect(s).toBeGreaterThan(0);
     expect(s).toBeLessThan(1);
   });
+  it("recalls CJK lines for a longer sentence query (2-gram overlap)", () => {
+    // "记忆注入全量拼接" is one CJK token with no spaces; 2-gram overlap must
+    // still hit a line containing "记忆" + "注入".
+    const s = recallScore(
+      "- 2026-08-07 记忆注入层重构为召回式注入",
+      "记忆注入全量拼接 召回式注入",
+    );
+    expect(s).toBeGreaterThan(0);
+  });
 });
 
 describe("recallTop (P1-4 ranked recall)", () => {

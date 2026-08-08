@@ -266,7 +266,13 @@ type Deps = {
   onStep?: (step: string | null) => void;
   onUsage?: (delta: AgentUsageDelta) => void;
   onCompact?: (info: { droppedCount: number }) => void;
-  onFinishMeta?: (info: { hitStepCap: boolean; finishReason: string }) => void;
+  onFinishMeta?: (info: {
+    hitStepCap: boolean;
+    finishReason: string;
+    /** Final assistant text of THIS run (settled into auto-memory, P1-4). */
+    finalText?: string;
+    stepsSeen?: number;
+  }) => void;
   onPhase?: (phase: "thinking" | "calling" | "observing" | "done") => void;
   onDoomLoop?: () => void;
   getPlanMode?: () => boolean;

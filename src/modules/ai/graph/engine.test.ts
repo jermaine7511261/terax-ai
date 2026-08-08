@@ -177,6 +177,31 @@ describe("GraphEngine (P0-1, L4 + H6)", () => {
     expect(d.events.some((e) => e.type === "run-done")).toBe(true);
   });
 
+  it("cancel() releases a pending human gate without marking it failed", async () => {
+    const d = makeDeps();
+    const eng = new GraphEngine(d as never);
+    let resolveHuman: ((v: boolean) => void) | undefined;
+    d.askHuman.mockImplementation(
+      () => new Promise((r) => (resolveHuman = r)),
+    );
+    const def: GraphDef = {
+      id: "g-cancel-human",
+      name: "cancel-human",
+      nodes: [{ id: "h", kind: "human", name: "H", prompt: "approve?" }],
+      edges: [],
+    };
+    const p = eng.run(def);
+    await new Promise((r) => setTimeout(r, 10));
+    expect(d.events.some((e) => e.type === "human-request")).toBe(true);
+    eng.cancel();
+    // Store.cancel() resolves pending human gates with false; the engine must
+    // unwind (run-cancelled) and NOT emit node-fail for the human node.
+    resolveHuman?.(false);
+    await p;
+    expect(d.events.some((e) => e.type === "run-cancelled")).toBe(true);
+    expect(d.events.some((e) => e.type === "node-fail")).toBe(false);
+  });
+
   it("cancel() marks the run cancelled", async () => {
     const d = makeDeps();
     const eng = new GraphEngine(d as never);

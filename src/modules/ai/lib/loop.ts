@@ -43,6 +43,34 @@ export function shouldExitLoop(opts: {
 }
 
 /**
+ * Robust-exit stop condition (opencode robust loop exit): a real
+ * `stopWhen` predicate for the AI SDK built on {@link shouldExitLoop}. It
+ * composes with `stepCountIs(maxSteps)` so the loop both caps steps AND stops
+ * as soon as the model has no pending tool call to observe — instead of
+ * trusting a possibly-stale `stop_reason` alone. `maxSteps` must match the
+ * `stepCountIs` cap so the two don't conflict.
+ */
+export function robustExitStopCondition(maxSteps: number) {
+  return (opts: {
+    steps: ReadonlyArray<{
+      finishReason?: string;
+      toolCalls?: unknown[];
+      toolResults?: unknown[];
+    }>;
+  }): boolean => {
+    const last = opts.steps[opts.steps.length - 1];
+    if (!last) return true; // no steps — nothing to continue
+    const pendingToolCalls = (last.toolCalls ?? []).length > (last.toolResults ?? []).length;
+    return shouldExitLoop({
+      finishReason: last.finishReason ?? "",
+      hasPendingToolCall: pendingToolCalls,
+      stepsSeen: opts.steps.length,
+      maxSteps,
+    });
+  };
+}
+
+/**
  * Doom-loop detection (opencode processor.ts: last 3 tool parts with the same
  * tool + same args → the agent is stuck repeating itself). Returns true when
  * a detection should trigger (ask the user / terminate).
