@@ -1,6 +1,7 @@
 import { buildManagedAgentTools } from "./agent";
 import { buildCreateSkillTools } from "./createSkill";
 import { buildDelegateManyTools } from "./delegateMany";
+import { buildDeepSearchTools } from "./deepSearch";
 import { buildEditTools } from "./edit";
 import { buildExternalAgentTools } from "./externalAgent";
 import { buildFsTools } from "./fs";
@@ -8,6 +9,7 @@ import { buildGitTools } from "./git";
 import { buildGraphTools } from "./graph";
 import { buildMcpTools } from "./mcp";
 import { buildMemoryTools } from "./memory";
+import { buildNetTools } from "./net";
 import { buildSearchMemoriesTools } from "./searchMemories";
 import { buildSearchTools } from "./search";
 import { buildShellTools } from "./shell";
@@ -53,6 +55,8 @@ export function buildTools(ctx: import("./context").ToolContext) {
     ...buildTodoTools(ctx),
     ...buildMemoryTools(ctx),
     ...buildSearchMemoriesTools(ctx),
+    ...buildNetTools(ctx),
+    ...buildDeepSearchTools(ctx),
     ...buildManagedAgentTools(ctx),
     ...buildCreateSkillTools(ctx),
     ...buildGraphTools(ctx),

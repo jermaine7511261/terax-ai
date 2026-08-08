@@ -353,6 +353,7 @@ pub fn run() {
         .manage(pty_helper::HelperClientState::default())
         .manage(ssh::TunnelsState::default())
         .manage(fs::grep::ContentSearchState::default())
+        .manage(net::web_fetch::WebFetchState::default())
         .manage({
             let registry = workspace::WorkspaceRegistry::default();
             workspace::bootstrap_registry(&registry);
@@ -499,6 +500,7 @@ pub fn run() {
             net::lm_ping,
             net::ai_http_request,
             net::ai_http_stream,
+            net::web_fetch::web_fetch,
             history::history_suggest,
             history::history_commands,
             history::history_record,

@@ -2,6 +2,8 @@ use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr};
 use std::time::Duration;
 
+pub mod web_fetch;
+
 use bytes::Bytes;
 use futures_util::StreamExt;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};

@@ -164,6 +164,28 @@ export type GitSubmoduleStatusResult = {
   submodules: GitSubmoduleStatus[];
 };
 
+export type WebFetchContent = {
+  url: string;
+  content: string;
+  contentType: string;
+  statusCode: number;
+  bytes: number;
+  truncated: boolean;
+  metadata: Record<string, string>;
+};
+
+export type WebFetchCommandResult = {
+  ok: boolean;
+  output: { kind: string } & Record<string, unknown> | null;
+  error: string | null;
+};
+
+type HttpResponse = {
+  status: number;
+  headers: Record<string, string>;
+  body: number[];
+};
+
 export const native = {
   workspaceCurrentDir: () => invoke<string>("workspace_current_dir"),
   workspaceAuthorize: (path: string) =>
@@ -537,4 +559,20 @@ export const native = {
       repoRoot,
       workspace: currentWorkspaceEnv(),
     }),
+  webFetch: (url: string, maxChars?: number) =>
+    invoke<WebFetchCommandResult>("web_fetch", {
+      url,
+      maxChars: maxChars ?? null,
+    }),
+  /** GET a URL through the Rust SSRF-guarded proxy; returns decoded text. */
+  httpGetText: async (url: string, headers?: Record<string, string>) => {
+    const res = await invoke<HttpResponse>("ai_http_request", {
+      url,
+      method: "GET",
+      headers: headers ?? {},
+      allowPrivateNetwork: false,
+    });
+    const text = new TextDecoder().decode(new Uint8Array(res.body));
+    return { status: res.status, text };
+  },
 };
