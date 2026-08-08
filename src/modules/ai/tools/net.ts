@@ -3,89 +3,13 @@ import { z } from "zod";
 import { native } from "../lib/native";
 import type { ToolContext } from "./context";
 
-const DDG_HTML_ENDPOINT = "https://html.duckduckgo.com/html/";
-
-type SearchHit = { title: string; url: string; snippet: string };
-
-/**
- * Parse DuckDuckGo HTML results. DDG's html endpoint uses a stable structure:
- * `.result` blocks each containing `a.result__a` (title/link) and
- * `a.result__snippet` (snippet). We parse with a tolerant regex fallback since
- * we don't pull in a DOM parser here.
- */
-function parseDdgResults(html: string, maxResults: number): SearchHit[] {
-  const hits: SearchHit[] = [];
-  // Split on result blocks (robust to minor HTML variations).
-  const blocks = html.split('class="result__body"');
-  for (let i = 1; i < blocks.length && hits.length < maxResults; i++) {
-    const block = blocks[i];
-    const titleMatch = block.match(/class="result__a"[^>]*>(.*?)<\/a>/s);
-    const hrefMatch = block.match(/class="result__a"[^>]*href="([^"]+)"/);
-    const snippetMatch = block.match(
-      /class="result__snippet"[^>]*>(.*?)<\/a>/s,
-    );
-    const title = titleMatch ? stripTags(titleMatch[1]).trim() : "";
-    const href = hrefMatch ? resolveSearchUrl(hrefMatch[1]) : "";
-    const snippet = snippetMatch ? stripTags(snippetMatch[1]).trim() : "";
-    if (title && href) {
-      hits.push({ title, url: href, snippet });
-    }
-  }
-  // Fallback: regex over the whole HTML if block splitting found nothing.
-  if (hits.length === 0) {
-    const re = /<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>(.*?)<\/a>/gs;
-    let m = re.exec(html);
-    while (m !== null && hits.length < maxResults) {
-      hits.push({
-        title: stripTags(m[2]).trim(),
-        url: resolveSearchUrl(m[1]),
-        snippet: "",
-      });
-      m = re.exec(html);
-    }
-  }
-  return hits;
-}
-
-/**
- * DDG's html endpoint wraps every result link in a protocol-relative tracking
- * redirect (`//duckduckgo.com/l/?uddg=<urlencoded>`). Unwrap it to the real
- * target: fetch_url rejects protocol-relative URLs and duckduckgo.com is not
- * in its domain allowlist, so returning the raw href breaks the
- * web_search -> fetch_url chain. Falls back to the raw href for direct links.
- */
-function resolveSearchUrl(rawHref: string): string {
-  const href = decodeEntities(rawHref);
-  const qIndex = href.indexOf("?");
-  if (qIndex !== -1) {
-    const uddg = new URLSearchParams(href.slice(qIndex + 1)).get("uddg");
-    if (uddg && /^https?:\/\//i.test(uddg)) {
-      return uddg;
-    }
-  }
-  return href;
-}
-
-function stripTags(s: string): string {
-  return s.replace(/<[^>]*>/g, "");
-}
-
-function decodeEntities(s: string): string {
-  return s
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#x27;/g, "'")
-    .replace(/&#39;/g, "'");
-}
-
 /**
  * Network tools (ported from Grok grok-build web_fetch / web_search).
  *
  * - `fetch_url`: read a single URL, convert HTML→markdown, enforce SSRF +
  *   domain allowlist on the Rust side. Read-only; no write path.
- * - `web_search`: (free, no-key) real-time web search via DuckDuckGo HTML.
+ * - `web_search`: P4 薄壳化后为薄壳——搜索下沉 Rust `web_search`（uddg 还原 /
+ *   假成功检测 / 词汇级重排全部原生），前端只做参数映射与结果透传。
  */
 export function buildNetTools(_ctx: ToolContext) {
   return {
@@ -159,21 +83,20 @@ export function buildNetTools(_ctx: ToolContext) {
         if (!query?.trim()) {
           return { error: "query is required" };
         }
-        const max = Math.min(max_results ?? 5, 10);
         try {
-          const url = new URL(DDG_HTML_ENDPOINT);
-          url.searchParams.set("q", query);
-          const { status, text } = await native.httpGetText(url.toString(), {
-            "User-Agent": "Mozilla/5.0",
+          // P4 薄壳化：搜索下沉 Rust（uddg 还原 / 假成功检测 / 重排全部原生）。
+          const res = await native.webSearch({
+            query,
+            maxResults: max_results ?? 5,
           });
-          if (status < 200 || status >= 300) {
-            return { error: `search request failed (HTTP ${status})` };
+          if (!res.ok) {
+            return { error: res.error ?? "search failed" };
           }
-          const results = parseDdgResults(text, max);
           return {
             query,
-            results,
-            truncated: results.length >= max,
+            results: res.results,
+            truncated: res.truncated,
+            degraded: res.degraded,
           };
         } catch (e) {
           return { error: String(e) };

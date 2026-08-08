@@ -1,5 +1,35 @@
-import { describe, expect, it } from "vitest";
-import { parseSkillJson, serializeSkill } from "./skills";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const nativeMock = vi.hoisted(() => ({
+  createDir: vi.fn(async () => {}),
+  readFile: vi.fn(
+    async (
+      _path: string,
+    ): Promise<{ kind: string; content: string }> => ({ kind: "text", content: "" }),
+  ),
+  writeFile: vi.fn(async () => {}),
+  readDir: vi.fn(async () => [] as { name: string; kind: string }[]),
+}));
+
+vi.mock("./native", () => ({ native: nativeMock }));
+
+import {
+  importSkillToWorkspace,
+  parseSkillJson,
+  scanSkillsDir,
+  serializeSkill,
+} from "./skills";
+
+beforeEach(() => {
+  nativeMock.createDir.mockClear();
+  nativeMock.readFile.mockClear();
+  nativeMock.writeFile.mockClear();
+  nativeMock.readDir.mockClear();
+  nativeMock.readFile.mockResolvedValue({ kind: "text", content: "" });
+  nativeMock.readDir.mockResolvedValue([]);
+  nativeMock.createDir.mockResolvedValue(undefined);
+  nativeMock.writeFile.mockResolvedValue(undefined);
+});
 
 describe("serializeSkill", () => {
   it("round-trips through parseSkillJson", () => {
@@ -137,5 +167,137 @@ describe("parseSkillJson", () => {
       JSON.stringify({ name: "x", prompt: "do it", handle: "!!!  " }),
     );
     expect(skill?.handle).toBe("");
+  });
+});
+
+describe("importSkillToWorkspace", () => {
+  it("creates the skills dir, writes the file and reports success", async () => {
+    nativeMock.readFile.mockRejectedValue(new Error("ENOENT"));
+    const res = await importSkillToWorkspace(
+      "/ws",
+      JSON.stringify({ name: "review", prompt: "Do it." }),
+    );
+    expect(res).toEqual({ ok: true, name: "review" });
+    expect(nativeMock.createDir).toHaveBeenCalledWith("/ws/skills");
+    expect(nativeMock.writeFile).toHaveBeenCalledWith(
+      "/ws/skills/review.json",
+      expect.stringContaining('"name": "review"'),
+    );
+  });
+
+  it("strips a trailing slash from the root", async () => {
+    nativeMock.readFile.mockRejectedValue(new Error("ENOENT"));
+    await importSkillToWorkspace(
+      "/ws/",
+      JSON.stringify({ name: "r", prompt: "p" }),
+    );
+    expect(nativeMock.createDir).toHaveBeenCalledWith("/ws/skills");
+    expect(nativeMock.writeFile).toHaveBeenCalledWith(
+      "/ws/skills/r.json",
+      expect.any(String),
+    );
+  });
+
+  it("rejects invalid payloads", async () => {
+    expect(await importSkillToWorkspace("/ws", "nope")).toEqual({
+      ok: false,
+      error: "invalid skill.json: name and prompt are required",
+    });
+  });
+
+  it("rejects when no workspace root is selected", async () => {
+    expect(
+      await importSkillToWorkspace(
+        null,
+        JSON.stringify({ name: "x", prompt: "y" }),
+      ),
+    ).toEqual({ ok: false, error: "no workspace root selected" });
+  });
+
+  it("refuses to clobber an existing skill", async () => {
+    nativeMock.readFile.mockResolvedValue({ kind: "text", content: "{}" });
+    const res = await importSkillToWorkspace(
+      "/ws",
+      JSON.stringify({ name: "review", prompt: "Do it." }),
+    );
+    expect(res).toEqual({
+      ok: false,
+      error: 'skill "review" already exists in skills/',
+    });
+    expect(nativeMock.writeFile).not.toHaveBeenCalled();
+  });
+
+  it("surfaces write failures", async () => {
+    nativeMock.readFile.mockRejectedValue(new Error("ENOENT"));
+    nativeMock.writeFile.mockRejectedValue(new Error("disk full"));
+    const res = await importSkillToWorkspace(
+      "/ws",
+      JSON.stringify({ name: "review", prompt: "Do it." }),
+    );
+    expect(res).toEqual({ ok: false, error: "Error: disk full" });
+  });
+
+  it("tolerates createDir failure (dir already exists)", async () => {
+    nativeMock.readFile.mockRejectedValue(new Error("ENOENT"));
+    nativeMock.createDir.mockRejectedValue(new Error("EEXIST"));
+    const res = await importSkillToWorkspace(
+      "/ws",
+      JSON.stringify({ name: "r", prompt: "p" }),
+    );
+    expect(res).toEqual({ ok: true, name: "r" });
+  });
+});
+
+describe("scanSkillsDir", () => {
+  it("returns [] without a workspace root", async () => {
+    expect(await scanSkillsDir(null)).toEqual([]);
+    expect(nativeMock.readDir).not.toHaveBeenCalled();
+  });
+
+  it("returns [] when the skills dir is unreadable", async () => {
+    nativeMock.readDir.mockRejectedValue(new Error("ENOENT"));
+    expect(await scanSkillsDir("/ws")).toEqual([]);
+  });
+
+  it("scans file and dir skills, skipping archived and non-json entries", async () => {
+    nativeMock.readDir.mockResolvedValue([
+      { name: "a.json", kind: "file" },
+      { name: "b", kind: "dir" },
+      { name: "notes.txt", kind: "file" },
+    ]);
+    nativeMock.readFile.mockImplementation(async (path: string) => {
+      if (path.endsWith("a.json")) {
+        return {
+          kind: "text",
+          content: JSON.stringify({ name: "A", description: "d", prompt: "p" }),
+        };
+      }
+      if (path.endsWith("skill.json")) {
+        return {
+          kind: "text",
+          content: JSON.stringify({
+            name: "B",
+            prompt: "p2",
+            archived: true,
+          }),
+        };
+      }
+      return { kind: "text", content: "{}" };
+    });
+    const out = await scanSkillsDir("/ws/");
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ id: "builtin-A", name: "A", builtin: true });
+    expect(out[0].handle).toBe("a");
+  });
+
+  it("skips unreadable and non-text results", async () => {
+    nativeMock.readDir.mockResolvedValue([{ name: "a", kind: "file" }]);
+    nativeMock.readFile.mockRejectedValue(new Error("ENOENT"));
+    expect(await scanSkillsDir("/ws")).toEqual([]);
+    nativeMock.readFile.mockResolvedValue({
+      kind: "binary",
+      content: new Uint8Array(),
+    } as never);
+    expect(await scanSkillsDir("/ws")).toEqual([]);
   });
 });

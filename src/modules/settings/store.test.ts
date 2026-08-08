@@ -52,6 +52,7 @@ import {
   setEditorFontSize,
   setTheme,
   setThemeId,
+  setUseNativeAi,
   DEFAULT_PREFERENCES,
 } from "./store";
 
@@ -176,6 +177,21 @@ describe("setters", () => {
     const prefs = await loadPreferences();
     expect(prefs.theme).toBe("dark");
     expect(prefs.themeId).toBe("yamet-alt");
+  });
+
+  it("setUseNativeAi persists the dual-track switch and defaults off", async () => {
+    // Default is off (frontend AI SDK dual-track path).
+    expect(DEFAULT_PREFERENCES.useNativeAi).toBe(false);
+    await setUseNativeAi(true);
+    expect(storeBacking.memory.get("useNativeAi")).toBe(true);
+    expect(eventMock.emit).toHaveBeenCalledWith("yamet://prefs-changed", {
+      key: "useNativeAi",
+      value: true,
+    });
+    const prefs = await loadPreferences();
+    expect(prefs.useNativeAi).toBe(true);
+    await setUseNativeAi(false);
+    expect(await loadPreferences()).toMatchObject({ useNativeAi: false });
   });
 });
 

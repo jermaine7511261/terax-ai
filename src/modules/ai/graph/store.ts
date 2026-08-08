@@ -155,6 +155,8 @@ export const useGraphStore = create<GraphStore>((set, get) => ({
     for (const resolve of humanResolvers.values()) resolve(false);
     humanResolvers.clear();
     get().engine.cancel();
+    // Dismiss the approval card — a cancelled run has no pending decision.
+    set({ pendingHuman: null });
   },
 
   getStateOf: (runId, nodeId) => get().runs[runId]?.nodes[nodeId],

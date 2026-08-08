@@ -1,6 +1,6 @@
 [package]
 name = "yamet"
-version = "0.1.25"
+version = "0.1.26"
 description = "Yamet — an open-source AI-native terminal emulator"
 authors = ["Yamet contributors"]
 license = "MIT"
@@ -55,6 +55,7 @@ reqwest = { version = "0.12", default-features = false, features = [
 ] }
 bytes = "1"
 futures-util = "0.3"
+async-trait = "0.1"
 tokio = { version = "1", default-features = false, features = [
 	"rt",
 	"net",
@@ -95,6 +96,7 @@ calamine = "0.36.1"
 rust_xlsxwriter = "0.97.1"
 lopdf = { version = "0.44.0", default-features = false }
 office_oxide = { version = "0.1.8", default-features = false }
+image = { version = "0.25", default-features = false, features = ["png"] }
 
 [dev-dependencies]
 proptest = "1"
@@ -128,6 +130,8 @@ windows-sys = { version = "0.61", features = [
 	"Win32_System_ProcessStatus",
 	"Win32_System_Threading",
 	"Win32_System_Diagnostics_ToolHelp",
+	"Win32_Graphics_Gdi",
+	"Win32_UI_WindowsAndMessaging",
 ] }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]

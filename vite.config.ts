@@ -185,10 +185,10 @@ export default defineConfig(async ({ mode }): Promise<UserConfig> => ({
       // graphParse + tools registration lifted coverage to 35/30.6/28.6/36.
       // Raised to 35/30/28/35 with margin for CI.
       thresholds: {
-        statements: 35,
-        branches: 30,
-        functions: 28,
-        lines: 35,
+        statements: 37,
+        branches: 32,
+        functions: 30,
+        lines: 38,
       },
     },
   },

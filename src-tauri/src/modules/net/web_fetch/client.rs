@@ -10,11 +10,13 @@ use reqwest::header::{ACCEPT, ACCEPT_LANGUAGE, CONTENT_TYPE, USER_AGENT};
 use url::Url;
 
 use super::cache::FetchCache;
+use super::clean;
 use super::config::{MAX_REDIRECTS, MAX_URL_LENGTH, USER_AGENT_STRING, WebFetchParams};
 use super::domain::DomainMatcher;
 use super::http::HttpClient;
 use super::ssrf;
 use super::types::{WebFetchContent, WebFetchError, WebFetchOutput};
+use super::url_safety;
 
 /// Shared HTTP client and cache for web fetching.
 #[derive(Clone)]
@@ -175,7 +177,18 @@ impl WebFetchClient {
     ) -> ProcessedText {
         let raw_content = String::from_utf8_lossy(body);
         let content = if is_html(content_type) {
-            html_to_markdown(&self.converter, &raw_content)
+            let markdown = html_to_markdown(&self.converter, &raw_content);
+            // L1 抓取清洗 (webclaw): two-level fallback — a nav/boilerplate page
+            // converts to a sparse markdown; if the cleaner lost signal vs the
+            // raw body, keep the original text instead.
+            if clean::should_retry_broad(
+                markdown.chars().count(),
+                raw_content.chars().count(),
+            ) {
+                raw_content.into_owned()
+            } else {
+                clean::apply_noise_guardrail(&markdown, &raw_content)
+            }
         } else {
             raw_content.into_owned()
         };
@@ -228,6 +241,11 @@ fn validate_url(raw: &str) -> Result<Url, WebFetchError> {
 
     if !parsed.username().is_empty() || parsed.password().is_some() {
         return Err(WebFetchError::CredentialsInUrl);
+    }
+
+    // Whole-URL rejection of secrets in the query (decision 6, Hermes-aligned).
+    if let Some(param) = url_safety::detect_secret_in_query(&parsed) {
+        return Err(WebFetchError::SecretInUrl { param });
     }
 
     if let Some(host) = parsed.host_str() {

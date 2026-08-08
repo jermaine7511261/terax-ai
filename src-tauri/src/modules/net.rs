@@ -3,6 +3,7 @@ use std::net::{IpAddr, SocketAddr};
 use std::time::Duration;
 
 pub mod web_fetch;
+pub mod web_search;
 
 use bytes::Bytes;
 use futures_util::StreamExt;
@@ -320,6 +321,24 @@ fn header_map_to_strings(headers: &HeaderMap) -> HashMap<String, String> {
 }
 
 const MAX_RESPONSE_BYTES: usize = 64 * 1024 * 1024;
+
+/// Build a reqwest URL + client for a caller-supplied URL with full SSRF
+/// protection (DNS-rebinding pinning, metadata/private blocking). Shared by
+/// `ai_http_request` / `ai_http_stream` and the Rust AI harness (native LLM
+/// calls must ride the same guardrail, not bypass it with a raw client).
+pub(crate) async fn safe_client_for_url(
+    url: &str,
+    allow_private: bool,
+) -> Result<(reqwest::Url, reqwest::Client), String> {
+    let parsed = validate_url(url, allow_private)?;
+    let host = parsed
+        .host_str()
+        .ok_or_else(|| "missing host".to_string())?
+        .to_string();
+    let safe_ips = classify_and_collect_safe_ips(&host, allow_private).await?;
+    let client = build_safe_client(allow_private, &[(host, safe_ips)])?;
+    Ok((parsed, client))
+}
 
 /// Global budget for in-flight response bodies across concurrent
 /// `ai_http_request` calls. Each request reserves its worst-case quota

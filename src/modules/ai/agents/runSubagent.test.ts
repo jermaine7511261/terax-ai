@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { generateText, stepCountIs } from "ai";
 import { buildConfiguredLanguageModel } from "../lib/agent";
 import { buildFsTools } from "../tools/fs";
+import { buildNetTools } from "../tools/net";
 import { buildSearchTools } from "../tools/search";
 import { SUBAGENTS } from "./registry";
 import { DEFAULT_MODEL_ID } from "../config";
@@ -30,6 +31,12 @@ vi.mock("../tools/search", () => ({
   buildSearchTools: vi.fn(() => ({
     grep: { name: "grep" },
     glob: { name: "glob" },
+  })),
+}));
+vi.mock("../tools/net", () => ({
+  buildNetTools: vi.fn(() => ({
+    web_search: { name: "web_search" },
+    fetch_url: { name: "fetch_url" },
   })),
 }));
 vi.mock("../tools/edit", () => ({
@@ -141,6 +148,21 @@ describe("runSubagent tool wiring", () => {
     const tools = lastGenOpts().tools as Record<string, unknown>;
     expect("bash_run" in tools).toBe(true);
     expect("bash_kill" in tools).toBe(true);
+  });
+
+  it("exposes web tools for the general type (MUST 差距 1: deep_search researcher/verifier)", async () => {
+    await runSubagent(baseArgs({ type: "general" }));
+    expect(vi.mocked(buildNetTools)).toHaveBeenCalledWith(ctx);
+    const tools = lastGenOpts().tools as Record<string, unknown>;
+    expect("web_search" in tools).toBe(true);
+    expect("fetch_url" in tools).toBe(true);
+  });
+
+  it("does not expose web tools for non-web subagent types", async () => {
+    await runSubagent(baseArgs({ type: "explore" }));
+    expect(vi.mocked(buildNetTools)).toHaveBeenCalledWith(ctx); // pool built
+    const tools = lastGenOpts().tools as Record<string, unknown>;
+    expect("web_search" in tools).toBe(false); // filtered by whitelist
   });
 });
 

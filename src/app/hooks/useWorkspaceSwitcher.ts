@@ -1,12 +1,3 @@
-import {
-  type RefObject,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
-import { openDialog } from "@/platform";
-import { homeDir } from "@/platform";
 import { native } from "@/modules/ai/lib/native";
 import {
   loadPreferences,
@@ -19,6 +10,14 @@ import {
   LOCAL_WORKSPACE,
   type WorkspaceEnv,
 } from "@/modules/workspace";
+import { homeDir, openDialog } from "@/platform";
+import {
+  type RefObject,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 async function resolveEnvHome(env: WorkspaceEnv): Promise<string> {
   return env.kind === "wsl"
@@ -65,6 +64,10 @@ export function useWorkspaceSwitcher({
           const osHome = p.replace(/\\/g, "/");
           const normalized = saved ?? osHome;
           setHome(normalized);
+          // Keep Rust's workspace_current_dir in sync with the live workspace
+          // root so settings-side consumers (project memory, skills scan) see
+          // the same YAMET.md the AI memory tool writes to.
+          void native.workspaceSetCurrent(normalized).catch(() => {});
           try {
             await native.workspaceAuthorize(normalized);
           } catch {
@@ -115,6 +118,7 @@ export function useWorkspaceSwitcher({
 
   const authorizeHome = useCallback(async (nextHome: string) => {
     setHome(nextHome);
+    void native.workspaceSetCurrent(nextHome).catch(() => {});
     setLaunchCwd(nextHome);
     await setWorkspaceRoot(nextHome).catch(() => {});
     try {
@@ -197,7 +201,13 @@ export function useWorkspaceSwitcher({
     await authorizeHome(normalized);
     resetWorkspace(normalized);
     return true;
-  }, [tabsRef, clearWorkspaceState, setWorkspaceEnv, authorizeHome, resetWorkspace]);
+  }, [
+    tabsRef,
+    clearWorkspaceState,
+    setWorkspaceEnv,
+    authorizeHome,
+    resetWorkspace,
+  ]);
 
   return {
     home,

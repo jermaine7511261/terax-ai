@@ -73,6 +73,31 @@ describe("TodoStrip", () => {
     expect(screen.queryByText("ai.todos")).not.toBeInTheDocument();
   });
 
+  it("dismisses itself once every todo is completed", async () => {
+    const { rerender } = render(<TodoStrip sessionId="sess-1" />);
+    act(() => {
+      useTodosStore.getState().setTodos("sess-1", [
+        makeTodo("a", "completed"),
+        makeTodo("b", "completed"),
+      ]);
+    });
+    rerender(<TodoStrip sessionId="sess-1" />);
+    expect(screen.queryByText("ai.todos")).not.toBeInTheDocument();
+  });
+
+  it("keeps showing while any todo is still open", async () => {
+    const { rerender } = render(<TodoStrip sessionId="sess-1" />);
+    act(() => {
+      useTodosStore.getState().setTodos("sess-1", [
+        makeTodo("a", "completed"),
+        makeTodo("b", "in_progress"),
+      ]);
+    });
+    rerender(<TodoStrip sessionId="sess-1" />);
+    expect(screen.getByText("ai.todos")).toBeInTheDocument();
+    expect(screen.getByText("b")).toBeInTheDocument();
+  });
+
   it("survives the hydrate-vs-write race: agent todos are not wiped by a late hydrate", async () => {
     // Hydration is slow (plugin store read pending); the agent writes todos
     // first, then the stale persistence read resolves to the old empty list.

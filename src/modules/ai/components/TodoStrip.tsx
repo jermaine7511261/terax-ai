@@ -33,6 +33,9 @@ export function TodoStrip({ sessionId }: Props) {
   if (!sessionId || todos.length === 0) return null;
 
   const completed = todos.filter((t) => t.status === "completed").length;
+  // The strip is a live progress view — once every todo is done there is
+  // nothing left to track, so dismiss it instead of showing a 100% bar.
+  if (completed === todos.length) return null;
   const pct = Math.round((completed / todos.length) * 100);
 
   return (

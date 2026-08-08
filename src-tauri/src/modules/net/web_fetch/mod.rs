@@ -5,12 +5,14 @@
 //! enforces SSRF + domain allowlist, and returns content to the model.
 
 mod cache;
+pub mod clean;
 mod client;
 mod config;
 mod domain;
 mod http;
 mod ssrf;
 pub mod types;
+mod url_safety;
 
 use std::sync::Arc;
 

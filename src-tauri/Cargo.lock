@@ -7891,9 +7891,10 @@ dependencies = [
 
 [[package]]
 name = "yamet"
-version = "0.1.25"
+version = "0.1.26"
 dependencies = [
  "aes 0.8.4",
+ "async-trait",
  "base64 0.22.1",
  "bytes",
  "calamine",
@@ -7910,6 +7911,7 @@ dependencies = [
  "hmac 0.12.1",
  "htmd",
  "ignore",
+ "image",
  "keyring",
  "libc",
  "log",

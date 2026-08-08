@@ -20,6 +20,9 @@ export type SubagentDef = {
 };
 
 const READ_ONLY_TOOLS = ["read_file", "list_directory", "grep", "glob"];
+/** Read-only web research tools (MUST 差距 1 修复): deep_search 的
+ *  researcher/verifier 必须能 web_search + fetch_url，否则研究阶段实际离线。 */
+const WEB_TOOLS = ["web_search", "fetch_url"];
 const WRITE_TOOLS = [
   "write_file",
   "edit",
@@ -68,9 +71,9 @@ export const SUBAGENTS: Record<SubagentType, SubagentDef> = {
     id: "general",
     label: "General research",
     description:
-      "General-purpose worker for multi-step research questions that span many files.",
-    tools: READ_ONLY_TOOLS,
-    systemPrompt: `You are a general-purpose research subagent. Answer the spawn question by reading the codebase. Don't speculate — verify. Return a tight summary with the evidence you used (paths, line numbers).`,
+      "General-purpose worker for multi-step research questions that span many files (and the web for deep_search).",
+    tools: [...READ_ONLY_TOOLS, ...WEB_TOOLS],
+    systemPrompt: `You are a general-purpose research subagent. Answer the spawn question by reading the codebase; for deep_search you also have web_search + fetch_url to gather web evidence. Don't speculate — verify. Return a tight summary with the evidence you used (paths, line numbers, URLs).`,
   },
   code: {
     id: "code",

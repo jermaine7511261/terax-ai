@@ -1,5 +1,6 @@
-import { invoke } from "@/platform";
 import { currentWorkspaceEnv } from "@/modules/workspace";
+import { invoke } from "@/platform";
+import type { Channel } from "@/platform";
 
 export type ReadResult =
   | { kind: "text"; content: string; size: number }
@@ -176,18 +177,100 @@ export type WebFetchContent = {
 
 export type WebFetchCommandResult = {
   ok: boolean;
-  output: { kind: string } & Record<string, unknown> | null;
+  output: ({ kind: string } & Record<string, unknown>) | null;
   error: string | null;
 };
 
-type HttpResponse = {
-  status: number;
-  headers: Record<string, string>;
-  body: number[];
+export type WebSearchHit = {
+  title: string;
+  url: string;
+  snippet: string;
+  position?: number;
+};
+
+export type WebSearchCommandResult = {
+  ok: boolean;
+  query: string;
+  results: WebSearchHit[];
+  truncated: boolean;
+  degraded: boolean;
+  error: string | null;
+};
+
+export type AiHarnessEvent =
+  | { kind: "turnStart"; id: number }
+  | { kind: "textDelta"; id: number; text: string }
+  | { kind: "reasoningDelta"; id: number; text: string }
+  | { kind: "toolCall"; id: number; index: number; toolId: string; name: string }
+  | { kind: "toolCallDelta"; id: number; index: number; args: string }
+  | {
+      kind: "finish";
+      id: number;
+      finishReason: string | null;
+      inputTokens: number;
+      outputTokens: number;
+      cachedInputTokens: number;
+    }
+  | { kind: "end"; id: number }
+  | { kind: "error"; id: number; message: string };
+
+export type AiHarnessSessionStatus = {
+  id: number;
+  phase: "idle" | "running" | "done" | "error";
+  stepCount: number;
+  messageCount: number;
+  aborted: boolean;
+};
+
+export type AiMemoryEntry = {
+  id: string;
+  content: string;
+  scope: "global" | "workspace" | "session";
+  createdAt: number;
+  source?: string | null;
+};
+
+export type AiMemoryRecallHit = {
+  content: string;
+  score: number;
+  scope: string;
+  createdAt: number;
+};
+
+export type DeepSearchPoll = {
+  id: number;
+  phase: string;
+  query: string;
+  progress: string;
+  verified: number;
+  totalCandidates: number;
+  usageRatio: number;
+  report: string | null;
+};
+
+export type ComputerActionParams = {
+  kind: "capture" | "click" | "type" | "key" | "drag" | "scroll" | "set_value";
+  x?: number | null;
+  y?: number | null;
+  text?: string | null;
+  key?: string | null;
+  scrollDx?: number | null;
+  scrollDy?: number | null;
+};
+
+export type ComputerCaptureResult = {
+  ok: boolean;
+  imageDataUrl: string | null;
+  width: number | null;
+  height: number | null;
+  scale: number | null;
+  error: string | null;
 };
 
 export const native = {
   workspaceCurrentDir: () => invoke<string>("workspace_current_dir"),
+  workspaceSetCurrent: (path: string) =>
+    invoke<void>("workspace_set_current", { path }),
   workspaceAuthorize: (path: string) =>
     invoke<string>("workspace_authorize", {
       path,
@@ -342,11 +425,7 @@ export const native = {
       source: "ai",
       workspace: currentWorkspaceEnv(),
     }),
-  runCommand: (
-    command: string,
-    cwd?: string | null,
-    timeoutSecs?: number,
-  ) =>
+  runCommand: (command: string, cwd?: string | null, timeoutSecs?: number) =>
     invoke<CommandOutput>("shell_run_command", {
       command,
       cwd: cwd ?? null,
@@ -491,7 +570,10 @@ export const native = {
       repoRoot,
       workspace: currentWorkspaceEnv(),
     }),
-  gitLog: (repoRoot: string, options?: { limit?: number; beforeSha?: string }) =>
+  gitLog: (
+    repoRoot: string,
+    options?: { limit?: number; beforeSha?: string },
+  ) =>
     invoke<GitLogEntry[]>("git_log", {
       repoRoot,
       limit: options?.limit ?? null,
@@ -637,15 +719,108 @@ export const native = {
       url,
       maxChars: maxChars ?? null,
     }),
-  /** GET a URL through the Rust SSRF-guarded proxy; returns decoded text. */
-  httpGetText: async (url: string, headers?: Record<string, string>) => {
-    const res = await invoke<HttpResponse>("ai_http_request", {
-      url,
-      method: "GET",
-      headers: headers ?? {},
-      allowPrivateNetwork: false,
-    });
-    const text = new TextDecoder().decode(new Uint8Array(res.body));
-    return { status: res.status, text };
-  },
+  webSearch: (params: {
+    query: string;
+    maxResults?: number | null;
+    categories?: string[] | null;
+  }) =>
+    invoke<WebSearchCommandResult>("web_search", {
+      params: {
+        query: params.query,
+        maxResults: params.maxResults ?? null,
+        categories: params.categories ?? null,
+      },
+    }),
+  // --- 原生 AI harness (迭代 25, P0) ---
+  aiSessionOpen: (params: {
+    baseUrl: string;
+    model: string;
+    keyringAccount?: string | null;
+    allowPrivateNetwork?: boolean;
+    system?: string | null;
+  }) =>
+    invoke<number>("ai_session_open", {
+      params: {
+        baseUrl: params.baseUrl,
+        model: params.model,
+        keyringAccount: params.keyringAccount ?? null,
+        allowPrivateNetwork: params.allowPrivateNetwork ?? false,
+        system: params.system ?? null,
+      },
+    }),
+  aiSessionSend: (
+    id: number,
+    text: string,
+    onEvent: Channel<AiHarnessEvent>,
+  ) =>
+    invoke<void>("ai_session_send", { id, text, onEvent }),
+  aiSessionAbort: (id: number) => invoke<void>("ai_session_abort", { id }),
+  aiSessionClose: (id: number) => invoke<void>("ai_session_close", { id }),
+  aiSessionStatus: (id: number) =>
+    invoke<AiHarnessSessionStatus>("ai_session_status", { id }),
+  aiEstimateTokens: (text: string) =>
+    invoke<number>("ai_estimate_tokens", { text }),
+  aiEstimateMessages: (messages: unknown[]) =>
+    invoke<{ text: number }>("ai_estimate_messages", { messages }),
+  memoryRemember: (params: {
+    content: string;
+    scope: string;
+    source?: string | null;
+  }) =>
+    invoke<AiMemoryEntry>("memory_remember", {
+      content: params.content,
+      scope: params.scope,
+      source: params.source ?? null,
+    }),
+  memoryRecall: (params: {
+    query: string;
+    limit?: number | null;
+    scope?: string | null;
+  }) =>
+    invoke<AiMemoryRecallHit[]>("memory_recall", {
+      query: params.query,
+      limit: params.limit ?? null,
+      scope: params.scope ?? null,
+    }),
+  memoryStats: () =>
+    invoke<{ total: number; byScope: Record<string, number> }>("memory_stats"),
+  deepSearchStart: (params: {
+    query: string;
+    breadth?: number | null;
+    budget?: number | null;
+  }) =>
+    invoke<number>("deep_search_start", {
+      params: {
+        query: params.query,
+        breadth: params.breadth ?? null,
+        budget: params.budget ?? null,
+      },
+    }),
+  deepSearchPoll: (id: number) =>
+    invoke<DeepSearchPoll>("deep_search_poll", { id }),
+  deepSearchAbort: (id: number) => invoke<void>("deep_search_abort", { id }),
+  deepSearchAdvance: (params: {
+    id: number;
+    candidates?: unknown[] | null;
+    verified?: unknown[] | null;
+    coverageNotes?: string[] | null;
+  }) =>
+    invoke<DeepSearchPoll>("deep_search_advance", {
+      id: params.id,
+      candidates: params.candidates ?? null,
+      verified: params.verified ?? null,
+      coverageNotes: params.coverageNotes ?? null,
+    }),
+  deepSearchReserve: (id: number, workers: number) =>
+    invoke<number>("deep_search_reserve", { id, workers }),
+  // --- computer use (P3, Windows M1-M2) ---
+  computerSessionOpen: () => invoke<number>("computer_session_open"),
+  computerSessionClose: (id: number) =>
+    invoke<void>("computer_session_close", { id }),
+  computerApprove: (id: number) => invoke<void>("computer_approve", { id }),
+  computerRevoke: (id: number) => invoke<void>("computer_revoke", { id }),
+  computerCapture: (id: number) =>
+    invoke<ComputerCaptureResult>("computer_capture", { id }),
+  computerAction: (id: number, action: ComputerActionParams) =>
+    invoke<string>("computer_action", { id, action }),
 };

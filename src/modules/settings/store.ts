@@ -190,6 +190,9 @@ export type Preferences = {
   hasOnboarded: boolean;
   /** User-chosen workspace root (absolute path). null = use OS home dir. */
   workspaceRoot: string | null;
+  /** P4: 双轨切换——AI 运行时走 Rust 原生 harness（true）还是前端 AI SDK（false）。
+   *  逐系统验证后切换，避免一次性大爆炸重构。 */
+  useNativeAi: boolean;
 };
 
 export type EditorFormatter =
@@ -299,6 +302,7 @@ const KEY_AUTO_APPROVE_TOOLS = "autoApproveTools";
 const KEY_AUTO_APPROVE_PROJECT = "autoApproveProjectArmed";
 const KEY_HAS_ONBOARDED = "hasOnboarded";
 const KEY_WORKSPACE_ROOT = "workspaceRoot";
+const KEY_USE_NATIVE_AI = "useNativeAi";
 
 export const TERMINAL_FONT_SIZE_DEFAULT = 14;
 export const TERMINAL_FONT_SIZE_MIN = 8;
@@ -384,6 +388,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   autoApproveProjectArmed: false,
   hasOnboarded: false,
   workspaceRoot: null,
+  useNativeAi: false,
 };
 
 const store = createStorage(STORE_PATH);
@@ -598,6 +603,8 @@ export async function loadPreferences(): Promise<Preferences> {
       get<boolean>(KEY_HAS_ONBOARDED) ?? DEFAULT_PREFERENCES.hasOnboarded,
     workspaceRoot:
       get<string | null>(KEY_WORKSPACE_ROOT) ?? DEFAULT_PREFERENCES.workspaceRoot,
+    useNativeAi:
+      get<boolean>(KEY_USE_NATIVE_AI) ?? DEFAULT_PREFERENCES.useNativeAi,
   };
 }
 
@@ -627,6 +634,11 @@ export async function setLspCustomServers(
 /** Persist the user-chosen workspace root (absolute path, or null to reset to home). */
 export async function setWorkspaceRoot(value: string | null): Promise<void> {
   await writePref(KEY_WORKSPACE_ROOT, value);
+}
+
+/** P4 双轨切换：启用 Rust 原生 AI 运行时（`useNativeAi`）。 */
+export async function setUseNativeAi(value: boolean): Promise<void> {
+  await writePref(KEY_USE_NATIVE_AI, value);
 }
 
 export async function setAutoApproveTools(value: boolean): Promise<void> {
@@ -1011,6 +1023,7 @@ export async function onPreferencesChange(
     [KEY_AUTO_APPROVE_TOOLS]: "autoApproveTools",
     [KEY_AUTO_APPROVE_PROJECT]: "autoApproveProjectArmed",
     [KEY_WORKSPACE_ROOT]: "workspaceRoot",
+    [KEY_USE_NATIVE_AI]: "useNativeAi",
   };
   // Same-process writes still fire onChange immediately; cross-window writes
   // arrive via the Tauri event emitted by writePref().

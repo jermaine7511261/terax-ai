@@ -6,6 +6,7 @@ import type { ToolContext } from "../tools/context";
 import { buildEditTools } from "../tools/edit";
 import { buildFsTools } from "../tools/fs";
 import { buildGitTools } from "../tools/git";
+import { buildNetTools } from "../tools/net";
 import { buildSearchTools } from "../tools/search";
 import { buildShellTools } from "../tools/shell";
 import { SUBAGENTS, type SubagentType } from "./registry";
@@ -93,6 +94,9 @@ export async function runSubagent({
   const readOnly: Record<string, unknown> = {
     ...buildFsTools(toolContext),
     ...buildSearchTools(toolContext),
+    // MUST 差距 1 修复: web_search/fetch_url 必须可用,否则 deep_search 的
+    // researcher/verifier 研究阶段实际离线。
+    ...buildNetTools(toolContext),
   };
   const writable: Record<string, unknown> = {
     ...buildEditTools(toolContext),

@@ -1,4 +1,6 @@
 pub mod agent;
+pub mod ai;
+pub mod computer;
 pub mod dap;
 pub mod fs;
 pub mod gateway;

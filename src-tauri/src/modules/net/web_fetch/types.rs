@@ -81,6 +81,9 @@ impl WebFetchOutput {
 pub enum WebFetchError {
     UnsupportedScheme { scheme: String },
     CredentialsInUrl,
+    /// A sensitive query parameter (api_key / token / secret / ...) with a
+    /// non-empty value was found in the URL — reject whole-URL (decision 6).
+    SecretInUrl { param: String },
     SingleLabelHost { host: String },
     InvalidUrl(String),
     UrlTooLong { max: usize },
@@ -105,6 +108,10 @@ impl fmt::Display for WebFetchError {
                 write!(f, "unsupported URL scheme: {scheme} (only http/https)")
             }
             Self::CredentialsInUrl => write!(f, "URL must not contain credentials"),
+            Self::SecretInUrl { param } => write!(
+                f,
+                "URL contains a sensitive query parameter '{param}' with a value — refusing to fetch (would leak a secret)"
+            ),
             Self::SingleLabelHost { host } => {
                 write!(f, "single-label hostname not allowed: {host}")
             }

@@ -288,6 +288,32 @@ mod tests {
 }
 
 /// Batch read — single IPC roundtrip for the cold-boot fan-out.
+/// Read a secret without transiting the webview (used by the Rust AI harness
+/// so model API keys stay in keyring; the frontend only sends the keyring
+/// account name, never the key itself).
+pub(crate) fn read_key(
+    app: &AppHandle,
+    service: &str,
+    account: &str,
+) -> Result<Option<String>, String> {
+    #[cfg(target_os = "linux")]
+    {
+        let key = key(service, account);
+        let map = read_store(app)?;
+        Ok(map.get(&key).cloned())
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = app;
+        let e = keyring::Entry::new(service, account).map_err(|e| e.to_string())?;
+        match e.get_password() {
+            Ok(v) => Ok(Some(v)),
+            Err(keyring::Error::NoEntry) => Ok(None),
+            Err(err) => Err(err.to_string()),
+        }
+    }
+}
+
 #[tauri::command]
 pub async fn secrets_get_all(
     app: AppHandle,

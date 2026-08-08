@@ -7,6 +7,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -19,7 +20,7 @@ import {
 import { newAgentId, useAgentsStore } from "@/modules/ai/store/agentsStore";
 import { native } from "@/modules/ai/lib/native";
 import { usePreferencesStore } from "@/modules/settings/preferences";
-import { setCustomInstructions } from "@/modules/settings/store";
+import { setCustomInstructions, setUseNativeAi } from "@/modules/settings/store";
 import {
   Add01Icon,
   CheckmarkCircle02Icon,
@@ -43,6 +44,7 @@ const ICON_OPTIONS: AgentIconId[] = [
 export function AgentsSection() {
   const { t } = useI18n();
   const customInstructions = usePreferencesStore((s) => s.customInstructions);
+  const useNativeAi = usePreferencesStore((s) => s.useNativeAi);
   const customAgents = useAgentsStore((s) => s.customAgents);
   const activeAgentId = useAgentsStore((s) => s.activeId);
   const setActiveAgentId = useAgentsStore((s) => s.setActiveId);
@@ -64,6 +66,19 @@ export function AgentsSection() {
       />
 
       <CustomInstructionsBlock value={customInstructions} />
+
+      <section className="flex flex-col gap-2">
+        <div className="flex flex-col gap-1">
+          <Label>{t("settingsAgents.useNativeAi")}</Label>
+          <span className="text-[10.5px] text-muted-foreground">
+            {t("settingsAgents.useNativeAiDescription")}
+          </span>
+        </div>
+        <Switch
+          checked={useNativeAi}
+          onCheckedChange={(v) => void setUseNativeAi(v)}
+        />
+      </section>
 
       <ProjectMemoryBlock />
 

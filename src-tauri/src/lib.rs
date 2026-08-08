@@ -1,6 +1,6 @@
 pub mod modules;
 
-use modules::{agent, dap, fs, gateway, git, history, lsp, mcp, mcp_server, net, pty, pty_helper, scheduler, secrets, shell, ssh, window, workspace};
+use modules::{agent, ai, computer, dap, fs, gateway, git, history, lsp, mcp, mcp_server, net, pty, pty_helper, scheduler, secrets, shell, ssh, window, workspace};
 use std::path::PathBuf;
 use std::sync::Mutex;
 use tauri::{Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder};
@@ -354,6 +354,11 @@ pub fn run() {
         .manage(ssh::TunnelsState::default())
         .manage(fs::grep::ContentSearchState::default())
         .manage(net::web_fetch::WebFetchState::default())
+        .manage(net::web_search::WebSearchState::default())
+        .manage(ai::harness::AiSessionState::default())
+        .manage(ai::memory::MemoryState::default())
+        .manage(ai::research::DeepSearchState::default())
+        .manage(computer::ComputerUseState::default())
         .manage({
             let registry = workspace::WorkspaceRegistry::default();
             workspace::bootstrap_registry(&registry);
@@ -481,6 +486,7 @@ pub fn run() {
             workspace::wsl_home,
             workspace::workspace_authorize,
             workspace::workspace_current_dir,
+            workspace::workspace_set_current,
             get_launch_dir,
             get_launch_files,
             open_settings_window,
@@ -509,6 +515,30 @@ pub fn run() {
             net::ai_http_request,
             net::ai_http_stream,
             net::web_fetch::web_fetch,
+            net::web_search::web_search,
+            // --- AI 原生子系统 (harness / context) ---
+            ai::harness::ai_session_open,
+            ai::harness::ai_session_close,
+            ai::harness::ai_session_abort,
+            ai::harness::ai_session_status,
+            ai::harness::ai_session_send,
+            ai::context::ai_estimate_tokens,
+            ai::context::ai_estimate_messages,
+            ai::memory::memory_remember,
+            ai::memory::memory_recall,
+            ai::memory::memory_stats,
+            ai::research::deep_search_start,
+            ai::research::deep_search_poll,
+            ai::research::deep_search_abort,
+            ai::research::deep_search_advance,
+            ai::research::deep_search_reserve,
+            // --- computer use ---
+            computer::computer_session_open,
+            computer::computer_session_close,
+            computer::computer_approve,
+            computer::computer_revoke,
+            computer::computer_capture,
+            computer::computer_action,
             history::history_suggest,
             history::history_commands,
             history::history_record,

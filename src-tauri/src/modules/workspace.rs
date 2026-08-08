@@ -151,12 +151,36 @@ pub async fn workspace_authorize(
     Ok(crate::modules::fs::to_canon(&canonical))
 }
 
+/// Live workspace root pushed by the main window via `workspace_set_current`
+/// (tracks the user's chosen workspace, e.g. a persisted workspaceRoot or a
+/// WSL home). `None` falls back to the launch-dir snapshot so consumers that
+/// never push (settings window before the bridge runs) keep the old behavior.
+static CURRENT_WORKSPACE: Mutex<Option<PathBuf>> = Mutex::new(None);
+
+#[tauri::command]
+pub fn workspace_set_current(path: String) -> Result<(), String> {
+    let trimmed = path.trim().trim_end_matches(['/', '\\']);
+    if trimmed.is_empty() {
+        return Err("empty workspace path".into());
+    }
+    let canonical = std::fs::canonicalize(trimmed)
+        .map_err(|e| format!("invalid workspace path: {e}"))?;
+    *CURRENT_WORKSPACE
+        .lock()
+        .unwrap_or_else(|e| e.into_inner()) = Some(canonical);
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn workspace_current_dir(
     registry: tauri::State<'_, WorkspaceRegistry>,
 ) -> Result<String, String> {
-    let launch = resolve_launch_dir();
-    let canonical = registry.authorize(&launch).map_err(|e| e.to_string())?;
+    let chosen = CURRENT_WORKSPACE
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone()
+        .unwrap_or_else(resolve_launch_dir);
+    let canonical = registry.authorize(&chosen).map_err(|e| e.to_string())?;
     Ok(crate::modules::fs::to_canon(&canonical))
 }
 
@@ -715,6 +739,28 @@ mod auth_tests {
         p.push(format!("yamet-auth-{label}-{nanos}-{}", std::process::id()));
         fs::create_dir_all(&p).expect("create tempdir");
         fs::canonicalize(&p).expect("canonicalize tempdir")
+    }
+
+    #[test]
+    fn set_current_rejects_empty_or_root_paths() {
+        assert!(workspace_set_current("   ".into()).is_err());
+        assert!(workspace_set_current("/".into()).is_err());
+        assert!(workspace_set_current("\\".into()).is_err());
+    }
+
+    #[test]
+    fn set_current_stores_canonicalized_path() {
+        let dir = tempdir("cur");
+        workspace_set_current(dir.to_string_lossy().into_owned()).unwrap();
+        let stored = CURRENT_WORKSPACE
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone();
+        assert_eq!(stored.as_deref(), Some(dir.as_path()));
+        // Reset so other tests keep the launch-dir fallback semantics.
+        *CURRENT_WORKSPACE
+            .lock()
+            .unwrap_or_else(|e| e.into_inner()) = None;
     }
 
     #[test]

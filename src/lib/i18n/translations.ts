@@ -1323,6 +1323,8 @@ export const zhMessages = {
     terminalHooks: "终端钩子",
     terminalHooksDescription: "在终端中集成编码智能体状态钩子",
     launchCommands: "启动命令",
+    useNativeAi: "原生 AI 运行时",
+    useNativeAiDescription: "AI 核心逻辑走 Rust 原生 harness（P4 双轨切换；当前建议保持关闭，逐系统验证后再启用）",
   },
   settingsShortcuts: {
     shortcuts: "快捷键",
@@ -2770,6 +2772,9 @@ export const enMessages = {
     terminalHooksDescription:
       "Integrate coding agent status hooks in the terminal",
     launchCommands: "Launch commands",
+    useNativeAi: "Native AI runtime",
+    useNativeAiDescription:
+      "Run the AI core through the Rust-native harness (P4 dual-track switch; keep off until each system is verified)",
   },
   settingsShortcuts: {
     shortcuts: "Shortcuts",
