@@ -40,6 +40,23 @@ export function SessionBar({
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const sorted = [...sessions].sort((a, b) => b.updatedAt - a.updatedAt);
+  // P2-2: indent sub-sessions under their parent so the worker/session tree is
+  // visible (opencode parentID semantics). Root sessions get a 0 indent; a
+  // child gets one level per ancestor.
+  const parentOf = new Map(sessions.map((s) => [s.id, s.parentId ?? null]));
+  const depthOf = (id: string): number => {
+    let depth = 0;
+    let cur = id;
+    const seen = new Set<string>();
+    while (true) {
+      const p = parentOf.get(cur);
+      if (!p || seen.has(cur)) break;
+      seen.add(cur);
+      cur = p;
+      depth++;
+    }
+    return depth;
+  };
 
   return (
     <div
@@ -94,6 +111,7 @@ export function SessionBar({
             <SessionBarRow
               key={s.id}
               session={s}
+              depth={depthOf(s.id)}
               active={s.id === activeId}
               editing={editingId === s.id}
               onSelect={() => switchSession(s.id)}
@@ -116,6 +134,7 @@ export function SessionBar({
 
 function SessionBarRow({
   session,
+  depth,
   active,
   editing,
   onSelect,
@@ -125,6 +144,7 @@ function SessionBarRow({
   onDelete,
 }: {
   session: SessionMeta;
+  depth: number;
   active: boolean;
   editing: boolean;
   onSelect: () => void;
@@ -151,7 +171,13 @@ function SessionBarRow({
         "group flex items-center justify-between gap-2 text-xs",
         active && "bg-accent/40",
       )}
+      style={{ paddingLeft: depth > 0 ? `${0.5 + depth * 0.75}rem` : undefined }}
     >
+      {depth > 0 && (
+        <span className="shrink-0 text-[9px] text-muted-foreground/60" aria-hidden>
+          └
+        </span>
+      )}
       {editing ? (
         <InlineInput
           initial={session.title || ""}

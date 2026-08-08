@@ -45,6 +45,8 @@ export type DelegateManyResult = {
   spawned: number;
   depth: number;
   skipped: string[];
+  /** Sub-session id created for this fan-out's worker tree (P2-2 parentID). */
+  subSessionId?: string | null;
 };
 
 /**
@@ -97,12 +99,27 @@ Parallelism is capped at ${MAX_PARALLEL_WORKERS} workers; deeper nesting (beyond
           useChatStore.getState();
         const customEndpoints = usePreferencesStore.getState().customEndpoints;
         const store = useAgentActivityStore.getState();
+        const chatStore = useChatStore.getState();
 
         const depth = ctx.getSubagentDepth ? ctx.getSubagentDepth() : 0;
         const parentId = ctx.getParentActivityId
           ? ctx.getParentActivityId()
           : undefined;
         const group = `g-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+
+        // P2-2 parentID session tree: this fan-out is materialized as a real
+        // sub-session under the current main session, so the worker tree is
+        // visible/selectable in the session bar (opencode parentID semantics).
+        const currentSessionId = chatStore.activeSessionId;
+        const subSessionId = currentSessionId
+          ? chatStore.createSubSession(
+              chatStore.resolveRootSessionId(currentSessionId),
+              `Workers · ${tasks.length}`,
+            )
+          : null;
+        const subCtx = subSessionId
+          ? { ...ctx, getSessionId: () => subSessionId }
+          : ctx;
 
         // Depth guard (invariant #3): refuse deeper delegation than allowed.
         const skipped: string[] = [];
@@ -115,6 +132,7 @@ Parallelism is capped at ${MAX_PARALLEL_WORKERS} workers; deeper nesting (beyond
             spawned: 0,
             depth,
             skipped,
+            subSessionId: null,
           };
         }
 
@@ -131,7 +149,7 @@ Parallelism is capped at ${MAX_PARALLEL_WORKERS} workers; deeper nesting (beyond
 
         for (const wave of waves) {
           const settled = await Promise.allSettled(
-            wave.map((t) => runWorker(t, { apiKeys, selectedModelId, customEndpoints, customEndpointKeys, ctx, store, group, depth, parentId })),
+            wave.map((t) => runWorker(t, { apiKeys, selectedModelId, customEndpoints, customEndpointKeys, ctx: subCtx, store, group, depth, parentId })),
           );
           settled.forEach((s, i) => {
             const t = wave[i];
@@ -162,6 +180,7 @@ Parallelism is capped at ${MAX_PARALLEL_WORKERS} workers; deeper nesting (beyond
           spawned: results.filter((r) => !r.error?.includes("budget exhausted")).length,
           depth,
           skipped,
+          subSessionId,
         };
       },
     }),

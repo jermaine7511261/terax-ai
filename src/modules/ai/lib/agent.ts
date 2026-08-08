@@ -33,6 +33,7 @@ import {
   robustExitStopCondition,
   type RecentToolCall,
 } from "./loop";
+import { scrubMemoryEcho } from "./memoryMarker";
 import type { CustomEndpointKeys, ProviderKeys } from "./keyring";
 import { prepareAgentPrompt } from "./prompt";
 import { createProxyFetch } from "./proxyFetch";
@@ -532,6 +533,13 @@ export async function runAgentStream(opts: RunAgentOptions) {
       opts.onPhase?.("done");
       const finishReason =
         (result as { finishReason?: string } | undefined)?.finishReason ?? "";
+      // P1-4 marker isolation: scrub any echo of the injected memory block out
+      // of the model's final reply, so the recalled-memory text can't be
+      // mistaken for user input on the next turn (hermes StreamingContextScrubber).
+      const rawText = (result as { text?: string }).text ?? "";
+      const finalText = opts.projectMemory
+        ? scrubMemoryEcho(rawText, opts.projectMemory)
+        : rawText;
       opts.onFinishMeta?.({
         hitStepCap: stepsSeen >= MAX_AGENT_STEPS,
         finishReason,
@@ -539,7 +547,7 @@ export async function runAgentStream(opts: RunAgentOptions) {
         // the transport's onFinish — the Chat store updates its messages AFTER
         // this callback returns (it consumes the returned UIMessageStream), so
         // reading chat.messages here would settle the PREVIOUS turn's text.
-        finalText: (result as { text?: string }).text ?? "",
+        finalText,
         stepsSeen,
       });
     },

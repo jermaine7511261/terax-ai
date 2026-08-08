@@ -21,7 +21,7 @@ import {
   Tick02Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { agentDisplayDescription, agentDisplayName, type AgentIconId } from "../lib/agents";
+import { agentDisplayDescription, agentDisplayName, selectablePrimaryAgents, type AgentIconId } from "../lib/agents";
 import { useAgentsStore } from "../store/agentsStore";
 
 const ICONS: Record<AgentIconId, typeof CodeIcon> = {
@@ -42,9 +42,13 @@ export function AgentSwitcher() {
   const list = useAgentsStore.getState().all();
   void customAgents; // keeps the store subscription alive
 
+  // P1-0: the primary picker only offers non-hidden, non-subagent-only agents
+  // (opencode mode/hidden semantics). The active agent stays selectable even
+  // if it's subagent-only, so the trigger always has a valid current value.
   const active = list.find((a) => a.id === activeId) ?? list[0];
-  const builtIn = list.filter((a) => a.builtIn);
-  const custom = list.filter((a) => !a.builtIn);
+  const visible = selectablePrimaryAgents(list);
+  const builtIn = visible.filter((a) => a.builtIn);
+  const custom = visible.filter((a) => !a.builtIn);
   const ActiveIcon = ICONS[active.icon] ?? SparklesIcon;
 
   return (

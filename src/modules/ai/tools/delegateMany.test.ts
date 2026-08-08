@@ -43,11 +43,30 @@ vi.mock("../store/agentActivityStore", () => {
   };
 });
 
-const chat = vi.hoisted(() => ({
-  apiKeys: { deepseek: "sk-test" },
-  selectedModelId: "deepseek-v4-flash",
-  customEndpointKeys: {},
-}));
+const chat = vi.hoisted(() => {
+  const h: {
+    apiKeys: Record<string, string>;
+    selectedModelId: string;
+    customEndpointKeys: Record<string, string>;
+    activeSessionId: string | null;
+    sessions: Array<{ id: string; parentId?: string }>;
+    createSubSession: (parentId: string, title?: string) => string;
+    resolveRootSessionId: (id: string) => string;
+  } = {
+    apiKeys: { deepseek: "sk-test" },
+    selectedModelId: "deepseek-v4-flash",
+    customEndpointKeys: {},
+    activeSessionId: "s-main",
+    sessions: [{ id: "s-main" }],
+    createSubSession: vi.fn((parentId) => {
+      const id = `s-sub-${h.sessions.length}`;
+      h.sessions.push({ id, parentId });
+      return id;
+    }),
+    resolveRootSessionId: vi.fn((id) => id),
+  };
+  return h;
+});
 vi.mock("../store/chatStore", () => ({
   useChatStore: { getState: () => chat },
 }));
@@ -74,6 +93,7 @@ beforeEach(() => {
   activities.start.mockClear();
   activities.finish.mockClear();
   activities.fail.mockClear();
+  chat.sessions = [{ id: "s-main" }];
   vi.mocked(runSubagent).mockReset();
 });
 

@@ -30,3 +30,4 @@ stats.html
 *.tsbuildinfo
 # Test coverage artifacts
 coverage/
+coverage-final/
