@@ -161,6 +161,40 @@ describe("selectContext (P2-1 2/4, head/tail protection)", () => {
     expect(r.messages[PROTECT_FIRST_N - 1].content).toBe("a2");
   });
 
+  it("elides middle tool results under pressure (regression: tail protection must not revert middle elisions)", () => {
+    // 3 protected head + 40 oversized tool results + tail = 44 messages. The
+    // legacy pass elides indexes 3..19; tail protection must only restore the
+    // LAST protectLast messages. Before the fix, tailIdx collapsed to a
+    // constant 12 and reverted every elision past it, leaving elided=9 (only
+    // 3..11 survived) and the context over budget for long conversations.
+    const messages: ModelMessage[] = [
+      { role: "user", content: "header" },
+      { role: "assistant", content: "a1" },
+      { role: "user", content: "a2" },
+    ];
+    for (let i = 0; i < 40; i++) {
+      messages.push(toolResultMsg(`c${i}`, BIG));
+    }
+    messages.push({ role: "user", content: "tail" });
+
+    const r = selectContext(messages, 200);
+    let elided = 0;
+    let keptBig = 0;
+    for (const m of r.messages) {
+      if (!Array.isArray(m.content)) continue;
+      for (const p of m.content as Array<Record<string, unknown>>) {
+        if (p.type !== "tool-result") continue;
+        if ((p.output as { __elided?: boolean } | undefined)?.__elided) elided++;
+        else keptBig++;
+      }
+    }
+    expect(elided).toBeGreaterThan(10);
+    expect(keptBig).toBeLessThan(30);
+    // Head and tail still survive unelided.
+    expect(r.messages[0].content).toBe("header");
+    expect(r.messages[r.messages.length - 1].content).toBe("tail");
+  });
+
   it("honors custom protection counts", () => {
     const messages: ModelMessage[] = [
       { role: "user", content: "x" },

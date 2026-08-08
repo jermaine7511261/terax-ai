@@ -28,6 +28,10 @@ pub struct ScheduledTask {
     /// "notification" | "session"
     pub target: String,
     pub enabled: bool,
+    /// Timestamp of the last trigger instant that was fired. Doubles as the
+    /// dedup guard: the same trigger instant stays inside the 60s tick window
+    /// across several 30s ticks, so `tick()` only fires when a trigger is
+    /// strictly newer than this.
     pub last_fired_at: Option<i64>,
 }
 
@@ -102,14 +106,22 @@ impl SchedulerState {
         };
 
         let mut fired = Vec::new();
-        let mut to_update: Vec<String> = Vec::new();
-        for (id, name, prompt, target, cron_str, _last) in snapshot {
+        let mut to_update: Vec<(String, i64)> = Vec::new();
+        for (id, name, prompt, target, cron_str, last) in snapshot {
             let Ok(cron) = parse_cron(&cron_str) else {
                 continue;
             };
             let Some(next) = next_trigger(&cron, now) else {
                 continue;
             };
+            let next_ts = next.timestamp();
+            // Dedup guard: the same trigger instant stays inside the 60s tick
+            // window across several 30s ticks, so a minutely task would fire on
+            // every tick (2x/min) and a daily task twice around its trigger time.
+            // Only fire when the trigger is strictly newer than the last one fired.
+            if next_ts <= last {
+                continue;
+            }
             let delta = (next - now).num_seconds();
             if (0..=TICK_WINDOW_SECS).contains(&delta) {
                 fired.push(FiredTask {
@@ -118,16 +130,16 @@ impl SchedulerState {
                     prompt,
                     target,
                 });
-                to_update.push(id);
+                to_update.push((id, next_ts));
             }
         }
 
         if !to_update.is_empty() {
             {
                 let mut tasks = self.tasks.write().unwrap_or_else(|e| e.into_inner());
-                for task in tasks.iter_mut() {
-                    if to_update.contains(&task.id) {
-                        task.last_fired_at = Some(now.timestamp());
+                for (id, ts) in &to_update {
+                    if let Some(task) = tasks.iter_mut().find(|t| t.id == *id) {
+                        task.last_fired_at = Some(*ts);
                     }
                 }
             }
@@ -305,6 +317,44 @@ mod tests {
             last_fired_at: None,
         };
         upsert_inner(&state, task).unwrap();
+        assert!(state.tick().is_empty());
+    }
+    #[test]
+    fn tick_does_not_double_fire_same_trigger() {
+        // Regression: with a 30s tick loop and a 60s window, two ticks can
+        // land before the SAME trigger instant. The dedup guard (next_ts > last)
+        // must make the second tick a no-op — otherwise a minutely task fires
+        // twice per minute and a daily task twice around its trigger time.
+        let state = SchedulerState::default();
+        let task = ScheduledTask {
+            id: "t5".into(),
+            name: "n".into(),
+            prompt: "p".into(),
+            cron: "* * * * *".into(),
+            target: "notification".into(),
+            enabled: true,
+            last_fired_at: None,
+        };
+        upsert_inner(&state, task).unwrap();
+
+        // First tick fires the imminent minute boundary and records it.
+        let first = state.tick();
+        assert_eq!(first.len(), 1);
+        let recorded = list_inner(&state)[0].last_fired_at.unwrap();
+
+        // A second tick within the same window must not fire the same trigger.
+        let second = state.tick();
+        assert!(second.is_empty(), "same trigger instant must not fire twice");
+        assert_eq!(list_inner(&state)[0].last_fired_at.unwrap(), recorded);
+
+        // Deterministic variant: seed last_fired_at far in the future (beyond any
+        // 60s trigger window) — must be skipped regardless of wall-clock timing.
+        let now = Local::now();
+        let boundary = now.timestamp() + 120; // 2min ahead: far beyond any 60s trigger window
+        {
+            let mut tasks = state.tasks.write().unwrap_or_else(|e| e.into_inner());
+            tasks[0].last_fired_at = Some(boundary);
+        }
         assert!(state.tick().is_empty());
     }
 

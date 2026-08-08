@@ -178,10 +178,10 @@ export default defineConfig(async ({ mode }): Promise<UserConfig> => ({
       // covered). Raise next round; remaining gaps are large integration hooks
       // + component shells (target for E2E, not unit tests).
       thresholds: {
-        statements: 29,
-        branches: 25,
-        functions: 23,
-        lines: 29,
+        statements: 30,
+        branches: 26,
+        functions: 24,
+        lines: 30,
       },
     },
   },

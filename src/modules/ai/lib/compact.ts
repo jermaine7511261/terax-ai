@@ -331,7 +331,6 @@ function compactModelMessagesDetailedWithProtection(
   const full = compactModelMessagesDetailed(messages, contextLimit);
   // The legacy path already keeps a tail; if a head must be protected but the
   // legacy pass elided it, restore the first `protectFirst` messages.
-  const lastStart = Math.max(protectFirst, messages.length - protectLast);
   const headRestored = full.messages.map((m, i) => {
     if (i < protectFirst) {
       const orig = messages[i];
@@ -343,7 +342,7 @@ function compactModelMessagesDetailedWithProtection(
   });
   // Re-apply tail protection: ensure the last `protectLast` messages are the
   // originals (unelided).
-  const tailIdx = Math.max(0, full.messages.length - lastStart + protectLast);
+  const tailIdx = Math.max(0, messages.length - protectLast);
   const tailRestored = headRestored.map((m, i) => {
     if (i >= tailIdx) {
       const orig = messages[i];

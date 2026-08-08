@@ -27,9 +27,12 @@ import {
   removeProjectMemory,
   renderEntry,
   scrubMemoryEcho,
+  createContextAwareTransport,
   stripContextBlock,
   updateProjectMemory,
 } from "./transport";
+import type { UIMessage } from "@ai-sdk/react";
+import { getSessionMemory } from "../store/memoryStore";
 
 const mockReadFile = vi.mocked(native.readFile);
 const mockWriteFile = vi.mocked(native.writeFile);
@@ -183,3 +186,116 @@ describe("scrubMemoryEcho (P1-4 marker isolation)", () => {
     expect(scrubMemoryEcho(reply, injected)).toBe(" done");
   });
 });
+
+describe("createContextAwareTransport run() (env injection + memory recall)", () => {
+  function makeDeps(overrides: Record<string, unknown> = {}) {
+    return {
+      getKeys: () => ({}),
+      getModelId: () => "deepseek-v4",
+      getCustomInstructions: () => "",
+      getAgentPersona: () => null,
+      getLive: () => ({
+        cwd: "/ws1/sub",
+        terminalPrivate: true,
+        workspaceRoot: "/ws1",
+        activeFile: "/ws1/a.ts",
+      }),
+      toolContext: { getSessionId: () => "sess-1" },
+      onStep: vi.fn(),
+      onUsage: vi.fn(),
+      onCompact: vi.fn(),
+      onFinishMeta: vi.fn(),
+      onPhase: vi.fn(),
+      onDoomLoop: vi.fn(),
+      ...overrides,
+    };
+  }
+
+  const messages = [
+    {
+      id: "m1",
+      role: "user",
+      parts: [{ type: "text", text: "how do we build?" }],
+    },
+  ] as unknown as UIMessage[];
+
+  it("injects an env block into the last user message and passes recalled memory", async () => {
+    mockReadFile.mockResolvedValue({
+      kind: "text",
+      content: "# YAMET\n- use pnpm\n- commit often",
+      size: 0,
+    });
+    mockRunAgentStream.mockResolvedValue({ toUIMessageStream: vi.fn() } as never);
+
+    const transport = createContextAwareTransport(makeDeps());
+    await transport.sendMessages({ messages });
+
+    expect(mockRunAgentStream).toHaveBeenCalledTimes(1);
+    const args = mockRunAgentStream.mock.calls[0][0] as {
+      projectMemory: string | null;
+      uiMessages: UIMessage[];
+    };
+    const last = args.uiMessages[args.uiMessages.length - 1];
+    const lastText = last.parts.find(
+      (p): p is { type: "text"; text: string } => p.type === "text",
+    );
+    expect(lastText?.text).toContain("<env>");
+    expect(lastText?.text).toContain("workspace_root: /ws1");
+    expect(lastText?.text).toContain("active_terminal_mode: private");
+    expect(args.projectMemory).toContain(MEMORY_NOTE);
+    expect(args.projectMemory).toContain("use pnpm");
+  });
+
+  it("recalls session memory entries alongside static YAMET.md", async () => {
+    mockReadFile.mockResolvedValue({ kind: "text", content: "", size: 0 });
+    vi.mocked(getSessionMemory).mockReturnValue([
+      { content: "session note", id: "n1", createdAt: 0, source: "tool" as const },
+    ]);
+    mockRunAgentStream.mockResolvedValue({ toUIMessageStream: vi.fn() } as never);
+
+    const transport = createContextAwareTransport(
+      makeDeps({
+        getLive: () => ({
+          cwd: "/ws2/sub",
+          terminalPrivate: false,
+          workspaceRoot: "/ws2",
+          activeFile: null,
+        }),
+      }),
+    );
+    await transport.sendMessages({ messages });
+
+    const args = mockRunAgentStream.mock.calls[0][0] as { projectMemory: string };
+    expect(args.projectMemory).toContain("session note");
+  });
+
+  it("skips memory and env when no workspace root and no memory exists", async () => {
+    mockReadFile.mockRejectedValue(new Error("ENOENT"));
+    vi.mocked(getSessionMemory).mockReturnValue([]);
+    mockRunAgentStream.mockResolvedValue({ toUIMessageStream: vi.fn() } as never);
+
+    const transport = createContextAwareTransport(
+      makeDeps({
+        getLive: () => ({
+          cwd: null,
+          terminalPrivate: false,
+          workspaceRoot: null,
+          activeFile: null,
+        }),
+      }),
+    );
+    await transport.sendMessages({ messages });
+
+    const args = mockRunAgentStream.mock.calls[0][0] as {
+      projectMemory: string | null;
+      uiMessages: UIMessage[];
+    };
+    expect(args.projectMemory).toBeNull();
+    const last = args.uiMessages[args.uiMessages.length - 1];
+    const lastText = last.parts.find(
+      (p): p is { type: "text"; text: string } => p.type === "text",
+    );
+    expect(lastText?.text).toBe("how do we build?");
+  });
+});
+
