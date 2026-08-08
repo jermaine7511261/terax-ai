@@ -19,7 +19,6 @@ const POLL_INTERVAL_MS = 2000;
 export const webWatch: IWatchAdapter = {
   async watch(path: string, handler: (event: WatchEvent) => void): Promise<number> {
     const id = ++watchCounter;
-    let lastMtime = 0;
 
     const timer = setInterval(async () => {
       try {

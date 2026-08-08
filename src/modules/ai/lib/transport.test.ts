@@ -208,7 +208,7 @@ describe("createContextAwareTransport run() (env injection + memory recall)", ()
       onPhase: vi.fn(),
       onDoomLoop: vi.fn(),
       ...overrides,
-    };
+    } as unknown as Parameters<typeof createContextAwareTransport>[0];
   }
 
   const messages = [

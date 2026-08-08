@@ -4,7 +4,6 @@
 
 import { register } from "../registry";
 import * as fs from "node:fs/promises";
-import * as path from "node:path";
 import { setWorkspaceRoot } from "./fs";
 import { setWorkspaceRoot as setShellRoot } from "./shell";
 

@@ -5,14 +5,17 @@
 
 import type { IWindowAdapter, UnlistenFn } from "../types";
 
-// Simple event bus for window events
-type Listener = (event: { payload: unknown }) => void;
+// Simple event bus for window events. `Listened` is a generic listener that
+// accepts any payload shape; `Listener` is the concrete unknown-payload one
+// stored in the bus.
+type Listened<T> = (event: { payload: T }) => void;
+type Listener = Listened<unknown>;
 const eventBus = new Map<string, Set<Listener>>();
 
-function onBrowserEvent(event: string, listener: Listener): UnlistenFn {
+function onBrowserEvent<T>(event: string, listener: Listened<T>): Promise<UnlistenFn> {
   if (!eventBus.has(event)) eventBus.set(event, new Set());
-  eventBus.get(event)!.add(listener);
-  return () => eventBus.get(event)?.delete(listener);
+  eventBus.get(event)!.add(listener as Listener);
+  return Promise.resolve(() => eventBus.get(event)?.delete(listener as Listener));
 }
 
 // Wire browser events to the bus

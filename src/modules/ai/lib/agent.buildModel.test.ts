@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // factory receives the right baseURL/apiKey/model id.
 
 const { createCompatibleMock } = vi.hoisted(() => {
-  const factory = vi.fn(() => {
+  const factory = vi.fn((..._args: unknown[]) => {
     const builder = vi.fn(() => ({}));
     return builder;
   });

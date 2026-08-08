@@ -3,7 +3,6 @@ import {
   compactModelMessages,
   compactModelMessagesDetailed,
   pruneToolResultsOnly,
-  PROTECT_FIRST_N,
 } from "./compact";
 import type { ModelMessage } from "ai";
 

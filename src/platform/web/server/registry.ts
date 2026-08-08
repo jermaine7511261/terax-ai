@@ -19,10 +19,6 @@ export function register(name: string, handler: CommandHandler): void {
   handlers.set(name, handler);
 }
 
-function hasCommand(name: string): boolean {
-  return handlers.has(name);
-}
-
 export async function execute(
   name: string,
   args: Record<string, unknown>,

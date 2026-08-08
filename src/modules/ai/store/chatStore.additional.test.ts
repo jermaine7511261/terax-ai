@@ -122,7 +122,7 @@ describe("session lifecycle", () => {
     const mockChat = { stop: vi.fn(), id, messages: [] } as unknown as import("@ai-sdk/react").Chat<import("ai").UIMessage>;
     touchChat(id, mockChat);
     useChatStore.getState().deleteSession(id);
-    expect((mockChat as { stop: ReturnType<typeof vi.fn> }).stop).toHaveBeenCalled();
+    expect(mockChat.stop).toHaveBeenCalled();
     expect(chats.has(id)).toBe(false);
   });
 });
@@ -267,7 +267,7 @@ describe("misc store actions", () => {
 describe("stop()", () => {
   it("stops the active session's chat", () => {
     const id = useChatStore.getState().newSession();
-    const mockChat = { stop: vi.fn() } as never;
+    const mockChat = { stop: vi.fn() } as unknown as import("@ai-sdk/react").Chat<import("ai").UIMessage>;
     touchChat(id, mockChat);
     stop();
     expect(mockChat.stop).toHaveBeenCalled();
