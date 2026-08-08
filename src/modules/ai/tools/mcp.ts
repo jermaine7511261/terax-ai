@@ -1,6 +1,7 @@
 import { jsonSchema, tool, type Tool } from "ai";
 import { mcpToolCall } from "@/modules/mcp";
 import { useMcpStore } from "@/modules/mcp";
+import { formatMcpResult, sanitizeToolName } from "../lib/mcpFormat";
 
 /**
  * Registers tools from every connected MCP server into the AI tool surface.
@@ -35,35 +36,4 @@ export function buildMcpTools(): Record<string, Tool> {
     }
   }
   return out;
-}
-
-function sanitizeToolName(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9_-]+/g, "_")
-    .replace(/_+/g, "_")
-    .replace(/^_|_$/g, "")
-    .slice(0, 60);
-}
-
-function formatMcpResult(res: unknown): string {
-  if (!res || typeof res !== "object") return String(res);
-  const r = res as {
-    content?: unknown[];
-    isError?: boolean;
-  };
-  const parts = (r.content ?? []).map((p) => {
-    if (!p || typeof p !== "object") return String(p);
-    const part = p as Record<string, unknown>;
-    if (typeof part.text === "string") return part.text;
-    if ("image" in part) return "[image]";
-    if ("resource" in part) {
-      const uri = (part.resource as { uri?: string } | undefined)?.uri ?? "";
-      return `[resource: ${uri}]`;
-    }
-    return JSON.stringify(p);
-  });
-  const text = parts.join("\n").trim();
-  if (r.isError) return `[MCP error] ${text || JSON.stringify(res)}`;
-  return text || JSON.stringify(res);
 }

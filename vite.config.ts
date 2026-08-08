@@ -181,11 +181,14 @@ export default defineConfig(async ({ mode }): Promise<UserConfig> => ({
       // registry tests lifted statements to 34.35%. Thresholds raised to
       // 33/29/27/33 with margin for CI (no flaky kill). Remaining gaps are
       // integration hooks + component shells (target for E2E, not unit tests).
+      // Round 22 base polishing: platform/web (path/os/events) + mcpFormat +
+      // graphParse + tools registration lifted coverage to 35/30.6/28.6/36.
+      // Raised to 35/30/28/35 with margin for CI.
       thresholds: {
-        statements: 33,
-        branches: 29,
-        functions: 27,
-        lines: 33,
+        statements: 35,
+        branches: 30,
+        functions: 28,
+        lines: 35,
       },
     },
   },

@@ -11,6 +11,7 @@ import {
 } from "../store/agentActivityStore";
 import { setGraphHooks, useGraphStore } from "../graph/store";
 import type { GraphNode } from "../graph/types";
+import { deriveGraphId, parseGraphDef } from "../lib/graphParse";
 import type { ToolContext } from "./context";
 
 const JUDGE_MODEL = "deepseek-v4-flash";
@@ -96,23 +97,14 @@ export function buildGraphTools(ctx: ToolContext) {
       }),
       needsApproval: true,
       execute: async ({ graph, resume }) => {
-        let def: {
-          id?: string;
-          name?: string;
-          nodes: unknown[];
-          edges: unknown[];
-        };
-        try {
-          def = JSON.parse(graph);
-        } catch (e) {
-          return { ok: false, error: `invalid graph JSON: ${String(e)}` };
+        const parsed = parseGraphDef(graph);
+        if (!parsed.ok) {
+          return { ok: false, error: parsed.error };
         }
-        if (!Array.isArray(def.nodes) || !Array.isArray(def.edges)) {
-          return { ok: false, error: "graph must have nodes[] and edges[]" };
-        }
+        const def = parsed.def;
         // Deterministic id from name when not provided.
         if (!def.id) {
-          def.id = `g-${(def.name ?? "graph").toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Date.now().toString(36)}`;
+          def.id = deriveGraphId(def.name);
         }
         setGraphHooks(buildHooks(ctx));
         await useGraphStore.getState().run(def as never, { resume });
