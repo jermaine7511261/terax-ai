@@ -57,6 +57,7 @@ Yamet 的所有重要变更都记录于此。版本遵循项目规则：**功能
 - **第九轮（0.1.10）** 自动批准移到批准弹窗：批准框"记住"下拉新增"自动批准此工具"选项，移除对话页顶部的自动批准开关。
 
 ### 修复
+- **孤儿 tool-call 修复（0.1.23 后，不递增版本）**：修复"an assistant message with tool calls must be followed by tool messages responding to each tool call id"provider 拒绝。根因：一次 run 在工具结果折回消息前结束（用户中止/步数上限/错误）时，AI SDK 会把含 `tool-call` part 但无对应 `tool-result` part 的 assistant 消息固化进历史；下一轮发送该历史时 OpenAI 兼容 API 校验失败。修复：`transport.ts` 新增 `sanitizeOrphanToolCalls`（导出可测），在发送边界剥离孤儿 `tool-call` part（保留同消息文本、丢弃清空后的 assistant 消息），保证出站历史始终良构。6 个测试（良构保留/孤儿剥离/保留文本/清空丢弃/user 不动/多 tool 混合）。tsc 0 + vitest 1897 全绿。
 - **第九轮（0.1.10）** 工作区换盘无效（home 用 useState 不持久化，重启回 C 盘）。
 
 

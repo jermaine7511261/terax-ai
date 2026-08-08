@@ -257,6 +257,50 @@ type SendOptions = {
   [k: string]: unknown;
 };
 
+/**
+ * Sanitize the outbound message history against orphan tool-calls.
+ *
+ * A run that ends mid-tool (user abort, step cap, error before the AI SDK
+ * folds a tool result back into the message) can leave an assistant message
+ * carrying a `tool-call` part with NO matching `tool-result` part. When that
+ * history is sent to the provider on the next turn, OpenAI-compatible APIs
+ * reject it with "an assistant message with tool calls must be followed by
+ * tool messages responding to each tool call id".
+ *
+ * We strip those orphan `tool-call` parts (and keep the sibling text) so the
+ * outbound history is always well-formed. This is a defensive gate at the send
+ * boundary — the stream itself is handled by the AI SDK.
+ */
+export function sanitizeOrphanToolCalls(messages: UIMessage[]): UIMessage[] {
+  let changed = false;
+  const out = messages.map((m) => {
+    const parts = m.parts;
+    if (!parts) return m;
+    // Only assistant messages carry tool-call parts.
+    if (m.role !== "assistant") return m;
+    const resultIds = new Set(
+      parts
+        .filter((p) => p.type === "tool-result")
+        .map((p) => (p as { toolCallId?: string }).toolCallId)
+        .filter(Boolean),
+    );
+    const orphan = parts.filter(
+      (p) =>
+        p.type === "tool-call" &&
+        !resultIds.has((p as { toolCallId?: string }).toolCallId ?? ""),
+    );
+    if (orphan.length === 0) return m;
+    changed = true;
+    const keep = parts.filter(
+      (p) => !(p.type === "tool-call" && !resultIds.has((p as { toolCallId?: string }).toolCallId ?? "")),
+    );
+    return { ...m, parts: keep };
+  });
+  if (!changed) return messages;
+  // Drop trailing empty assistant messages (no parts left) to keep history tidy.
+  return out.filter((m) => !(m.role === "assistant" && (!m.parts || m.parts.length === 0)));
+}
+
 export function createContextAwareTransport(deps: Deps) {
   const run = async (options: SendOptions) => {
     // Refresh the dynamic MCP tool registry before every run so newly
@@ -272,9 +316,10 @@ export function createContextAwareTransport(deps: Deps) {
     const query = lastUserText(options.messages);
     const projectMemory = buildRecalledMemory(staticMemory, sessionMemory, query);
     const envBlock = formatEnvBlock(live);
+    const cleanMessages = sanitizeOrphanToolCalls(options.messages);
     const messagesForRun = envBlock
-      ? injectEnvIntoLastUser(options.messages, envBlock)
-      : options.messages;
+      ? injectEnvIntoLastUser(cleanMessages, envBlock)
+      : cleanMessages;
     const result = await runAgentStream({
       keys: deps.getKeys(),
       modelId: deps.getModelId(),
