@@ -25,6 +25,8 @@ use session::{SessionRunOutput, ShellSession};
 const DEFAULT_TIMEOUT_SECS: u64 = 30;
 const MAX_TIMEOUT_SECS: u64 = 300;
 const MAX_OUTPUT_BYTES: usize = 256 * 1024;
+/// Cap on concurrent shell launches (run/session/background share this).
+const MAX_CONCURRENT_SHELLS: usize = 8;
 
 #[derive(Serialize)]
 pub struct CommandOutput {
@@ -41,6 +43,7 @@ pub struct CommandOutput {
 /// are presented in chat as their own structured result.
 #[tauri::command]
 pub async fn shell_run_command(
+    state: tauri::State<'_, ShellState>,
     command: String,
     cwd: Option<String>,
     timeout_secs: Option<u64>,
@@ -51,6 +54,10 @@ pub async fn shell_run_command(
     if trimmed.is_empty() {
         return Err("empty command".into());
     }
+
+    let _permit = state.semaphore.clone().acquire_owned()
+        .await
+        .map_err(|e| format!("shell semaphore closed: {e}"))?;
 
     let workspace = WorkspaceEnv::from_option(workspace);
     authorize_spawn_cwd(&registry, cwd.as_deref(), &workspace)?;
@@ -188,6 +195,9 @@ fn run_blocking(
 pub struct ShellState {
     sessions: RwLock<HashMap<u32, Arc<ShellSession>>>,
     bg: RwLock<HashMap<u32, Arc<BackgroundProc>>>,
+    /// Bounds concurrent shell launches so a burst of AI tool calls
+    /// cannot exhaust OS threads.
+    semaphore: Arc<tokio::sync::Semaphore>,
     next_session_id: AtomicU32,
     next_bg_id: AtomicU32,
 }
@@ -197,6 +207,7 @@ impl Default for ShellState {
         Self {
             sessions: RwLock::new(HashMap::new()),
             bg: RwLock::new(HashMap::new()),
+            semaphore: Arc::new(tokio::sync::Semaphore::new(MAX_CONCURRENT_SHELLS)),
             next_session_id: AtomicU32::new(1),
             next_bg_id: AtomicU32::new(1),
         }
@@ -246,6 +257,9 @@ pub async fn shell_session_run(
         .ok_or_else(|| "no shell session".to_string())?;
     let effective_workspace = workspace.clone().unwrap_or_else(|| session.workspace.clone());
     authorize_spawn_cwd(&registry, cwd.as_deref(), &effective_workspace)?;
+    let _permit = state.semaphore.clone().acquire_owned()
+        .await
+        .map_err(|e| format!("shell semaphore closed: {e}"))?;
     let dur = Duration::from_secs(
         timeout_secs
             .unwrap_or(DEFAULT_TIMEOUT_SECS)
@@ -264,6 +278,11 @@ pub fn shell_session_close(state: tauri::State<ShellState>, id: u32) -> Result<(
     Ok(())
 }
 
+/// Cap on concurrently retained background entries. Exited entries are pruned
+/// eagerly; this bounds the worst case where a process runs forever and the
+/// UI never lists/kills it.
+const MAX_BG_ENTRIES: usize = 64;
+
 #[tauri::command]
 pub fn shell_bg_spawn(
     state: tauri::State<ShellState>,
@@ -274,11 +293,27 @@ pub fn shell_bg_spawn(
 ) -> Result<u32, String> {
     let workspace = WorkspaceEnv::from_option(workspace);
     authorize_spawn_cwd(&registry, cwd.as_deref(), &workspace)?;
-    let proc = background::spawn(command, cwd, workspace)?;
+    // Background spawns share the concurrency budget; fail fast when it is
+    // exhausted instead of queueing unboundedly. The permit is held for the
+    // rest of this scope (until `proc` is dropped by the map).
+    let _permit = state.semaphore.clone().try_acquire_owned()
+        .map_err(|_| "too many concurrent shell processes".to_string())?;
     let id = state.next_bg_id.fetch_add(1, Ordering::Relaxed);
-    state.bg.write().unwrap_or_else(|e| e.into_inner()).insert(id, proc);
+    let proc = background::spawn(command, cwd, workspace)?;
+    let mut map = state.bg.write().unwrap_or_else(|e| e.into_inner());
+    prune_bg_map(&mut map);
+    map.insert(id, proc);
     Ok(id)
 }
+fn prune_bg_map(map: &mut HashMap<u32, Arc<BackgroundProc>>) {
+    map.retain(|_, p| !p.exited.load(Ordering::Acquire));
+    if map.len() >= MAX_BG_ENTRIES {
+        if let Some(oldest) = map.keys().copied().min() {
+            map.remove(&oldest);
+        }
+    }
+}
+
 
 #[tauri::command]
 pub fn shell_bg_logs(
@@ -299,13 +334,17 @@ pub fn shell_bg_logs(
 pub fn shell_bg_kill(state: tauri::State<ShellState>, handle: u32) -> Result<(), String> {
     if let Some(proc) = state.bg.read().unwrap_or_else(|e| e.into_inner()).get(&handle).cloned() {
         proc.kill();
+        // Drop the entry now — the output is drained and the handle is dead;
+        // keeping it would leak the 4MiB ring buffer.
+        state.bg.write().unwrap_or_else(|e| e.into_inner()).remove(&handle);
     }
     Ok(())
 }
 
 #[tauri::command]
 pub fn shell_bg_list(state: tauri::State<ShellState>) -> Result<Vec<BackgroundProcInfo>, String> {
-    let map = state.bg.read().unwrap_or_else(|e| e.into_inner());
+    let mut map = state.bg.write().unwrap_or_else(|e| e.into_inner());
+    prune_bg_map(&mut map);
     let mut out = Vec::with_capacity(map.len());
     for (id, p) in map.iter() {
         out.push(p.info(*id));
@@ -313,7 +352,6 @@ pub fn shell_bg_list(state: tauri::State<ShellState>) -> Result<Vec<BackgroundPr
     out.sort_by_key(|i| i.handle);
     Ok(out)
 }
-
 /// Detect which external agent CLIs (claude/codex/opencode/gemini/pi/grok) are
 /// installed and their versions, for the external-agent orchestration feature.
 #[tauri::command]
@@ -446,5 +484,35 @@ mod tests {
         assert_eq!(cmd.get_program(), "/bin/sh");
         let args: Vec<_> = cmd.get_args().collect();
         assert_eq!(args, vec!["-c", "echo hi"]);
+    }
+
+    #[test]
+    fn prune_bg_map_removes_exited_entries() {
+        let mut map = HashMap::new();
+        let running = background::spawn("sleep 30".into(), None, WorkspaceEnv::Local).expect("spawn");
+        let done = background::spawn("true".into(), None, WorkspaceEnv::Local).expect("spawn");
+        // wait for `true` to exit
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        while std::time::Instant::now() < deadline && !done.exited.load(Ordering::Acquire) {
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        map.insert(1, done);
+        map.insert(2, running);
+        prune_bg_map(&mut map);
+        assert_eq!(map.len(), 1);
+        assert!(map.contains_key(&2));
+        running.kill();
+    }
+
+    #[test]
+    fn prune_bg_map_evicts_oldest_when_over_cap() {
+        let mut map = HashMap::new();
+        for i in 0..(MAX_BG_ENTRIES + 2) {
+            map.insert(i as u32, background::spawn("sleep 30".into(), None, WorkspaceEnv::Local).expect("spawn"));
+        }
+        prune_bg_map(&mut map);
+        assert!(map.len() <= MAX_BG_ENTRIES, "len={}", map.len());
+        assert!(!map.contains_key(&0), "oldest handle must be evicted");
+        for (_, p) in map.values() { p.kill(); }
     }
 }

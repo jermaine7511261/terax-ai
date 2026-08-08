@@ -145,6 +145,7 @@ function AddMcpServerDialog({
   const [command, setCommand] = useState("");
   const [args, setArgs] = useState("");
   const [url, setUrl] = useState("");
+  const [cwd, setCwd] = useState("");
   const formId = useId();
 
   const id = name.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "-");
@@ -164,6 +165,7 @@ function AddMcpServerDialog({
             args: args.trim() ? args.trim().split(/\s+/) : [],
           }
         : { url: url.trim() }),
+      cwd: cwd.trim() || undefined,
     };
     try {
       await add(config);
@@ -172,6 +174,7 @@ function AddMcpServerDialog({
       setCommand("");
       setArgs("");
       setUrl("");
+      setCwd("");
     } catch (e) {
       toast.error(String(e instanceof Error ? e.message : e));
     }
@@ -233,6 +236,7 @@ function AddMcpServerDialog({
             <>
               {field(t("settingsMcp.command"), command, setCommand, "npx")}
               {field(t("settingsMcp.args"), args, setArgs, "-y @modelcontextprotocol/server-filesystem /path")}
+              {field(t("settingsMcp.cwd"), cwd, setCwd, t("settingsMcp.cwdPlaceholder"))}
             </>
           ) : (
             field(t("settingsMcp.url"), url, setUrl, "http://localhost:3001/sse")

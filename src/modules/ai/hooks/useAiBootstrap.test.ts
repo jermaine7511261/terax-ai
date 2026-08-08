@@ -179,4 +179,18 @@ describe("useAiBootstrap", () => {
       expect(chatState.setSelectedModelId).toHaveBeenCalledWith("deepseek-v4-flash"),
     );
   });
+
+  it("merges builtins only after snippets hydrate settles", async () => {
+    const order: string[] = [];
+    snippetsStore.getState().hydrate.mockImplementation(async () => {
+      order.push("hydrate");
+    });
+    skillsMock.scanSkillsDir.mockImplementation(async () => {
+      order.push("scan");
+      return [];
+    });
+    renderHook(() => useAiBootstrap());
+    await waitFor(() => expect(order).toContain("scan"));
+    expect(order).toEqual(["hydrate", "scan"]);
+  });
 });

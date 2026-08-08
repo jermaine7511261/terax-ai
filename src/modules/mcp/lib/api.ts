@@ -41,6 +41,8 @@ export type McpServerConfig = {
   // sse
   url?: string;
   headers?: { name: string; value: string }[];
+  /** Working directory the stdio child runs in, pinned at config time. */
+  cwd?: string;
 };
 
 export function mcpServerList(): Promise<McpServerInfo[]> {

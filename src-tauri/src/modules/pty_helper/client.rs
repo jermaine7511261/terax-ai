@@ -12,7 +12,7 @@ use std::collections::HashMap;
 use std::io::Write;
 use std::net::TcpStream;
 use std::sync::atomic::{AtomicU32, Ordering};
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Condvar, Mutex, RwLock};
 use std::time::Duration;
 
 use tauri::ipc::{Channel, Response};
@@ -82,7 +82,12 @@ async fn connect(app: &AppHandle, info: &HelperInfo) -> Result<Arc<HelperClient>
     });
 
     // Reader thread: dispatch Output/Exit/AgentSignal to the registered
-    // handlers; track the latest SessionList for pty_helper_list.
+    // handlers; track the latest SessionList for pty_helper_list. A condvar
+    // signals when the first SessionList arrives so connect() can seed next_id
+    // from the full session set instead of guessing after a fixed sleep (a
+    // short sleep could undercount under load and collide with a session).
+    let list_ready = Arc::new((Mutex::new(false), Condvar::new()));
+    let list_ready_reader = list_ready.clone();
     let reader_client = client.clone();
     std::thread::Builder::new()
         .name("yamet-helper-client-reader".into())
@@ -124,6 +129,10 @@ async fn connect(app: &AppHandle, info: &HelperInfo) -> Result<Arc<HelperClient>
                                 *reader_client
                                     .sessions
                                     .write().unwrap_or_else(|e| e.into_inner()) = l.sessions;
+                                let (lock, cvar) = &*list_ready_reader;
+                                let mut ready = lock.lock().unwrap_or_else(|e| e.into_inner());
+                                *ready = true;
+                                cvar.notify_all();
                             }
                             _ => {}
                         }
@@ -143,9 +152,20 @@ async fn connect(app: &AppHandle, info: &HelperInfo) -> Result<Arc<HelperClient>
         .map_err(|e| e.to_string())?;
 
     // After reconnect the id counter must not collide with sessions the
-    // helper already holds; seed it above the highest existing id.
+    // helper already holds; seed it above the highest existing id. Wait
+    // (bounded) for the SessionList frame instead of sleeping a fixed 200ms
+    // — under load the frame can arrive late and a stale max undercounts,
+    // letting a new id collide with a live session.
     let _ = send_frame(&client, &Frame::List);
-    std::thread::sleep(Duration::from_millis(200));
+    let (lock, cvar) = &*list_ready;
+    let mut ready = lock.lock().unwrap_or_else(|e| e.into_inner());
+    if !*ready {
+        ready = cvar
+            .wait_timeout(ready, Duration::from_secs(1))
+            .unwrap_or_else(|e| e.into_inner())
+            .0;
+    }
+    drop(ready);
     let max = client
         .sessions
         .read().unwrap_or_else(|e| e.into_inner())

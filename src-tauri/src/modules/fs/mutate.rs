@@ -66,17 +66,76 @@ fn rename_sync(from_p: &Path, to_p: &Path) -> Result<(), String> {
     if !from_p.exists() {
         return Err(format!("not found: {}", from_p.display()));
     }
-    if to_p.exists() {
-        return Err(format!("already exists: {}", to_p.display()));
+    // Unix rename(2) silently overwrites an existing target, so a plain
+    // `exists()` pre-check has a TOCTOU window. Use the atomic no-replace
+    // variants where available; Windows MoveFileEx already fails on an
+    // existing target, so the pre-check there is safe.
+    #[cfg(target_os = "linux")]
+    {
+        use std::os::unix::ffi::OsStrExt;
+        let from_c = std::ffi::CString::new(from_p.as_os_str().as_bytes())
+            .map_err(|_| "fs_rename: source contains NUL".to_string())?;
+        let to_c = std::ffi::CString::new(to_p.as_os_str().as_bytes())
+            .map_err(|_| "fs_rename: target contains NUL".to_string())?;
+        let rc = unsafe {
+            libc::renameat2(
+                libc::AT_FDCWD,
+                from_c.as_ptr(),
+                libc::AT_FDCWD,
+                to_c.as_ptr(),
+                libc::RENAME_NOREPLACE,
+            )
+        };
+        if rc == 0 {
+            return Ok(());
+        }
+        let err = std::io::Error::last_os_error();
+        return if err.raw_os_error() == Some(libc::EEXIST) {
+            Err(format!("already exists: {}", to_p.display()))
+        } else {
+            Err(format!(
+                "fs_rename({} -> {}) failed: {err}",
+                from_p.display(),
+                to_p.display()
+            ))
+        };
     }
-    std::fs::rename(from_p, to_p).map_err(|e| {
-        log::debug!(
-            "fs_rename({} -> {}) failed: {e}",
-            from_p.display(),
-            to_p.display()
-        );
-        e.to_string()
-    })
+    #[cfg(target_os = "macos")]
+    {
+        use std::os::unix::ffi::OsStrExt;
+        let from_c = std::ffi::CString::new(from_p.as_os_str().as_bytes())
+            .map_err(|_| "fs_rename: source contains NUL".to_string())?;
+        let to_c = std::ffi::CString::new(to_p.as_os_str().as_bytes())
+            .map_err(|_| "fs_rename: target contains NUL".to_string())?;
+        let rc = unsafe { libc::renamex_np(from_c.as_ptr(), to_c.as_ptr(), libc::RENAME_EXCL) };
+        if rc == 0 {
+            return Ok(());
+        }
+        let err = std::io::Error::last_os_error();
+        return if err.raw_os_error() == Some(libc::EEXIST) {
+            Err(format!("already exists: {}", to_p.display()))
+        } else {
+            Err(format!(
+                "fs_rename({} -> {}) failed: {err}",
+                from_p.display(),
+                to_p.display()
+            ))
+        };
+    }
+    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+    {
+        if to_p.exists() {
+            return Err(format!("already exists: {}", to_p.display()));
+        }
+        std::fs::rename(from_p, to_p).map_err(|e| {
+            log::debug!(
+                "fs_rename({} -> {}) failed: {e}",
+                from_p.display(),
+                to_p.display()
+            );
+            e.to_string()
+        })
+    }
 }
 
 /// Renames (or moves) a path. Refuses to overwrite an existing target.

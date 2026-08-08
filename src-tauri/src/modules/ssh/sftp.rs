@@ -6,6 +6,7 @@
 //! and returns its content (bounded).
 
 use std::io::Write;
+use std::io::Read;
 use std::process::{Command, Stdio};
 
 use super::target::SshTarget;
@@ -13,6 +14,32 @@ use crate::modules::ssh::target::clean_component;
 
 const READ_BYTE_CAP: usize = 4 * 1024 * 1024;
 const WRITE_BYTE_CAP: usize = 4 * 1024 * 1024;
+
+/// Read a local file as UTF-8 while enforcing `READ_BYTE_CAP` on the raw byte
+/// length *during* the read (not after loading the whole file into memory).
+fn read_bounded_text(path: &std::path::Path) -> Result<String, String> {
+    let file = std::fs::File::open(path).map_err(|e| format!("sftp read open: {e}"))?;
+    let meta = file
+        .metadata()
+        .map_err(|e| format!("sftp read stat: {e}"))?;
+    if meta.len() > READ_BYTE_CAP as u64 {
+        return Err(format!(
+            "sftp: remote file is {} bytes, exceeds {} MiB read cap",
+            meta.len(),
+            READ_BYTE_CAP / (1024 * 1024)
+        ));
+    }
+    // `take` caps the read loop so even an inconsistent stat can't pull the
+    // whole file into memory before the limit check fires.
+    let mut buf = Vec::with_capacity(meta.len().min(READ_BYTE_CAP as u64) as usize);
+    file.take(READ_BYTE_CAP as u64 + 1)
+        .read_to_end(&mut buf)
+        .map_err(|e| format!("sftp read: {e}"))?;
+    if buf.len() > READ_BYTE_CAP {
+        return Err("sftp: remote file exceeds 4 MiB read cap".into());
+    }
+    String::from_utf8(buf).map_err(|e| format!("sftp read utf8: {e}"))
+}
 
 /// Quote a path for an sftp batch command so names with spaces/special chars
 /// survive tokenization. `sftp` batch mode does not do shell quoting, so we
@@ -181,11 +208,7 @@ pub async fn sftp_read(target: SshTarget, path: String) -> Result<String, String
     tokio::task::spawn_blocking(move || run_batch(&target, &script))
         .await
         .map_err(|e| e.to_string())??;
-    let content = std::fs::read_to_string(&local).map_err(|e| format!("sftp read: {e}"))?;
-    if content.len() > READ_BYTE_CAP {
-        return Err("sftp: remote file exceeds 4 MiB read cap".into());
-    }
-    Ok(content)
+    read_bounded_text(&local)
 }
 
 #[tauri::command]
@@ -216,6 +239,26 @@ pub async fn sftp_write(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn read_bounded_text_rejects_oversized_file_during_read() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path().join("big.txt");
+        // Sparse file well over the cap; metadata().len() must trip the pre-check.
+        let f = std::fs::File::create(&p).unwrap();
+        f.set_len((READ_BYTE_CAP as u64) + 1).unwrap();
+        drop(f);
+        let err = read_bounded_text(&p).unwrap_err();
+        assert!(err.contains("exceeds"), "got: {err}");
+    }
+
+    #[test]
+    fn read_bounded_text_returns_utf8_content() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path().join("ok.txt");
+        std::fs::write(&p, "héllo wörld").unwrap();
+        assert_eq!(read_bounded_text(&p).unwrap(), "héllo wörld");
+    }
 
     #[test]
     fn parses_directory_line() {

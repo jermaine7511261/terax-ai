@@ -24,7 +24,7 @@ type McpStore = {
   refresh: () => Promise<void>;
   add: (config: McpServerConfig) => Promise<void>;
   remove: (id: string) => Promise<void>;
-  connect: (id: string, root: string | null) => Promise<void>;
+  connect: (id: string, root?: string | null) => Promise<void>;
   disconnect: (id: string) => Promise<void>;
   refreshServer: (id: string) => Promise<void>;
   patch: (id: string, status: McpServerInfo["status"], error?: string | null) => void;
@@ -50,7 +50,7 @@ export const useMcpStore = create<McpStore>((set, get) => ({
     await get().refresh();
   },
 
-  connect: async (id, root) => {
+  connect: async (id, root = null) => {
     set((s) => ({ busy: { ...s.busy, [id]: true } }));
     try {
       await mcpServerConnect(id, root, null);

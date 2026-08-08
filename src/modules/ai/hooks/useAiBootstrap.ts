@@ -104,11 +104,12 @@ export function useAiBootstrap(): {
   useEffect(() => {
     void hydrateSessions();
     void useAgentsStore.getState().hydrate();
-    void useSnippetsStore.getState().hydrate();
     // Scan the workspace `skills/` directory once at boot (★ L4 LangBot):
     // builtins merge into the snippet store as `builtin: true` snippets and
-    // honor the user's disabled set.
+    // honor the user's disabled set. hydrate() must settle first — merging
+    // builtins before it resolves lets its set({snippets}) overwrite them.
     void (async () => {
+      await useSnippetsStore.getState().hydrate();
       const root = useChatStore.getState().live.getWorkspaceRoot() ?? null;
       const builtins = await scanSkillsDir(root);
       if (builtins.length > 0) {

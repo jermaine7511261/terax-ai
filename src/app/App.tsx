@@ -72,7 +72,7 @@ import {
 } from "@/modules/header";
 import { setLspNavigator } from "@/modules/lsp";
 import type { PreviewPaneHandle } from "@/modules/preview";
-import { openSettingsWindow } from "@/modules/settings/openSettingsWindow";
+import { openSettingsWindow, type SettingsTab } from "@/modules/settings/openSettingsWindow";
 import { usePreferencesStore } from "@/modules/settings/preferences";
 
 import {
@@ -194,7 +194,11 @@ export default function App() {
   // Mirror `tabs` into a ref so callbacks scheduled with `setTimeout`
   // (e.g. cdInNewTab) read the latest pane state instead of a stale closure.
   const tabsRef = useRef(tabs);
-  tabsRef.current = tabs;
+  // Assign in an effect (not during render) so StrictMode double-renders
+  // cannot expose a half-updated snapshot to concurrent timers.
+  useEffect(() => {
+    tabsRef.current = tabs;
+  }, [tabs]);
 
   const activeTerminalTab = useMemo(() => {
     const t = tabs.find((x) => x.id === activeId);
@@ -1598,6 +1602,7 @@ export default function App() {
             open={onboardingOpen}
             onOpenChange={setOnboardingOpen}
             onComplete={completeOnboarding}
+            onNavigate={(tab) => void openSettingsWindow(tab as SettingsTab)}
           />
 
           <UpdaterDialog />

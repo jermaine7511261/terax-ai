@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
  * and lets the user connect/disconnect. Gives the AI tool-facing MCP servers a
  * first-class main-UI entry (previously only reachable via Settings → MCP).
  */
-export function McpSidebarPanel({ root }: { root: string | null }) {
+export function McpSidebarPanel({ root: _root }: { root: string | null }) {
   const { t } = useI18n();
   useMcpStatusBridge();
   const servers = useMcpStore((s) => s.servers);
@@ -89,7 +89,7 @@ export function McpSidebarPanel({ root }: { root: string | null }) {
                   ) : (
                     <Button
                       size="sm"
-                      onClick={() => void connect(s.id, root)}
+                      onClick={() => void connect(s.id)}
                       disabled={isBusy}
                       className="h-5 shrink-0 px-1.5 text-[10px]"
                     >

@@ -26,6 +26,11 @@ pub struct McpServerConfig {
     /// stdio -> command/args/env; sse -> url/headers.
     #[serde(flatten)]
     pub config: Value,
+    /// Working directory the stdio child runs in, pinned when the server is
+    /// configured. Prefer this over a caller-supplied root so connecting from
+    /// a different workspace doesn't silently change the server's cwd.
+    #[serde(default)]
+    pub cwd: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -183,7 +188,9 @@ pub async fn mcp_server_connect(
         .cloned()
         .ok_or_else(|| format!("mcp server {id} not found"))?;
     let workspace = WorkspaceEnv::from_option(workspace);
-    let cwd = authorize_spawn_cwd(&registry, root.as_deref(), &workspace)?;
+    // The server's configured cwd wins; the caller-supplied root is only a
+    // fallback so connecting from a different workspace can't move the server.
+    let cwd = authorize_spawn_cwd(&registry, resolve_connect_cwd(config.cwd.as_deref(), root.as_deref()), &workspace)?;
 
     // Replace any existing session for this server.
     if let Some(old) = state.sessions.write().unwrap_or_else(|e| e.into_inner()).remove(&id) {
@@ -304,4 +311,36 @@ fn parse_env_pairs(value: Option<&Value>) -> Vec<(String, String)> {
                 .collect()
         })
         .unwrap_or_default()
+}
+
+/// Pick the stdio child's working directory: the server's pinned cwd wins,
+/// otherwise fall back to the caller-supplied root (may be None).
+fn resolve_connect_cwd<'a>(config_cwd: Option<&'a str>, root: Option<&'a str>) -> Option<&'a str> {
+    config_cwd.or(root)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::resolve_connect_cwd;
+
+    #[test]
+    fn configured_cwd_wins_over_caller_root() {
+        assert_eq!(
+            resolve_connect_cwd(Some("/srv/a"), Some("/workspace/b")),
+            Some("/srv/a")
+        );
+    }
+
+    #[test]
+    fn caller_root_is_fallback_when_config_has_no_cwd() {
+        assert_eq!(
+            resolve_connect_cwd(None, Some("/workspace/b")),
+            Some("/workspace/b")
+        );
+    }
+
+    #[test]
+    fn both_none_resolves_to_none() {
+        assert_eq!(resolve_connect_cwd(None, None), None);
+    }
 }

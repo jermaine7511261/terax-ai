@@ -24,19 +24,32 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   /** Persist "onboarded" so the dialog never shows again. */
   onComplete: () => void;
+  /** Deep-link a settings tab (e.g. "models" / "integrations"). */
+  onNavigate: (tab: string) => void;
 };
 
 function Feature({
   icon,
   title,
   desc,
+  onClick,
 }: {
   icon: IconSvgElement;
   title: string;
   desc: string;
+  onClick?: () => void;
 }) {
   return (
-    <div className="flex items-start gap-3 rounded-xl border border-border/60 bg-card/40 p-3.5">
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={!onClick}
+      className={`flex w-full items-start gap-3 rounded-xl border border-border/60 bg-card/40 p-3.5 text-left transition-colors ${
+        onClick
+          ? "cursor-pointer hover:border-primary/50 hover:bg-card"
+          : "cursor-default"
+      }`}
+    >
       <div className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-border/60 bg-card text-muted-foreground">
         <HugeiconsIcon icon={icon} size={18} strokeWidth={1.75} />
       </div>
@@ -46,13 +59,13 @@ function Feature({
           {desc}
         </div>
       </div>
-    </div>
+    </button>
   );
 }
 
 /** First-run welcome dialog: introduces the three core surfaces (terminal,
  *  editor, AI agent) and is shown once until dismissed. */
-export function OnboardingDialog({ open, onOpenChange, onComplete }: Props) {
+export function OnboardingDialog({ open, onOpenChange, onComplete, onNavigate }: Props) {
   const { t } = useI18n();
   const isWindows = IS_WINDOWS;
 
@@ -87,11 +100,13 @@ export function OnboardingDialog({ open, onOpenChange, onComplete }: Props) {
             icon={Key02Icon}
             title={t("onboarding.aiKey")}
             desc={t("onboarding.aiKeyDesc")}
+            onClick={() => onNavigate("models")}
           />
           <Feature
             icon={ServerStack02Icon}
             title={t("onboarding.capabilities")}
             desc={t("onboarding.capabilitiesDesc")}
+            onClick={() => onNavigate("integrations")}
           />
         </div>
 

@@ -37,6 +37,25 @@ pub(crate) fn clean_component(value: &str, what: &str) -> Result<String, String>
     Ok(v.to_string())
 }
 
+/// Validate an identity-file path. Unlike host/user components it must KEEP
+/// spaces — `C:\Users\John Doe\.ssh\id_ed25519` is a perfectly valid Windows
+/// key path — so only reject the genuinely dangerous cases: empty, leading
+/// `-` (option injection) and control characters. The value is passed through
+/// argv directly (never a shell), so spaces are safe.
+pub(crate) fn clean_identity_path(value: &str) -> Result<String, String> {
+    let v = value.trim();
+    if v.is_empty() {
+        return Err("ssh: identity file must not be empty".into());
+    }
+    if v.starts_with('-') {
+        return Err("ssh: identity file must not start with '-'".into());
+    }
+    if v.chars().any(|c| c.is_control()) {
+        return Err("ssh: identity file contains control characters".into());
+    }
+    Ok(v.to_string())
+}
+
 /// Build the `ssh` child command from a target. Rejects malformed hosts and
 /// never interpolates into a shell — all values go through argv directly.
 pub fn build_command(target: &SshTarget) -> Result<CommandBuilder, String> {
@@ -61,7 +80,7 @@ pub fn build_command(target: &SshTarget) -> Result<CommandBuilder, String> {
     }
 
     if let Some(identity) = &target.identity_file {
-        let id = clean_component(identity, "identity file")?;
+        let id = clean_identity_path(identity)?;
         cmd.arg("-i");
         cmd.arg(id);
     }
@@ -92,6 +111,32 @@ mod tests {
             .iter()
             .map(|a| a.to_string_lossy().into_owned())
             .collect()
+    }
+
+    #[test]
+    fn identity_path_with_spaces_is_allowed() {
+        // Windows key paths commonly contain a space in the user directory
+        // (C:\Users\John Doe\.ssh\id_ed25519); rejecting them made SSH
+        // unusable for those users.
+        let id = clean_identity_path(r"C:\Users\John Doe\.ssh\id_ed25519").unwrap();
+        assert_eq!(id, r"C:\Users\John Doe\.ssh\id_ed25519");
+        let cmd = build_command(&SshTarget {
+            host: "example.com".into(),
+            port: None,
+            user: None,
+            identity_file: Some(id),
+        })
+        .unwrap();
+        assert!(argv(&cmd).contains(&r"C:\Users\John Doe\.ssh\id_ed25519".into()));
+    }
+
+    #[test]
+    fn identity_path_rejects_option_smuggling_and_control() {
+        assert!(clean_identity_path("-oProxyCommand=evil").is_err());
+        assert!(clean_identity_path("").is_err());
+        assert!(clean_identity_path("a\nb").is_err());
+        // Host/user still reject whitespace — only the identity path keeps it.
+        assert!(clean_component("a b", "host").is_err());
     }
 
     #[test]

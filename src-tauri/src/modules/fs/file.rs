@@ -12,6 +12,10 @@ const MAX_READ_BYTES: u64 = 10 * 1024 * 1024; // 10 MB
 /// Ceiling for explicit "open anyway"; mirrored as FORCE_READ_LIMIT in useDocument.ts.
 const FORCE_MAX_READ_BYTES: u64 = 50 * 1024 * 1024;
 const BINARY_SNIFF_BYTES: usize = 8 * 1024;
+/// Ceiling for a single write. The editor writes whole files, and the AI
+/// tool layer writes source/text, so 64 MiB is generous while still
+/// bounding an abnormal caller from writing multi-GB garbage to disk.
+const MAX_WRITE_BYTES: usize = 64 * 1024 * 1024;
 
 #[derive(Serialize)]
 #[serde(tag = "kind", rename_all = "lowercase")]
@@ -203,6 +207,13 @@ pub async fn fs_write_file(
 ) -> Result<u64, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let workspace = WorkspaceEnv::from_option(workspace);
+        if content.len() > MAX_WRITE_BYTES {
+            return Err(format!(
+                "fs_write_file: content is {} bytes, exceeds {} MiB cap",
+                content.len(),
+                MAX_WRITE_BYTES / (1024 * 1024)
+            ));
+        }
         let target = resolve_path(&path, &workspace);
         // Defense-in-depth: AI writes must land inside an authorized workspace root.
         if source.as_deref() == Some("ai") {
