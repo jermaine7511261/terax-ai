@@ -23,6 +23,16 @@ const READ_ONLY_TOOLS = ["read_file", "list_directory", "grep", "glob"];
 /** Read-only web research tools (MUST 差距 1 修复): deep_search 的
  *  researcher/verifier 必须能 web_search + fetch_url，否则研究阶段实际离线。 */
 const WEB_TOOLS = ["web_search", "fetch_url"];
+
+/**
+ * Closing rule appended to every subagent prompt: the FINAL message MUST be
+ * plain text (no tool call). Without this a model that exhausts its tool loop
+ * can end on a tool-call step, and generateText's `finalStep.text` comes back
+ * empty — the "multi-step, no summary" failure. `runSubagent` also nudges on
+ * empty text as a backstop; this is the front-line prevention.
+ */
+export const CLOSING_RULE =
+  "\n\nYour final message MUST be a plain-text summary (no tool calls). If you have gathered enough, stop and summarize now.";
 const WRITE_TOOLS = [
   "write_file",
   "edit",

@@ -87,8 +87,16 @@ function makeChat(sessionId: string): Chat<UIMessage> {
         stepCount: cur.stepCount + 1,
       });
     },
-    onDoomLoop: () => {
-      useChatStore.getState().patchAgentMeta({ doomLoopDetected: true });
+    onDoomLoop: (info) => {
+      useChatStore.getState().patchAgentMeta({
+        doomLoopDetected: true,
+        doomRecovery: {
+          severity: info.severity,
+          message: info.message,
+          detections: info.detections,
+          at: Date.now(),
+        },
+      });
     },
     onCompact: (info) => {
       useChatStore.getState().patchAgentMeta({

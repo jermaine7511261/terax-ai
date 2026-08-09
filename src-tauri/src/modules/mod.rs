@@ -1,5 +1,6 @@
 pub mod agent;
 pub mod ai;
+pub mod cli;
 pub mod computer;
 pub mod dap;
 pub mod fs;

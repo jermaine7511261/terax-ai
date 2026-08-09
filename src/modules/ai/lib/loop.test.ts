@@ -3,6 +3,7 @@ import {
   detectDoomLoop,
   phaseForStep,
   pushToolCall,
+  recoveryNudge,
   robustExitStopCondition,
   shouldExitLoop,
 } from "./loop";
@@ -115,5 +116,26 @@ describe("detectDoomLoop", () => {
       recent = pushToolCall(recent, { toolName: "x", args: String(i) });
     }
     expect(recent.length).toBe(12);
+  });
+});
+
+describe("recoveryNudge (S1 doom-loop escalation)", () => {
+  it("first detection advises changing tool/path", () => {
+    const r = recoveryNudge(0);
+    expect(r.severity).toBe("tool");
+    expect(r.message).toContain("different");
+  });
+
+  it("second detection escalates to changing approach", () => {
+    const r = recoveryNudge(1);
+    expect(r.severity).toBe("approach");
+    expect(r.message).toContain("Stop calling the same tool");
+  });
+
+  it("third and later detections escalate to asking the user", () => {
+    expect(recoveryNudge(2).severity).toBe("ask");
+    expect(recoveryNudge(5).severity).toBe("ask");
+    const r = recoveryNudge(3);
+    expect(r.message).toContain("ask");
   });
 });

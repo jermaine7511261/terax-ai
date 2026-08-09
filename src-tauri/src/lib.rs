@@ -1,4 +1,5 @@
 pub mod modules;
+pub use modules::cli;
 
 use modules::{agent, ai, computer, dap, fs, gateway, git, history, lsp, mcp, mcp_server, net, pty, pty_helper, scheduler, secrets, shell, ssh, window, workspace};
 use std::path::PathBuf;

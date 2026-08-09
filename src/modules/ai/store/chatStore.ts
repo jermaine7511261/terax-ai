@@ -66,6 +66,13 @@ export type AgentMeta = {
   phase: "thinking" | "calling" | "observing" | "done" | null;
   /** Doom-loop detected (opencode): same tool+args repeated. */
   doomLoopDetected: boolean;
+  /** S1 doom-loop recovery advice (escalating severity + steering message). */
+  doomRecovery: {
+    severity: "tool" | "approach" | "ask";
+    message: string;
+    detections: number;
+    at: number;
+  } | null;
   stepCount: number;
   compactionNotice: { droppedCount: number; at: number } | null;
 };
@@ -87,6 +94,7 @@ const IDLE_META: AgentMeta = {
   hitStepCap: false,
   phase: null,
   doomLoopDetected: false,
+  doomRecovery: null,
   stepCount: 0,
   compactionNotice: null,
 };

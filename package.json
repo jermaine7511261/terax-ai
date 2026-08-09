@@ -32,7 +32,8 @@
     "verify": "powershell -ExecutionPolicy Bypass -File scripts/verify.ps1",
     "version-bump": "node scripts/version-bump.mjs",
     "web:server": "tsx src/platform/web/server/index.ts",
-    "web:server:dev": "tsx watch src/platform/web/server/index.ts"
+    "web:server:dev": "tsx watch src/platform/web/server/index.ts",
+    "dev:web": "node scripts/dev-web.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^2.0.51",

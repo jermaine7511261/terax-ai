@@ -1,7 +1,6 @@
 import "./styles/globals.css";
 
-import { detectPlatform, invoke } from "@/platform";
-import { getCurrentWindow } from "@/platform";
+import { detectPlatform, getPlatform, invoke } from "@/platform";
 import ReactDOM from "react-dom/client";
 import App from "./app/App";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -25,9 +24,11 @@ if (import.meta.env.DEV && import.meta.env.VITE_REACT_SCAN === "true") {
 await detectPlatform();
 
 // Reap PTY sessions orphaned by a prior webview load before any tab spawns.
+// Web mode: no Tauri backend for this — fail silently.
 await invoke("pty_close_all").catch(() => {});
 
 // Seed before first paint so default tab mounts at target cwd (no flicker).
+// Web mode has no launch-dir snapshot; initLaunchDir no-ops via the adapter.
 await initLaunchDir();
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
@@ -38,10 +39,11 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
 
 // Window starts hidden (per tauri.conf.json) so users never see a transparent
 // shadow-only frame before React paints. Use setTimeout — rAF is throttled
-// while the window is hidden and would never fire.
+// while the window is hidden and would never fire. Web mode: the browser
+// adapter's window.show() is a no-op, so this is safe on both runtimes.
 const showWindow = () => {
-  getCurrentWindow()
-    .show()
+  getPlatform()
+    .window.show()
     .catch((e) => console.error("window.show failed:", e));
 };
 setTimeout(showWindow, 50);

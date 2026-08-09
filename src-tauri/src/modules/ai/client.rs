@@ -246,6 +246,7 @@ pub struct ChatChunk {
 
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
 pub struct ChunkChoice {
+    #[serde(default)]
     pub index: usize,
     pub delta: Option<Delta>,
     pub finish_reason: Option<String>,

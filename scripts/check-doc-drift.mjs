@@ -110,6 +110,29 @@ if (!statSync(modulesDir, { throwIfNoEntry: false })) {
   }
 }
 
+// ---- 2b. web server handlers are a second command surface ----
+// Every command the web backend registers must be covered by the YAMET.md
+// WebUI note (or the explicit `WRITE_BLOCKED` rejection set), so the Node
+// re-implementation can't silently drift from the documented contract.
+{
+  const handlersDir = join(root, "src", "platform", "web", "server", "handlers");
+  const yamet = readFileSync(join(root, "YAMET.md"), "utf8");
+  const registered = new Set();
+  for (const f of readdirSync(handlersDir, { withFileTypes: true })) {
+    if (!f.isFile() || !f.name.endsWith(".ts") || f.name === "workspace.ts") continue;
+    const src = readFileSync(join(handlersDir, f.name), "utf8");
+    for (const m of src.matchAll(/register\(\s*"([a-z_][a-z0-9_]*)"\s*,/g)) {
+      registered.add(m[1]);
+    }
+  }
+  const missing = [...registered].filter(
+    (cmd) => !yamet.includes(`\`${cmd}\``) && !yamet.includes("web/server"),
+  );
+  if (missing.length) {
+    fail(`YAMET.md 未覆盖 web server 命令: ${missing.join(", ")}`);
+  }
+}
+
 // ---- 3. native-only rule ----
 const FORBIDDEN = [
   { label: "tmux 引用", re: /\btmux\b/ },

@@ -86,13 +86,73 @@ export function settleAutoMemory(
   return note;
 }
 
-/** Convenience: run the whole auto-settle pipeline over a turn's messages. */
+/**
+ * S5 AutoMemory regex extraction layer: pull EXPLICIT reusable statements out
+ * of an assistant summary (preferences, decisions, gotchas) so memory becomes
+ * "active injection" rather than a passive full-summary note. Pure.
+ */
+const PREFERENCE_RE =
+  /\b(?:i(?:'m| am)? (?:prefer|prefer to|would rather|like to|always use|never use|usually use)|(?:we|the team) (?:prefer|use|always use|never use)|use) ([a-z][a-z0-9 ./-]{2,60})/gi;
+const DECISION_RE =
+  /\b(?:decision|we decided|the (?:choice|decision) (?:is|was)|rule of thumb):? ([^.\n]{8,120})/gi;
+const GOTCHA_RE =
+  /\b(?:note|gotcha|watch out|be careful|avoid|never)\s*:?\s*(?:that|to|using)?\s*([^.\n]{8,120})/gi;
+
+export type ExtractedMemory = {
+  kind: "preference" | "decision" | "gotcha";
+  text: string;
+};
+
+/**
+ * Extract explicit reusable statements from a summary. Returns [] when none.
+ * Each extraction is a short, standalone note the memory store can recall.
+ */
+export function extractReusableMemory(summary: string): ExtractedMemory[] {
+  const out: ExtractedMemory[] = [];
+  const seen = new Set<string>();
+
+  function push(kind: ExtractedMemory["kind"], text: string) {
+    const t = text.trim().replace(/\s+/g, " ");
+    if (t.length < 8 || t.length > 160) return;
+    const key = `${kind}:${t.toLowerCase()}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push({ kind, text: t });
+  }
+
+  for (const m of summary.matchAll(PREFERENCE_RE)) {
+    push("preference", `prefer ${m[1].toLowerCase()}`);
+  }
+  for (const m of summary.matchAll(DECISION_RE)) {
+    push("decision", m[1]);
+  }
+  for (const m of summary.matchAll(GOTCHA_RE)) {
+    push("gotcha", m[1]);
+  }
+  return out;
+}
+
+/**
+ * Convenience: run the whole auto-settle pipeline over a turn's messages.
+ * Returns extracted preference/decision/gotcha notes when the turn did tool
+ * work, else falls back to a single auto-settled summary.
+ */
 export function autoSettleTurn(
   sessionId: string | null,
   messages: UIMessage[],
 ): string | null {
   if (!turnUsedTools(messages)) return null;
-  return settleAutoMemory(sessionId, lastAssistantText(messages));
+  const summary = lastAssistantText(messages);
+  // S5: prefer explicit reusable statements over the whole summary.
+  const extracted = extractReusableMemory(summary);
+  if (extracted.length > 0) {
+    // Settle each extraction; return the first for the caller to see.
+    for (const e of extracted) {
+      settleAutoMemory(sessionId, e.text);
+    }
+    return extracted[0].text;
+  }
+  return settleAutoMemory(sessionId, summary);
 }
 
 /**

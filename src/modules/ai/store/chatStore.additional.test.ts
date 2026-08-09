@@ -42,7 +42,7 @@ function resetStore() {
       status: "idle", step: null, approvalsPending: 0, error: null,
       tokens: { inputTokens: 0, outputTokens: 0, cachedInputTokens: 0 },
       lastInputTokens: 0, lastCachedTokens: 0, hitStepCap: false,
-      phase: null, doomLoopDetected: false, stepCount: 0, compactionNotice: null,
+      phase: null, doomLoopDetected: false, doomRecovery: null, stepCount: 0, compactionNotice: null,
     },
     sessions: [],
     activeSessionId: null,

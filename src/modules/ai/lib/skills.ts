@@ -77,6 +77,44 @@ export async function importSkillToWorkspace(
   return { ok: true, name: skill.name };
 }
 
+/**
+ * Convert a SKILL.md (frontmatter + body) into a skill.json payload
+ * (agentskills 兼容性评估 建议 3). Frontmatter supports: name, description,
+ * handle, toolAllowlist (YAML-ish `name: value` lines or a comma/space list).
+ * Returns null when the body is empty.
+ */
+export function convertSkillMd(md: string): SkillFile | null {
+  const m = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/.exec(md);
+  const front = m?.[1] ?? "";
+  const body = (m?.[2] ?? md).trim();
+  if (!body) return null;
+
+  const fm: Record<string, string> = {};
+  for (const line of front.split("\n")) {
+    const i = line.indexOf(":");
+    if (i <= 0) continue;
+    const key = line.slice(0, i).trim().toLowerCase();
+    const val = line.slice(i + 1).trim();
+    fm[key] = val.replace(/^["']|["']$/g, "");
+  }
+
+  const name = (fm.name || fm.title || "").trim();
+  const description = (fm.description || "").trim();
+  const handle = (fm.handle || "").trim();
+  const toolAllowlist = (fm.toolallowlist || "")
+    .split(/[\s,]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  return {
+    name,
+    description,
+    prompt: body,
+    handle: handle ? normalizeHandle(handle) : undefined,
+    toolAllowlist: toolAllowlist.length > 0 ? toolAllowlist : undefined,
+  };
+}
+
 /** Parse + validate a skill.json payload; returns null when malformed. */
 export function parseSkillJson(raw: string): SkillFile | null {
   let v: unknown;

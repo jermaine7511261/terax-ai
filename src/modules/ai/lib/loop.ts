@@ -96,3 +96,37 @@ export function pushToolCall(
   const next = [...recent, call];
   return next.length > maxLen ? next.slice(next.length - maxLen) : next;
 }
+
+/**
+ * Doom-loop recovery (S1, PraisonAI): escalation ladder — detecting a loop is
+ * only half the fix; the agent must change path. Produces a steering message
+ * that escalates with consecutive detections:
+ *   1. Change tool/path.
+ *   2. Change overall approach (stop hammering the same tool).
+ *   3. Stop and ask the user (can't self-resolve).
+ * `detections` = consecutive doom-loop hits so far (0 on the first).
+ */
+export function recoveryNudge(detections: number): {
+  severity: "tool" | "approach" | "ask";
+  message: string;
+} {
+  if (detections <= 0) {
+    return {
+      severity: "tool",
+      message:
+        "You appear to be repeating the same tool call. Try a different path, tool, or check whether the goal is already met, then respond.",
+    };
+  }
+  if (detections === 1) {
+    return {
+      severity: "approach",
+      message:
+        "You are still repeating yourself. Stop calling the same tool with the same arguments. Re-read what you already have and take a fundamentally different approach or summarize what you know.",
+    };
+  }
+  return {
+    severity: "ask",
+    message:
+      "You are stuck repeating the same action. Stop working and explain to the user what you've tried, what's blocking you, and ask how they'd like to proceed.",
+  };
+}

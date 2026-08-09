@@ -244,7 +244,11 @@ type Deps = {
     stepsSeen?: number;
   }) => void;
   onPhase?: (phase: "thinking" | "calling" | "observing" | "done") => void;
-  onDoomLoop?: () => void;
+  onDoomLoop?: (info: {
+    severity: "tool" | "approach" | "ask";
+    message: string;
+    detections: number;
+  }) => void;
   getPlanMode?: () => boolean;
   /** Skill-scoped tool allowlist for this session (undefined = full tools). */
   getToolAllowlist?: () => string[] | undefined;

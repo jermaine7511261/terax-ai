@@ -77,6 +77,7 @@ const IDLE_META: AgentMeta = {
   hitStepCap: false,
   phase: null,
   doomLoopDetected: false,
+  doomRecovery: null,
   stepCount: 0,
   compactionNotice: null,
 };

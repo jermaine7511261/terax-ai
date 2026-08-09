@@ -24,6 +24,12 @@ export function buildTodoTools(ctx: ToolContext) {
               title: z.string().min(1),
               description: z.string().optional(),
               status: TodoStatus,
+              dependencies: z
+                .array(z.string())
+                .optional()
+                .describe(
+                  "Ids of other todos that must be completed before this one starts. Lets the orchestration run independent steps in parallel while gating dependent ones.",
+                ),
             }),
           )
           .describe("The complete list of todos for this task."),
@@ -38,6 +44,7 @@ export function buildTodoTools(ctx: ToolContext) {
           title: t.title,
           description: t.description,
           status: t.status,
+          dependencies: t.dependencies,
         }));
 
         const err = validateTodos(normalized);

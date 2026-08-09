@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
   autoSettleText,
   autoSettleTurn,
+  extractReusableMemory,
   lastAssistantText,
   normalizeAutoSettle,
   settleAutoMemory,
@@ -102,5 +103,35 @@ describe("settleAutoMemory / autoSettleTurn", () => {
   it("does not settle when the turn used no tools", () => {
     expect(autoSettleText("s-1", "just a chat reply", false)).toBeNull();
     expect(useMemoryStore.getState().bySession["s-1"] ?? []).toHaveLength(0);
+  });
+});
+
+describe("extractReusableMemory (S5 regex layer)", () => {
+  it("extracts explicit preferences", () => {
+    const out = extractReusableMemory(
+      "I prefer pnpm over npm for package management in this project",
+    );
+    const pref = out.find((e) => e.kind === "preference");
+    expect(pref?.text).toContain("pnpm");
+  });
+
+  it("extracts decisions and gotchas", () => {
+    const out = extractReusableMemory(
+      "Decision: we standardized on TypeScript strict mode. Gotcha: avoid `any` in new code.",
+    );
+    expect(out.some((e) => e.kind === "decision")).toBe(true);
+    expect(out.some((e) => e.kind === "gotcha")).toBe(true);
+  });
+
+  it("returns [] when nothing reusable is said", () => {
+    expect(extractReusableMemory("I fixed the bug and everything passes now")).toEqual([]);
+  });
+
+  it("dedupes repeated extractions", () => {
+    const out = extractReusableMemory(
+      "I prefer pnpm. Also, I prefer pnpm over npm.",
+    );
+    const prefs = out.filter((e) => e.kind === "preference");
+    expect(prefs.length).toBeGreaterThanOrEqual(1);
   });
 });

@@ -2,13 +2,29 @@
 
 > 定位：WebUI 是 Yamet 的**渐进式原生功能**，桌面端永远最优先。本文界定 Web 版首批能力（MVP）、架构现状与后端依赖，避免平台抽象层无限膨胀或空转。
 
-## 1. 现状（2026-08-07，v0.1.19）
+## 1. 现状（更新至 2026-08-09，v0.1.26）
 
-- **前端抽象层已就绪**：`src/platform/` 定义了 `IPlatformAdapter`（16 组 API），tauri/ 全实现，web/ 有部分实现：
-  - ✅ 有真实实现：`ipc`（内存 invoke）、`storage`（内存 Map）、`events`、`path`、`window`、`os`、`clipboard`
-  - ⛔ noop 占位：`webview`、`dialog`、`opener`、`notification`、`autostart`、`process`、`updater`、`watch`
-- **后端命令面**：`lib.rs` 147 个命令全部绑定 Tauri `AppHandle`/`State`，Web 端无法直接复用；`fs`、`git`、`pty`、`shell`、`gateway`、`dap`、`lsp`、`mcp` 全是原生进程/网络资源。
-- **入口**：`src/main.tsx` 已按 `detectPlatform()` 条件启动；`src/settings/main.tsx` 同。
+- **前端抽象层已就绪**：`src/platform/` 定义了 `IPlatformAdapter`（16 组 API），tauri/ 全实现，web/ 部分实现：
+  - ✅ 有真实实现：`ipc`（WebSocket → Node 后端）、`storage`（localStorage）、`events`、`path`、`window`、`os`、`clipboard`、`dialog`（File System Access）、`watch`
+  - ⛔ noop 占位：`webview`、`opener`、`notification`、`autostart`、`process`、`updater`
+- **后端命令面**：`lib.rs` 命令全部绑定 Tauri `AppHandle`/`State`，Web 端无法直接复用；Web 走**独立 Node 服务端** `src/platform/web/server/`（WS :31219），已实现命令域：workspace / fs / shell / **git（只读 status/log/diff/branches）** / **history**。
+- **入口**：`src/main.tsx` 已按 `detectPlatform()` 条件启动（web 模式 window.show 经适配器 noop、pty_close_all 静默降级）；`src/settings/main.tsx` 同。
+
+## 2. MVP 范围（第一期，纯前端工作为主）
+
+Web 版第一期**只做"能跑"**，目标是让抽象层与模块代码在浏览器里真实可测，不做原生能力：
+
+| 能力 | MVP 含 | 说明 |
+|---|---|---|
+| 工作区/文件树 | ✅ 只读浏览 | `web/ipc` 走 WS 后端 `fs_read_dir`/`fs_read_file` |
+| 代码编辑器 | ✅ | CodeMirror 全前端，无后端依赖 |
+| Markdown 预览 | ✅ | 纯前端 |
+| 主题/设置 | ✅ | `web/storage` localStorage 版 |
+| AI 聊天 | ✅（无工具） | 直连提供商 API（CORS 由 provider 决定），禁 bash/fs 工具 |
+| 终端/PTY | ❌ | 需要 WebSocket PTY 后端，**二期** |
+| git / DAP / LSP / MCP / gateway / ssh | ⚠️ git 只读已补 | **git 只读 + history 已在 web 服务端落地（round 25 补齐）**；DAP/LSP/MCP/gateway/ssh 仍 **三期** |
+
+**MVP 验收标准**：`pnpm dev:web`（**已交付**，vite :1420 + 后端 WS :31219 一起拉起）+ 浏览器打开 → 文件树浏览、编辑器打开/编辑、主题切换、AI 纯聊天，全部可用；vitest 在 web 平台模式下全绿（`src/platform/web/server/smoke.test.ts` 已锁定命令面）。
 
 ## 2. MVP 范围（第一期，纯前端工作为主）
 

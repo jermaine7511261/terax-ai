@@ -15,7 +15,7 @@ vi.mock("@tauri-apps/plugin-store", () => ({
   },
 }));
 
-const { newTodoId, validateTodos } = await import("./todos");
+const { getReadyItems, newTodoId, validateTodos } = await import("./todos");
 
 // ─── helpers ────────────────────────────────────────────────────────────
 function todo(
@@ -28,6 +28,7 @@ function todo(
     title: overrides.title,
     status: overrides.status ?? "pending",
     ...("description" in overrides ? { description: overrides.description } : {}),
+    ...("dependencies" in overrides ? { dependencies: overrides.dependencies } : {}),
   };
 }
 
@@ -224,5 +225,66 @@ describe("validateTodos", () => {
       validateTodos(todos);
       expect(JSON.stringify(todos)).toBe(snapshot);
     });
+  });
+
+  // ── dependencies (S4) ────────────────────────────────────────────────
+  describe("dependencies", () => {
+    it("rejects a todo that depends on itself", () => {
+      const a = todo({ title: "A", status: "pending" });
+      expect(validateTodos([{ ...a, dependencies: [a.id] }])).toBe(
+        "todo 'A' depends on itself",
+      );
+    });
+
+    it("accepts valid dependencies between distinct todos", () => {
+      const a = todo({ title: "A", status: "pending" });
+      const b = todo({ title: "B", status: "pending" });
+      expect(
+        validateTodos([a, { ...b, dependencies: [a.id] }]),
+      ).toBeNull();
+    });
+
+    it("tolerates dangling dependency ids (treated as satisfied, no deadlock)", () => {
+      const a = todo({ title: "A", status: "pending" });
+      expect(validateTodos([{ ...a, dependencies: ["missing-id"] }])).toBeNull();
+    });
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════
+// getReadyItems() (S4)
+// ═══════════════════════════════════════════════════════════════════════
+describe("getReadyItems", () => {
+  it("returns all pending todos when none have dependencies", () => {
+    const todos: Todo[] = [
+      todo({ title: "A", status: "pending" }),
+      todo({ title: "B", status: "pending" }),
+    ];
+    expect(getReadyItems(todos).map((t) => t.title)).toEqual(["A", "B"]);
+  });
+
+  it("gates a dependent todo until its prerequisite is completed", () => {
+    const a = todo({ title: "A", status: "pending" });
+    const b = todo({ title: "B", status: "pending", dependencies: [a.id] });
+    const c = todo({ title: "C", status: "pending", dependencies: [a.id] });
+
+    // Nothing completed → B/C blocked, A ready.
+    expect(getReadyItems([a, b, c]).map((t) => t.title)).toEqual(["A"]);
+
+    // Complete A → B and C both ready (parallel fan-out).
+    const completedA: Todo = { ...a, status: "completed" };
+    expect(getReadyItems([completedA, b, c]).map((t) => t.title)).toEqual(["B", "C"]);
+  });
+
+  it("never returns completed or in_progress items", () => {
+    const a = todo({ title: "A", status: "completed" });
+    const b = todo({ title: "B", status: "in_progress" });
+    const c = todo({ title: "C", status: "pending" });
+    expect(getReadyItems([a, b, c]).map((t) => t.title)).toEqual(["C"]);
+  });
+
+  it("treats dangling dependencies as satisfied", () => {
+    const a = todo({ title: "A", status: "pending", dependencies: ["gone"] });
+    expect(getReadyItems([a]).map((t) => t.title)).toEqual(["A"]);
   });
 });

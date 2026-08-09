@@ -125,6 +125,19 @@ Yamet 是一个快速、轻量的 AI 原生终端（ADE，agentic development en
 - [x] 打包体积优化（round-11 把 total client JS 上限压到 1550KB / eager 359KB；语言包懒加载持续进行）
 - [ ] AI 工具 / 片段作为可安装 bundle（`skills/` 目录约定 + 工具白名单已交付子集；bundle 分享留后续；方向：原生 JSON + 工具白名单，禁止非原生插件运行时）
 
+### 调研采纳待办（08-10 盘点，来源见各文档）
+
+调研结论的采纳追踪，避免沉底。每轮消化 1–2 项。
+
+- [x] WebUI 服务端安全 MUST ×3（WS 绑回环 + Origin/token 鉴权、fs 路径护栏 + 敏感门 + 上限、写面收敛）— `docs/yamet-源码级深度调研报告-四视角-2026-08-10.md`
+- [x] 子代理空返回修复（工具循环后强制收尾总结 + nudge 兜底）— `docs/yamet-源码级深度调研报告-四视角-2026-08-10.md`
+- [x] S4 Todo 依赖（dependencies + getReadyItems）— `docs/yamet-调研文档全量实现盘点-2026-08-10.md`
+- [x] S1 doom-loop 恢复分级（换路径 → 换方法 → 询问）— `docs/yamet-调研文档全量实现盘点-2026-08-10.md`
+- [x] S5 AutoMemory 正则提取 + rules glob 激活 — `docs/yamet-调研文档全量实现盘点-2026-08-10.md`
+- [x] agentskills 转换器（SKILL.md → skill.json）— `docs/yamet-调研文档全量实现盘点-2026-08-10.md`
+- [ ] S2 guardrail 三钩子协议链 / S3 goal judge fail-open+tail-only / S6 skills 能力声明 / S7 FastContext 预算 — `docs/yamet-PraisonAI-深度调研-2026-08-09.md`（按需排期）
+- [ ] IM 微信/QQ 媒体下载补齐（dingtalk MediaItem 范式照抄）— 第八轮 P9
+
 ## 欢迎贡献
 
 欢迎在这些战略方向提供帮助。先提一个方案（issue 或 Discord），再动手。

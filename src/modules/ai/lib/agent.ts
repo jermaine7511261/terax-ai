@@ -30,6 +30,7 @@ import {
   detectDoomLoop,
   phaseForStep,
   pushToolCall,
+  recoveryNudge,
   type RecentToolCall,
 } from "./loop";
 import { scrubMemoryEcho } from "./memoryMarker";
@@ -371,8 +372,15 @@ export type RunAgentOptions = {
   }) => void;
   /** Loop phase visibility (P1-1): thinking/calling/observing/done. */
   onPhase?: (phase: "thinking" | "calling" | "observing" | "done") => void;
-  /** Doom-loop detected (opencode): same tool+args repeated N times. */
-  onDoomLoop?: () => void;
+  /**
+   * Doom-loop detected (opencode): same tool+args repeated N times. Carries
+   * the escalating recovery advice (S1) so the caller can steer the model.
+   */
+  onDoomLoop?: (info: {
+    severity: "tool" | "approach" | "ask";
+    message: string;
+    detections: number;
+  }) => void;
   llamaCppBaseURL?: string;
   llamaCppModelId?: string;
   openaiCompatibleBaseURL?: string;
@@ -459,6 +467,10 @@ export async function runAgentStream(opts: RunAgentOptions) {
 
   let stepsSeen = 0;
   let recentToolCalls: RecentToolCall[] = [];
+  // S1 doom-loop recovery: consecutive detections escalate the steering advice
+  // (change tool → change approach → ask the user). Resets when a step is NOT
+  // a doom repeat (the model recovered or moved on).
+  let doomDetections = 0;
   // Map the user's thinking-length choice to a provider reasoning-effort
   // parameter (OpenAI-compatible "reasoning_effort": low/medium/high). "off"
   // omits the option entirely so providers that don't support it are unaffected.
@@ -500,7 +512,20 @@ export async function runAgentStream(opts: RunAgentOptions) {
           toolName: lastCall.toolName ?? "",
           args: JSON.stringify(lastCall.input ?? {}),
         });
-        if (detectDoomLoop(recentToolCalls)) opts.onDoomLoop?.();
+        if (detectDoomLoop(recentToolCalls)) {
+          // S1: escalate recovery advice on consecutive detections.
+          const advice = recoveryNudge(doomDetections);
+          doomDetections++;
+          opts.onDoomLoop?.({
+            severity: advice.severity,
+            message: advice.message,
+            detections: doomDetections,
+          });
+        }
+      } else if (doomDetections > 0) {
+        // Non-repeat step → the loop recovered; reset the escalation.
+        doomDetections = 0;
+        recentToolCalls = [];
       }
       if (opts.onStep) {
         if (lastCall) {

@@ -192,7 +192,8 @@ describe("runSubagent options building", () => {
     await runSubagent(baseArgs({ type: "code-review", prompt: "review diff" }));
 
     const opts = lastGenOpts();
-    expect(opts.system).toBe(SUBAGENTS["code-review"].systemPrompt);
+    expect(opts.system).toContain(SUBAGENTS["code-review"].systemPrompt);
+    expect(opts.system).toContain("plain-text summary");
     expect(opts.prompt).toBe("review diff");
     expect(opts.stopWhen).toEqual({ kind: "stepCount", max: 12 });
   });
@@ -241,6 +242,39 @@ describe("runSubagent result shaping", () => {
 
     expect(result.summary).toBe("(no output)");
     expect(result.stepCount).toBe(0);
+  });
+
+  it("retries once with a summary nudge when the tool loop ends without text", async () => {
+    // First generateText: tool-heavy loop, no final text (the multi-step-no-
+    // summary failure). Second call (the nudge) returns the actual summary.
+    vi.mocked(generateText)
+      .mockResolvedValueOnce({
+        text: "",
+        steps: [
+          { toolCalls: [{ toolName: "read_file" }], toolResults: [{ toolName: "read_file" }] },
+          { toolCalls: [], toolResults: [], text: "" },
+        ],
+      } as never)
+      .mockResolvedValueOnce({ text: "found the bug in src/main.ts" } as never);
+
+    const result = await runSubagent(baseArgs({ type: "explore" }));
+
+    // The nudge call must NOT expose tools (forces a plain-text closing).
+    const nudgeOpts = vi.mocked(generateText).mock.calls[1]?.[0] as {
+      prompt: string;
+      tools?: unknown;
+    };
+    expect(nudgeOpts.prompt).toContain("final summary as plain text");
+    expect(nudgeOpts.tools).toBeUndefined();
+    expect(result.summary).toBe("found the bug in src/main.ts");
+  });
+
+  it("uses the nudge result even when the first pass had text", async () => {
+    // Sanity: when the first pass HAS text, no nudge runs and that text wins.
+    vi.mocked(generateText).mockResolvedValue({ text: "first-pass answer", steps: [{}] } as never);
+    const result = await runSubagent(baseArgs({ type: "general" }));
+    expect(result.summary).toBe("first-pass answer");
+    expect(vi.mocked(generateText)).toHaveBeenCalledTimes(1);
   });
 });
 

@@ -9,7 +9,7 @@ import { buildGitTools } from "../tools/git";
 import { buildNetTools } from "../tools/net";
 import { buildSearchTools } from "../tools/search";
 import { buildShellTools } from "../tools/shell";
-import { SUBAGENTS, type SubagentType } from "./registry";
+import { CLOSING_RULE, SUBAGENTS, type SubagentType } from "./registry";
 
 const SUBAGENT_MAX_STEPS = 12;
 
@@ -82,6 +82,9 @@ export async function runSubagent({
 }: Args): Promise<RunResult> {
   const def = SUBAGENTS[type];
   if (!def) throw new Error(`unknown subagent type: ${type}`);
+  // Closing rule (registry.ts): the final message must be plain text. This
+  // prevents the "ends on a tool call → empty summary" failure at the source.
+  const system = `${def.systemPrompt}${CLOSING_RULE}`;
 
   // Independent context (P1-2): the child carries only its system prompt,
   // the caller-supplied context (if any), and the task prompt — never the
@@ -116,9 +119,15 @@ export async function runSubagent({
   });
 
   const start = Date.now();
+  // The child's own system prompt may not mandate a closing text. When the
+  // loop ends on a tool-call step (cap hit or tool-heavy turn), `finalStep.text`
+  // is empty and generateText returns "" — the "multi-step, no summary"
+  // failure. Fix: if the run produced no final text, give the model one more
+  // turn with tools removed and an explicit "output your summary" instruction
+  // so a subagent ALWAYS returns something usable.
   const result = await generateText({
     model,
-    system: def.systemPrompt,
+    system,
     prompt: taskPrompt,
     tools: tools as Parameters<typeof generateText>[0]["tools"],
     stopWhen: stepCountIs(SUBAGENT_MAX_STEPS),
@@ -129,9 +138,27 @@ export async function runSubagent({
     },
   });
 
+  const stepCount = result.steps?.length ?? 0;
+  let raw = result.text;
+  if (!raw || raw.trim().length === 0) {
+    // No final text: retry without tools, instructing a bare summary. This is
+    // the robustness guarantee — the parent always gets a usable summary.
+    onStep?.(`${type}: summarizing`);
+    const closing = await generateText({
+      model,
+      system,
+      // No tools: forces a plain-text closing answer instead of another loop.
+      prompt: `${taskPrompt}\n\nPlease output your final summary as plain text now. Do not call any tools. If you already found everything you need, just summarize it.`,
+    });
+    if (closing.text && closing.text.trim().length > 0) {
+      raw = closing.text;
+    } else {
+      raw = "(no output)";
+    }
+  }
+
   // Summary budget cap (hermes): truncate the child's returned summary so a
   // parent's context can't be blown up by an oversized result.
-  const raw = result.text || "(no output)";
   const summary =
     raw.length > SUBAGENT_SUMMARY_CAP
       ? `${raw.slice(0, SUBAGENT_SUMMARY_CAP)}…[truncated to ${SUBAGENT_SUMMARY_CAP} chars]`
@@ -139,7 +166,7 @@ export async function runSubagent({
 
   return {
     summary,
-    stepCount: result.steps?.length ?? 0,
+    stepCount,
     durationMs: Date.now() - start,
   };
 }

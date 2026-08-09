@@ -24,6 +24,20 @@ fn main() {
         std::process::exit(0);
     }
 
+    // CLI agent front-end (round 25 补齐): `yamet --prompt "..."` streams a
+    // single-turn chat completion to stdout. Runs before the Tauri runtime so
+    // it works headless; exit code is 0 on success, 1 on error.
+    if args.iter().any(|a| a == "--prompt") {
+        let opts = match yamet_lib::cli::parse_prompt_args(&args) {
+            Ok(o) => o,
+            Err(e) => {
+                eprintln!("[yamet cli] {e}");
+                std::process::exit(2);
+            }
+        };
+        std::process::exit(yamet_lib::cli::run_prompt(&opts));
+    }
+
     #[cfg(target_os = "macos")]
     {
         // Disable macOS press-and-hold character popup, so key repeat works in terminal.

@@ -21,6 +21,17 @@ const WS_URL =
     (import.meta as { env?: Record<string, string> }).env?.VITE_WS_URL) ||
   "ws://localhost:31219";
 
+/**
+ * Session token injected by `scripts/dev-web.mjs` (VITE_WS_TOKEN). The server
+ * rejects every frame that does not carry it, so a malicious web page that
+ * only knows the WS address cannot drive the backend. Empty string when the
+ * frontend is served without the dev-web launcher (e.g. direct vite dev).
+ */
+const WS_TOKEN =
+  (typeof import.meta !== "undefined" &&
+    (import.meta as { env?: Record<string, string> }).env?.VITE_WS_TOKEN) ||
+  "";
+
 const INVOKE_TIMEOUT_MS = 60_000;
 const RECONNECT_BASE_MS = 500;
 const RECONNECT_MAX_MS = 10_000;
@@ -170,7 +181,7 @@ class WebSocketTransport {
         reject,
         timer,
       });
-      this.ws?.send(JSON.stringify({ id, cmd, args }));
+      this.ws?.send(JSON.stringify({ id, cmd, args, token: WS_TOKEN }));
     });
   }
 

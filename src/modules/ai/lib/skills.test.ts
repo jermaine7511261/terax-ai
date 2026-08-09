@@ -14,6 +14,7 @@ const nativeMock = vi.hoisted(() => ({
 vi.mock("./native", () => ({ native: nativeMock }));
 
 import {
+  convertSkillMd,
   importSkillToWorkspace,
   parseSkillJson,
   scanSkillsDir,
@@ -167,6 +168,45 @@ describe("parseSkillJson", () => {
       JSON.stringify({ name: "x", prompt: "do it", handle: "!!!  " }),
     );
     expect(skill?.handle).toBe("");
+  });
+});
+
+describe("convertSkillMd (SKILL.md → skill.json)", () => {
+  it("parses frontmatter + body", () => {
+    const md = `---
+name: fix-ts
+description: Fix TypeScript errors
+handle: fixTs
+toolAllowlist: bash_run, grep
+---
+Run pnpm check-types and fix the errors.`;
+    const s = convertSkillMd(md);
+    expect(s).not.toBeNull();
+    expect(s?.name).toBe("fix-ts");
+    expect(s?.description).toBe("Fix TypeScript errors");
+    expect(s?.handle).toBe("fixts"); // normalized
+    expect(s?.toolAllowlist).toEqual(["bash_run", "grep"]);
+    expect(s?.prompt).toContain("pnpm check-types");
+  });
+
+  it("uses title as name fallback", () => {
+    const md = `---\ntitle: My Skill\n---\nbody here`;
+    expect(convertSkillMd(md)?.name).toBe("My Skill");
+  });
+
+  it("handles a markdown file with no frontmatter", () => {
+    const s = convertSkillMd("Just a body with no frontmatter");
+    expect(s?.prompt).toContain("Just a body");
+    expect(s?.name).toBe("");
+  });
+
+  it("returns null for an empty body", () => {
+    expect(convertSkillMd("---\nname: x\n---\n   ")).toBeNull();
+  });
+
+  it("strips surrounding quotes from frontmatter values", () => {
+    const md = `---\nname: "quoted name"\n---\nbody`;
+    expect(convertSkillMd(md)?.name).toBe("quoted name");
   });
 });
 
