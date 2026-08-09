@@ -52,9 +52,9 @@ export function WeixinReloginOverlay() {
           }));
         } else if (frame.kind === "confirmed") {
           void invoke("gateway_weixin_persist", {
-            accountId: frame.account_id,
+            account_id: frame.account_id,
             token: frame.token,
-            baseUrl: frame.base_url,
+            base_url: frame.base_url,
           }).catch(() => {});
           setFlow({ running: false, qrUrl: null, statusLabel: "done", error: null });
           // Auto-close after a brief delay.

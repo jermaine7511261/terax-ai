@@ -88,9 +88,9 @@ describe("WeixinReloginOverlay", () => {
     });
     await waitFor(() =>
       expect(invokeMock).toHaveBeenCalledWith("gateway_weixin_persist", {
-        accountId: "wxid_1",
+        account_id: "wxid_1",
         token: "tok",
-        baseUrl: "https://example.com",
+        base_url: "https://example.com",
       }),
     );
     expect(screen.getByText("gateway.reloginDone")).toBeInTheDocument();
