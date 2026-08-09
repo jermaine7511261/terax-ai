@@ -25,6 +25,6 @@ export const webPath: IPathAdapter = {
   },
 
   async appConfigDir(): Promise<string> {
-    return "/.config/yamet";
+    return "/.config/YaMet";
   },
 };

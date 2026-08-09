@@ -114,7 +114,7 @@ describe("setActiveId", () => {
     expect(storeInstance.save).toHaveBeenCalled();
     // broadcast fires after the async save resolves
     await FLUSH();
-    expect(emitMock).toHaveBeenCalledWith("yamet://ai-agents-changed");
+    expect(emitMock).toHaveBeenCalledWith("YaMet://ai-agents-changed");
   });
 });
 
@@ -128,7 +128,7 @@ describe("upsert", () => {
     await FLUSH();
     expect(storeInstance.save).toHaveBeenCalled();
     await FLUSH();
-    expect(emitMock).toHaveBeenCalledWith("yamet://ai-agents-changed");
+    expect(emitMock).toHaveBeenCalledWith("YaMet://ai-agents-changed");
   });
 
   it("updates an existing agent in place by id", () => {

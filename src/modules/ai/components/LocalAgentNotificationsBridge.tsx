@@ -5,7 +5,7 @@ import type { AgentStatus } from "@/modules/agents/lib/types";
 import { useEffect, useRef } from "react";
 import { useChatStore } from "../store/chatStore";
 
-const AGENT = "Yamet";
+const AGENT = "YaMet";
 
 type RunStatus =
   | "idle"
@@ -64,11 +64,11 @@ export function LocalAgentNotificationsBridge() {
       });
 
     if (status === "awaiting-approval") {
-      fire("attention", "Yamet needs your approval", "Approve a tool to continue");
+      fire("attention", "YaMet needs your approval", "Approve a tool to continue");
     } else if (status === "error") {
-      fire("error", "Yamet run failed", error ?? undefined);
+      fire("error", "YaMet run failed", error ?? undefined);
     } else if (status === "idle" && isBusy(was)) {
-      fire("finished", "Yamet finished", "Your task is ready");
+      fire("finished", "YaMet finished", "Your task is ready");
     }
   }, [status, error]);
 

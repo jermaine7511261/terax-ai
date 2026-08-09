@@ -9,8 +9,8 @@ import {
 
 describe("standardRules", () => {
   it("returns only present standard rule files, unscoped", () => {
-    const rules = standardRules(["AGENTS.md", "YAMET.md"]);
-    expect(rules.map((r) => r.relPath)).toEqual(["AGENTS.md", "YAMET.md"]);
+    const rules = standardRules(["AGENTS.md", "YaMet.md"]);
+    expect(rules.map((r) => r.relPath)).toEqual(["AGENTS.md", "YaMet.md"]);
     expect(rules.every((r) => r.scope === "")).toBe(true);
   });
 });

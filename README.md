@@ -77,7 +77,7 @@ YaMet 是一个开源、轻量的终端（ADE，agentic development environment�
 
 - **BYOK 提供商**：OpenAI、Anthropic、Google（Gemini）、Groq、xAI（Grok）、Cerebras、OpenRouter、DeepSeek、Mistral，以及任意 OpenAI 兼容端点
 - **本地 / 离线**：LM Studio、MLX、Ollama
-- **Agentic 工作流**：计划、子 agent、通过 `YAMET.md` 的项目记忆、文件读写/编辑/多编辑/grep/glob、带审批门禁的 bash、后台进程
+- **Agentic 工作流**：计划、子 agent、通过 `YaMet.md` 的项目记忆、文件读写/编辑/多编辑/grep/glob、带审批门禁的 bash、后台进程
 - **Composer**：`#handle` 片段、`@path` 文件、斜杠命令、语音输入、从浏览器或选区附加给 agent
 - **自定义 agent**：各自的系统提示词与工具子集
 - **计划模式**：面向多步工作，先出计划确认后再执行
@@ -97,7 +97,7 @@ YaMet 是一个开源、轻量的终端（ADE，agentic development environment�
 ### Linux 说明
 
 - **Arch / AUR**：`yay -S yamet-bin`（或 `paru` 等），跟随最新 release。
-- **NixOS / Nix**：使用 flake。`nix profile install github:your-org/yamet`（非 NixOS）；或导入 flake，将 `inputs.yamet.packages.${pkgs.system}.yamet` 加入 `environment.systemPackages`（NixOS）。`nixosModules.yamet` 输出也可用于更简单的配置。
+- **NixOS / Nix**：使用 flake。`nix profile install github:your-org/YaMet`（非 NixOS）；或导入 flake，将 `inputs.yamet.packages.${pkgs.system}.YaMet` 加入 `environment.systemPackages`（NixOS）。`nixosModules.YaMet` 输出也可用于更简单的配置。
 - **AppImage**：需要 FUSE。没有的话：`./Yamet_*.AppImage --appimage-extract-and-run`。Wayland 下渲染异常可试 `WEBKIT_DISABLE_DMABUF_RENDERER=1`。否则 `.deb` / `.rpm` 包链接系统 GTK 栈，通常更流畅。
 
 ## 配置 AI

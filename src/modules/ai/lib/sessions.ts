@@ -16,7 +16,7 @@ export type SessionMeta = {
   parentId?: string;
 };
 
-const STORE_PATH = "yamet-ai-sessions.json";
+const STORE_PATH = "YaMet-ai-sessions.json";
 const KEY_SESSIONS = "sessions";
 const KEY_ACTIVE = "activeId";
 const messagesKey = (id: string) => `messages:${id}`;

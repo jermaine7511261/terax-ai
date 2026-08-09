@@ -51,7 +51,7 @@ const THEME_B: Theme = {
   variants: {},
 };
 
-const CHANGED_EVENT = "yamet://custom-themes-changed";
+const CHANGED_EVENT = "YaMet://custom-themes-changed";
 
 beforeEach(() => {
   vi.clearAllMocks();

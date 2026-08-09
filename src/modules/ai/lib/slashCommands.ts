@@ -35,7 +35,7 @@ You are the orchestrator, not the implementer. Do not write the code yourself.
 Sharpen vague requests into precise engineering instructions; keep each agent prompt focused on one coherent unit of work.`;
 }
 
-const INIT_PROMPT = `Scan this workspace and produce YAMET.md at the workspace root with:
+const INIT_PROMPT = `Scan this workspace and produce YaMet.md at the workspace root with:
 
 - One-paragraph project description.
 - Build / test / dev commands.
@@ -43,7 +43,7 @@ const INIT_PROMPT = `Scan this workspace and produce YAMET.md at the workspace r
 - Conventions worth knowing (naming, patterns, gotchas).
 - Paths to entry points.
 
-Use grep/glob/list_directory/read_file to explore. Cap YAMET.md under 200 lines. Use write_file to create it (will go through normal approval).`;
+Use grep/glob/list_directory/read_file to explore. Cap YaMet.md under 200 lines. Use write_file to create it (will go through normal approval).`;
 
 const REVIEW_PROMPT = `Review the current set of uncommitted changes in this workspace and report concrete problems.
 
@@ -143,10 +143,10 @@ export const SLASH_COMMANDS: Record<string, SlashCommandMeta> = {
 };
 
 export const YAMET_CMD_RE =
-  /^<yamet-command\s+name="([a-z0-9-]+)"(?:\s+state="([a-z]+)")?\s*\/>(?:\n+|$)/;
+  /^<YaMet-command\s+name="([a-z0-9-]+)"(?:\s+state="([a-z]+)")?\s*\/>(?:\n+|$)/;
 
 export function wrapWithCommandMarker(prompt: string, name: string): string {
-  return `<yamet-command name="${name}" />\n\n${prompt}`;
+  return `<YaMet-command name="${name}" />\n\n${prompt}`;
 }
 
 export function tryRunSlashCommand(input: string): SlashOutcome {

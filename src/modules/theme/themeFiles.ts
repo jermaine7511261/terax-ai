@@ -6,7 +6,7 @@ import type { Theme } from "./types";
 import { validateTheme, type ValidationResult } from "./validateTheme";
 
 const THEME_FILE_EXT = ".yamet-theme";
-const THEME_EDIT_EVENT = "yamet://theme-edit";
+const THEME_EDIT_EVENT = "YaMet://theme-edit";
 
 export type ThemeEditRequest =
   | { action: "create" }

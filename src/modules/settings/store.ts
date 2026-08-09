@@ -222,7 +222,7 @@ export type LspCustomServer = {
   rootMarkers: string[];
 };
 
-const STORE_PATH = "yamet-settings.json";
+const STORE_PATH = "YaMet-settings.json";
 const KEY_THEME = "theme";
 const KEY_THEME_ID = "themeId";
 const KEY_LANGUAGE = "language";
@@ -402,7 +402,7 @@ const store = createStorage(STORE_PATH);
 // page lives in a separate webview, so writes there never reach the main
 // window's subscribers. Mirror every setter through a Tauri event so any
 // window can listen.
-const PREFS_CHANGED_EVENT = "yamet://prefs-changed";
+const PREFS_CHANGED_EVENT = "YaMet://prefs-changed";
 
 async function writePref<T>(key: string, value: T): Promise<void> {
   await store.set(key, value);
@@ -1059,7 +1059,7 @@ export async function onPreferencesChange(
 
 // API key changes are stored in OS keychain (not the prefs store),
 // so we broadcast via a Tauri event for cross-window listeners.
-const KEYS_CHANGED_EVENT = "yamet://ai-keys-changed";
+const KEYS_CHANGED_EVENT = "YaMet://ai-keys-changed";
 
 export async function emitKeysChanged(): Promise<void> {
   await emit(KEYS_CHANGED_EVENT);

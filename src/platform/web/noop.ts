@@ -71,7 +71,7 @@ export const noopAdapter = {
       window.close();
     },
     async getName() {
-      return "yamet-web";
+      return "YaMet-web";
     },
     async getVersion() {
       return "0.0.0-web";

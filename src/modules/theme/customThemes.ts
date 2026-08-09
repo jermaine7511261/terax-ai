@@ -2,9 +2,9 @@ import { emit, listen, type UnlistenFn } from "@/platform";
 import { createStorage } from "@/platform";
 import type { Theme } from "./types";
 
-const STORE_PATH = "yamet-custom-themes.json";
+const STORE_PATH = "YaMet-custom-themes.json";
 const KEY = "themes";
-const CHANGED_EVENT = "yamet://custom-themes-changed";
+const CHANGED_EVENT = "YaMet://custom-themes-changed";
 
 const store = createStorage(STORE_PATH);
 

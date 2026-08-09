@@ -185,7 +185,7 @@ export function WorkspaceInputBar({
     <div
       data-ai-input-bar
       data-state={open ? "open" : "closed"}
-      className="yamet-reveal"
+      className="YaMet-reveal"
       aria-hidden={!open}
     >
       <div>{content}</div>

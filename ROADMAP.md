@@ -128,7 +128,7 @@ YaMet 是一个快速、轻量的 AI 原生终端（ADE，agentic development en
 - [x] 打包体积优化（round-11 把 total client JS 上限压到 1550KB / eager 359KB；语言包懒加载持续进行）
 - [ ] AI 工具 / 片段作为可安装 bundle（`skills/` 目录约定 + 工具白名单已交付子集；bundle 分享留后续；方向：原生 JSON + 工具白名单，禁止非原生插件运行时）
 - [ ] 多模型融合（Model Jury）：同一问题 N 个 provider 并行回答 + judge 综合；基于图引擎分支/合并封装 `fusion` 模式；对标 thClaws OpenRouter Fusion（8 模型陪审团）；来源：`docs/yamet-vs-projects-对比-2026-08-11.md` 第 6 节 P1
-- [ ] 记忆深度：YAMET.md 自动过期/摘要机制（防无限增长）；用户偏好建模（从对话中提取并持久化）；跨会话 FTS5 全文检索（与现有向量搜索互补）；对标 hermes FTS5 + Honcho 用户建模；来源：`docs/yamet-vs-projects-对比-2026-08-11.md` 第 6 节 P1
+- [ ] 记忆深度：YaMet.md 自动过期/摘要机制（防无限增长）；用户偏好建模（从对话中提取并持久化）；跨会话 FTS5 全文检索（与现有向量搜索互补）；对标 hermes FTS5 + Honcho 用户建模；来源：`docs/yamet-vs-projects-对比-2026-08-11.md` 第 6 节 P1
 - [ ] 媒体生成（图片/视频）：text→image / image→video，多提供商（Gemini/OpenAI/Qwen/Veo）；作为可选技能或 MCP server 接入；对标 thClaws Media Studio；来源：`docs/yamet-vs-projects-对比-2026-08-11.md` 第 6 节 P2
 - [ ] LSP 诊断增强：扩展 LSP 覆盖面（悬停/跳转定义/代码操作）；可选 DAP 调试器深度集成（已在第十一轮交付基础版，此处为覆盖面扩展）；对标 oh-my-pi LSP 覆盖每次操作；来源：`docs/yamet-vs-projects-对比-2026-08-11.md` 第 6 节 P2
 

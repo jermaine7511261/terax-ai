@@ -2,8 +2,8 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { readBgFastPath } from "./preferences";
 
-const KIND_KEY = "yamet-ui-bg-kind-shadow";
-const IMAGE_ID_KEY = "yamet-ui-bg-image-shadow";
+const KIND_KEY = "YaMet-ui-bg-kind-shadow";
+const IMAGE_ID_KEY = "YaMet-ui-bg-image-shadow";
 
 describe("readBgFastPath", () => {
   beforeEach(() => {

@@ -20,6 +20,6 @@ export async function osNotify(title: string, body: string): Promise<void> {
   try {
     if (await ensurePermission()) sendNotification({ title, body });
   } catch (e) {
-    console.warn("[yamet] os notification failed:", e);
+    console.warn("[YaMet] os notification failed:", e);
   }
 }

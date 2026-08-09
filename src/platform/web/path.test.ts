@@ -41,7 +41,7 @@ describe("webPath.homeDir / appConfigDir", () => {
     expect(await webPath.homeDir()).toBe("/");
   });
 
-  it("appConfigDir is / .config/yamet", async () => {
-    expect(await webPath.appConfigDir()).toBe("/.config/yamet");
+  it("appConfigDir is / .config/YaMet", async () => {
+    expect(await webPath.appConfigDir()).toBe("/.config/YaMet");
   });
 });

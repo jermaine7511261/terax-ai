@@ -2,14 +2,14 @@
 
 > 目标版本 **0.1.25**（功能性构建）。
 > 用户命题：「office套件全部内置功能」+「E:\Agent，有没有哪个项目已实现，深度调研」。
-> 含义：让 yamet 的 AI agent 原生支持 Word/Excel/PowerPoint/PDF 文档的**读取、创建、编辑**，像 Grok 内置 PDF/PPTX 读取那样成为内置能力，而非依赖外部工具。
+> 含义：让 YaMet 的 AI agent 原生支持 Word/Excel/PowerPoint/PDF 文档的**读取、创建、编辑**，像 Grok 内置 PDF/PPTX 读取那样成为内置能力，而非依赖外部工具。
 > 范围：**概念模型 + E:\Agent 参考盘点 + 需求规划 + 实施方案**。
 
 ---
 
 ## 调研更新（2026-08-08 深度调研后）
 
-> **状态总览**：本轮已交付**全功能**。读取（六格式：DOCX/XLSX/PPTX + 旧二进制 DOC/XLS/PPT）、创建（四格式：DOCX/XLSX/PPTX/PDF，富格式）、编辑（DOCX/XLSX/PPTX 就地保真写回）全部落地并接线。核心引擎 **office_oxide**（纯 Rust，本就在 yamet 依赖树中，零新增编译成本）+ pdf_oxide + lopdf。`cargo check`/`cargo clippy -D warnings`/`cargo test` 全绿。
+> **状态总览**：本轮已交付**全功能**。读取（六格式：DOCX/XLSX/PPTX + 旧二进制 DOC/XLS/PPT）、创建（四格式：DOCX/XLSX/PPTX/PDF，富格式）、编辑（DOCX/XLSX/PPTX 就地保真写回）全部落地并接线。核心引擎 **office_oxide**（纯 Rust，本就在 YaMet 依赖树中，零新增编译成本）+ pdf_oxide + lopdf。`cargo check`/`cargo clippy -D warnings`/`cargo test` 全绿。
 
 ### 已交付清单
 
@@ -44,13 +44,13 @@
 
 ### 参考库 API 调研（ref-* 四库，2026-08-08）
 
-> 四库源码均在 E:\Agent 且与 yamet Cargo.toml 版本一致（docx-rs 0.4.22 / calamine 0.36.1 / lopdf 0.44.0 / rust_xlsxwriter 0.97.1）。全部纯 Rust、跨平台、edition 2021/2024、与 yamet（tokio/tauri2/serde）兼容。
+> 四库源码均在 E:\Agent 且与 YaMet Cargo.toml 版本一致（docx-rs 0.4.22 / calamine 0.36.1 / lopdf 0.44.0 / rust_xlsxwriter 0.97.1）。全部纯 Rust、跨平台、edition 2021/2024、与 YaMet（tokio/tauri2/serde）兼容。
 
-| 库 | 版本 | 关键 API（yamet 集成点） | 依赖注意 |
+| 库 | 版本 | 关键 API（YaMet 集成点） | 依赖注意 |
 |---|---|---|---|
 | **docx-rs** | 0.4.22（crates.io，非 ref-docx 的 0.1.11） | 写：`Docx::new()` → `docx.document = Document::new()`（children: `Paragraph::new().add_run(Run::new().add_text(t))` / `Table::new()`+`add_row`）→ `docx.pack(Write+Seek)`（zip 归档，无 write_file）。读：`Docx::from_reader`+`parse`（document.rs 已用） | 写 API 与 0.1.11 的 `write_file` 不同，以 0.4.22 的 `pack` 为准；读 API 两版一致 |
-| **calamine** | 0.36.1 | 读：`open_workbook_from_rs` → `Reader::sheet_names/worksheet_range`（document.rs 已用）。**只读库**，写用 xlsxwriter | zip 8.6 + quick-xml 0.41 与 yamet 版本一致；纯 Rust |
-| **lopdf** | 0.44.0 | `Document::load(path)` + `doc.merge(&mut other)`（xref 级）→ `doc.save/save_to`；加密：`doc.encrypt(&EncryptionState{ version: EncryptionVersion::V1/V2/AES-128/256, owner_password, user_password, permissions })` | 依赖 `rand`（yamet 已有 0.8）；default features 含 chrono-clock+rayon（直接可用）；edition 2024 需 rustc ≥1.88（yamet 1.97 ✅） |
+| **calamine** | 0.36.1 | 读：`open_workbook_from_rs` → `Reader::sheet_names/worksheet_range`（document.rs 已用）。**只读库**，写用 xlsxwriter | zip 8.6 + quick-xml 0.41 与 YaMet 版本一致；纯 Rust |
+| **lopdf** | 0.44.0 | `Document::load(path)` + `doc.merge(&mut other)`（xref 级）→ `doc.save/save_to`；加密：`doc.encrypt(&EncryptionState{ version: EncryptionVersion::V1/V2/AES-128/256, owner_password, user_password, permissions })` | 依赖 `rand`（YaMet 已有 0.8）；default features 含 chrono-clock+rayon（直接可用）；edition 2024 需 rustc ≥1.88（YaMet 1.97 ✅） |
 | **rust_xlsxwriter** | 0.97.1 | 写：`Workbook::new()` → `add_worksheet()` → `worksheet.write(row, col, value)`（支持 str/num/date）→ `workbook.save(path)` / `save_to_buffer()` / `save_to_writer()` | 纯 Rust（zip 8.3），无 C 绑定；可选 feature（chrono/polars）不启用 |
 
 **集成建议**：
@@ -65,7 +65,7 @@
 
 ### 0.1 一句话总纲
 
-Office 套件 = 四类文档：**Word(.docx)、Excel(.xlsx)、PowerPoint(.pptx)、PDF**。yamet 当前**零 Office 能力**（无依赖、无工具）。E:\Agent 里 **grok-build 已用 Rust 原生实现了 PDF/PPTX 读取**（`read_file` 工具内置解析），hermes-agent 以 skills+脚本形式提供 Excel 编写。移植 = **把 Grok 的文档解析搬进 yamet 的 read_file 工具 + 补 docx/xlsx 读取 + 补创建/编辑能力**。
+Office 套件 = 四类文档：**Word(.docx)、Excel(.xlsx)、PowerPoint(.pptx)、PDF**。YaMet 当前**零 Office 能力**（无依赖、无工具）。E:\Agent 里 **grok-build 已用 Rust 原生实现了 PDF/PPTX 读取**（`read_file` 工具内置解析），hermes-agent 以 skills+脚本形式提供 Excel 编写。移植 = **把 Grok 的文档解析搬进 YaMet 的 read_file 工具 + 补 docx/xlsx 读取 + 补创建/编辑能力**。
 
 ```
 ┌────────────────────────── Office 套件内置 ──────────────────────────┐
@@ -96,7 +96,7 @@ Office 套件 = 四类文档：**Word(.docx)、Excel(.xlsx)、PowerPoint(.pptx)�
 **支持格式**：PDF、PPTX、Jupyter .ipynb、图片。**无 docx/xlsx**。
 **依赖**：`pdf_oxide`、`zip`(deflate-flate2)、`quick-xml`、`base64`。
 
-**结论**：Grok 的 PDF/PPTX 解析是**纯 Rust、可移植、带完整测试**的现成实现，是 yamet 移植的第一优先级。
+**结论**：Grok 的 PDF/PPTX 解析是**纯 Rust、可移植、带完整测试**的现成实现，是 YaMet 移植的第一优先级。
 
 #### 0.2.2 hermes-agent（Python）— skills + 脚本形式
 
@@ -107,7 +107,7 @@ Office 套件 = 四类文档：**Word(.docx)、Excel(.xlsx)、PowerPoint(.pptx)�
 
 - claude-code-haha / opencode-dev / oh-my-pi：**无内置 Office**（仅图标/UI 层识别扩展名）
 
-### 0.3 深度调研：yamet 现状（已核实代码）
+### 0.3 深度调研：YaMet 现状（已核实代码）
 
 | 项 | 现状 |
 |---|---|
@@ -120,19 +120,19 @@ Office 套件 = 四类文档：**Word(.docx)、Excel(.xlsx)、PowerPoint(.pptx)�
 
 ### 0.4 关键辨析
 
-1. **读取 vs 创建/编辑**：读取是"把文档变文本喂 LLM"（LLM 不可读二进制，必须解析）；创建/编辑是"LLM 生成文档"。Grok 只做了读取（PDF/PPTX）。yamet "全部内置"需**读取 + 创建 + 编辑**四类全覆盖。
-2. **纯 Rust vs 外部库**：yamet 无 soffice/pandoc（Windows 环境难装），且架构铁律"原生优先"。所以文档解析必须**纯 Rust crate**（pdf_oxide/quick-xml/zip），不依赖外部二进制。
+1. **读取 vs 创建/编辑**：读取是"把文档变文本喂 LLM"（LLM 不可读二进制，必须解析）；创建/编辑是"LLM 生成文档"。Grok 只做了读取（PDF/PPTX）。YaMet "全部内置"需**读取 + 创建 + 编辑**四类全覆盖。
+2. **纯 Rust vs 外部库**：YaMet 无 soffice/pandoc（Windows 环境难装），且架构铁律"原生优先"。所以文档解析必须**纯 Rust crate**（pdf_oxide/quick-xml/zip），不依赖外部二进制。
 3. **前端渲染 vs 工具能力**：Office 套件内置 = **AI 工具能力**（read/write office 文档），不是"内置 Word/Excel 编辑器 UI"。工具让 LLM 能读能写文档，用户在文件管理器/终端即可用。
 
 ### 参考库 API 调研（ref-* 四库，2026-08-08）
 
-> 四库源码均在 E:\Agent 且与 yamet Cargo.toml 版本一致（docx-rs 0.4.22 / calamine 0.36.1 / lopdf 0.44.0 / rust_xlsxwriter 0.97.1）。全部纯 Rust、跨平台、edition 2021/2024、与 yamet（tokio/tauri2/serde）兼容。
+> 四库源码均在 E:\Agent 且与 YaMet Cargo.toml 版本一致（docx-rs 0.4.22 / calamine 0.36.1 / lopdf 0.44.0 / rust_xlsxwriter 0.97.1）。全部纯 Rust、跨平台、edition 2021/2024、与 YaMet（tokio/tauri2/serde）兼容。
 
-| 库 | 版本 | 关键 API（yamet 集成点） | 依赖注意 |
+| 库 | 版本 | 关键 API（YaMet 集成点） | 依赖注意 |
 |---|---|---|---|
 | **docx-rs** | 0.4.22（crates.io，非 ref-docx 的 0.1.11） | 写：`Docx::new()` → `docx.document = Document::new()`（children: `Paragraph::new().add_run(Run::new().add_text(t))` / `Table::new()`+`add_row`）→ `docx.pack(Write+Seek)`（zip 归档，无 write_file）。读：`Docx::from_reader`+`parse`（document.rs 已用） | 写 API 与 0.1.11 的 `write_file` 不同，以 0.4.22 的 `pack` 为准；读 API 两版一致 |
-| **calamine** | 0.36.1 | 读：`open_workbook_from_rs` → `Reader::sheet_names/worksheet_range`（document.rs 已用）。**只读库**，写用 xlsxwriter | zip 8.6 + quick-xml 0.41 与 yamet 版本一致；纯 Rust |
-| **lopdf** | 0.44.0 | `Document::load(path)` + `doc.merge(&mut other)`（xref 级）→ `doc.save/save_to`；加密：`doc.encrypt(&EncryptionState{ version: EncryptionVersion::V1/V2/AES-128/256, owner_password, user_password, permissions })` | 依赖 `rand`（yamet 已有 0.8）；default features 含 chrono-clock+rayon（直接可用）；edition 2024 需 rustc ≥1.88（yamet 1.97 ✅） |
+| **calamine** | 0.36.1 | 读：`open_workbook_from_rs` → `Reader::sheet_names/worksheet_range`（document.rs 已用）。**只读库**，写用 xlsxwriter | zip 8.6 + quick-xml 0.41 与 YaMet 版本一致；纯 Rust |
+| **lopdf** | 0.44.0 | `Document::load(path)` + `doc.merge(&mut other)`（xref 级）→ `doc.save/save_to`；加密：`doc.encrypt(&EncryptionState{ version: EncryptionVersion::V1/V2/AES-128/256, owner_password, user_password, permissions })` | 依赖 `rand`（YaMet 已有 0.8）；default features 含 chrono-clock+rayon（直接可用）；edition 2024 需 rustc ≥1.88（YaMet 1.97 ✅） |
 | **rust_xlsxwriter** | 0.97.1 | 写：`Workbook::new()` → `add_worksheet()` → `worksheet.write(row, col, value)`（支持 str/num/date）→ `workbook.save(path)` / `save_to_buffer()` / `save_to_writer()` | 纯 Rust（zip 8.3），无 C 绑定；可选 feature（chrono/polars）不启用 |
 
 **集成建议**：
@@ -147,7 +147,7 @@ Office 套件 = 四类文档：**Word(.docx)、Excel(.xlsx)、PowerPoint(.pptx)�
 
 ### 融合矩阵
 
-| 能力 | Grok 参考 | yamet 动作 | 依赖（E:\Agent\ref-* 已下载） | 优先级 |
+| 能力 | Grok 参考 | YaMet 动作 | 依赖（E:\Agent\ref-* 已下载） | 优先级 |
 |---|---|---|---|---|
 | PDF 读取 | `pdf.rs`（pdf_oxide） | 移植到 `read_file` | `pdf_oxide` | **P0** |
 | PPTX 读取 | `pptx.rs`（zip+quick_xml） | 移植到 `read_file` | `zip`+`quick-xml` | **P0** |
@@ -182,7 +182,7 @@ Office 套件 = 四类文档：**Word(.docx)、Excel(.xlsx)、PowerPoint(.pptx)�
 ### P1-1【文档】Office 文档处理 skill/脚本
 
 - 系统无 soffice/pandoc，**不引入外部二进制**。解析全走纯 Rust。
-- 文档（YAMET.md）注明支持格式与大小上限。
+- 文档（YaMet.md）注明支持格式与大小上限。
 
 ### P2-0【Rust】DOCX 创建/编辑工具
 
@@ -210,13 +210,13 @@ Office 套件 = 四类文档：**Word(.docx)、Excel(.xlsx)、PowerPoint(.pptx)�
 
 ### 参考库 API 调研（ref-* 四库，2026-08-08）
 
-> 四库源码均在 E:\Agent 且与 yamet Cargo.toml 版本一致（docx-rs 0.4.22 / calamine 0.36.1 / lopdf 0.44.0 / rust_xlsxwriter 0.97.1）。全部纯 Rust、跨平台、edition 2021/2024、与 yamet（tokio/tauri2/serde）兼容。
+> 四库源码均在 E:\Agent 且与 YaMet Cargo.toml 版本一致（docx-rs 0.4.22 / calamine 0.36.1 / lopdf 0.44.0 / rust_xlsxwriter 0.97.1）。全部纯 Rust、跨平台、edition 2021/2024、与 YaMet（tokio/tauri2/serde）兼容。
 
-| 库 | 版本 | 关键 API（yamet 集成点） | 依赖注意 |
+| 库 | 版本 | 关键 API（YaMet 集成点） | 依赖注意 |
 |---|---|---|---|
 | **docx-rs** | 0.4.22（crates.io，非 ref-docx 的 0.1.11） | 写：`Docx::new()` → `docx.document = Document::new()`（children: `Paragraph::new().add_run(Run::new().add_text(t))` / `Table::new()`+`add_row`）→ `docx.pack(Write+Seek)`（zip 归档，无 write_file）。读：`Docx::from_reader`+`parse`（document.rs 已用） | 写 API 与 0.1.11 的 `write_file` 不同，以 0.4.22 的 `pack` 为准；读 API 两版一致 |
-| **calamine** | 0.36.1 | 读：`open_workbook_from_rs` → `Reader::sheet_names/worksheet_range`（document.rs 已用）。**只读库**，写用 xlsxwriter | zip 8.6 + quick-xml 0.41 与 yamet 版本一致；纯 Rust |
-| **lopdf** | 0.44.0 | `Document::load(path)` + `doc.merge(&mut other)`（xref 级）→ `doc.save/save_to`；加密：`doc.encrypt(&EncryptionState{ version: EncryptionVersion::V1/V2/AES-128/256, owner_password, user_password, permissions })` | 依赖 `rand`（yamet 已有 0.8）；default features 含 chrono-clock+rayon（直接可用）；edition 2024 需 rustc ≥1.88（yamet 1.97 ✅） |
+| **calamine** | 0.36.1 | 读：`open_workbook_from_rs` → `Reader::sheet_names/worksheet_range`（document.rs 已用）。**只读库**，写用 xlsxwriter | zip 8.6 + quick-xml 0.41 与 YaMet 版本一致；纯 Rust |
+| **lopdf** | 0.44.0 | `Document::load(path)` + `doc.merge(&mut other)`（xref 级）→ `doc.save/save_to`；加密：`doc.encrypt(&EncryptionState{ version: EncryptionVersion::V1/V2/AES-128/256, owner_password, user_password, permissions })` | 依赖 `rand`（YaMet 已有 0.8）；default features 含 chrono-clock+rayon（直接可用）；edition 2024 需 rustc ≥1.88（YaMet 1.97 ✅） |
 | **rust_xlsxwriter** | 0.97.1 | 写：`Workbook::new()` → `add_worksheet()` → `worksheet.write(row, col, value)`（支持 str/num/date）→ `workbook.save(path)` / `save_to_buffer()` / `save_to_writer()` | 纯 Rust（zip 8.3），无 C 绑定；可选 feature（chrono/polars）不启用 |
 
 **集成建议**：
@@ -270,7 +270,7 @@ P0-1 移植 PDF/PPTX 读取 → P0-2 补 DOCX/XLSX 读取
 
 ### P1-1 文档
 
-1. YAMET.md 注明 Office 支持格式/上限/纯 Rust。
+1. YaMet.md 注明 Office 支持格式/上限/纯 Rust。
 
 ### P2-0 create_docx（中任务 → 2 批）
 
@@ -297,5 +297,5 @@ P0-1 移植 PDF/PPTX 读取 → P0-2 补 DOCX/XLSX 读取
 ### 构建
 
 - 版本 0.1.24 → 0.1.25，四文件同步。
-- CHANGELOG / ROADMAP / YAMET 三文档同步。
+- CHANGELOG / ROADMAP / YaMet 三文档同步。
 - 验证：tsc 0、vitest 全绿、cargo test（含移植的 pptx/pdf 测试）、clippy -D warnings、pnpm build、size budget。

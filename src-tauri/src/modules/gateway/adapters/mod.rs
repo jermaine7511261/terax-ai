@@ -2,10 +2,10 @@
 //! is registered into the `GatewayRegistry` from the Tauri setup hook.
 //!
 //! Reference implementations live in:
-//! -   (the Python agent gateway)  → the authority for Weixin iLink,
-//!   plus `plugins/platforms/{dingtalk,feishu,wecom,qqbot}` adapters.
-//! -  (the Python IM bot platform) → `pkg/platform/sources/{dingtalk,
-//!   lark,wecom,aiocqhttp,officialaccount,wechatpad}.py`.
+//! - the Python agent gateway — the authority for Weixin iLink, plus
+//!   `plugins/platforms/{dingtalk,feishu,wecom,qqbot}` adapters
+//! - the Python IM bot platform — `pkg/platform/sources/{dingtalk, lark, wecom,
+//!   aiocqhttp, officialaccount, wechatpad}.py`
 
 pub mod dingtalk;
 pub mod feishu;

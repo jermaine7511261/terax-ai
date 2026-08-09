@@ -88,7 +88,7 @@ export function AboutSection() {
         <dt className="text-muted-foreground">
           {t("settingsAbout.bundleId")}
         </dt>
-        <dd className="font-mono text-[11.5px]">app.yamet.yamet</dd>
+        <dd className="font-mono text-[11.5px]">app.yamet.YaMet</dd>
 
         <dt className="text-muted-foreground">{t("settingsAbout.license")}</dt>
         <dd>Apache 2.0</dd>

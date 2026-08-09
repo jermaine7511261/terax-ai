@@ -10,7 +10,7 @@ describe("isThemeFilePath", () => {
   it("matches .yamet-theme files case-insensitively", () => {
     expect(isThemeFilePath("my-theme.yamet-theme")).toBe(true);
     expect(isThemeFilePath("dir/nested/theme.yamet-theme")).toBe(true);
-    expect(isThemeFilePath("My-THEME.YAMET-THEME")).toBe(true);
+    expect(isThemeFilePath("My-THEME.YaMet-THEME")).toBe(true);
   });
 
   it("rejects non-theme extensions and extensionless", () => {

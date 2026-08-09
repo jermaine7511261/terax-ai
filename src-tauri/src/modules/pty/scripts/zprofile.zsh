@@ -1,4 +1,4 @@
-# yamet-shell-integration (zprofile)
+# YaMet-shell-integration (zprofile)
 #
 # See zshenv.zsh for the rationale on the trailing `:`.
 {

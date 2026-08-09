@@ -1,4 +1,4 @@
-const DB_NAME = "yamet-bg-images";
+const DB_NAME = "YaMet-bg-images";
 const STORE = "images";
 const VERSION = 1;
 

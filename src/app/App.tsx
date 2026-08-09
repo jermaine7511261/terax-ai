@@ -627,7 +627,7 @@ export default function App() {
             agent: request.agent,
           }).catch((error) => {
             console.warn(
-              `[yamet] could not enable ${request.agent} notifications:`,
+              `[YaMet] could not enable ${request.agent} notifications:`,
               error,
             );
           })
@@ -638,7 +638,7 @@ export default function App() {
           await Promise.all([whenSessionReady(leafId), hooksReady]);
           if (!writeToSession(leafId, `${command.command}\r`)) {
             console.error(
-              `[yamet] agent terminal ${leafId} closed before launch`,
+              `[YaMet] agent terminal ${leafId} closed before launch`,
             );
           }
         })();
@@ -1415,7 +1415,7 @@ export default function App() {
                 <div className="flex h-full min-h-0 flex-col border-r border-border/60 bg-card">
                   <div
                     key={sidebarView}
-                    className="min-h-0 flex-1 yamet-panel-in"
+                    className="min-h-0 flex-1 YaMet-panel-in"
                   >
                     {sidebarView === "explorer" ? (
                       <FileExplorer

@@ -61,14 +61,14 @@
 
 **结论先行**：三个成熟多智能体项目（hermes / opencode / grok-build / claude-code-haha）**没有一个是声明式 LangGraph 式 DAG 编排**。业界的成熟实践是「**主循环 + 隐式条件门 + 命令式并行委派 + 审批 checkpoint**」的混合体。这**修正了本轮需求方向**：不做重 DAG 图引擎，做轻量编排 + 强健壮性。
 
-| 项目 | 语言 | 最值得吸收的机制 | yamet 落点 |
+| 项目 | 语言 | 最值得吸收的机制 | YaMet 落点 |
 |---|---|---|---|
 | **grok-build** | Rust | ① `SubagentCoordinator` actor + `ChildRunner` trait + mpsc 驱动并发/取消；② `xai-workflow` **Journal 确定性重放**（request_hash 去重、可 resume）= 可断点续跑工作流；③ `goal_tracker` worker/verify **双轮** + 预停检测 + token 预算；④ worktree 快照 + `snapshot_ref` 会话恢复；⑤ `subagents_max_depth` 防递归 | 后端核心移植：actor + journal + worker/verify |
 | **hermes** | Python | ① `IterationBudget{max_total,used,lock}` consume/refund 计数器（父500/子50）；② `SubagentHandle{depth,parent_id,id}` + HMAC 防伪 + 状态枚举（PENDING→…→SUCCEEDED/FAILED/INTERRUPTED）；③ **summary 预算封顶**（`min(剩余/批数, 静态上限)`）+ 落盘指针防主上下文爆炸；④ MoA 并行 reference→聚合器（join_all + 失败降级）；⑤ 上下文四元接口（compress/select_context/on_turn_complete/prune）+ 防抖动门 + 头尾保护区；⑥ **单一共享 git 影子仓 checkpoint**（GIT_DIR 重定向 + 每轮去重） | 状态机 + 预算 + summary 封顶 + checkpoint |
 | **opencode** | TS | ① **Agent 即纯配置 schema**（mode: subagent/primary/all + hidden，内置+用户合并）；② **子任务 = 子 Session + parentID 树**（task_id 续跑、天然隔离）；③ agentic loop 健壮退出（`finish≠tool-calls 且无待执行工具`）+ doom-loop 检测；④ **Plan = 受限只读角色 + markdown 文件 + plan_exit 批准移交 build**（无需 DAG）；⑤ 审批三态 once/always/reject + always 级联放行 + RejectedError 反馈纠错 | 前端：agent 配置 schema + plan 模式 + 审批三态 |
 | **claude-code-haha** | TS | ① coordinator 模式提示词 + `<task-notification>` 结果 XML 回传；② 后台化 subagent（spawn/resume/fork 上下文）；③ ToolUseConfirm 权限队列 + worker badge + 审批 feedback + 权限持久化 | 前端：审批 UI + worker 结果协议 |
 
-**三条共性铁律（三个项目一致，yamet 必须吸收）**：
+**三条共性铁律（三个项目一致，YaMet 必须吸收）**：
 1. **上下文隔离是委派的第一价值**——子 agent 永远独立会话/上下文（opencode parentID 树、hermes 独立 AIAgent 实例、grok worktree），只回结论。子任务工具权限 ⊆ 父权限（hermes 工具集交集、opencode deny 递归）。
 2. **结果回传必须有预算封顶**——子 summary 超限落盘 + 上下文只留头部 + 文件指针（hermes summary 预算 + opencode `<task_result>` 结构 + grok journal），防主上下文爆炸。
 3. **深度/递归必须有上限**——`subagents_max_depth`（grok）/ `subagent_depth`（opencode）/ `max_spawn_depth`（hermes）防无限委派。
@@ -78,9 +78,9 @@
 
 ### 0.5 harness 包含哪些概念（六层工程赖以运行的底座）
 
-harness 不是"一个东西"，而是**七个底层组件的集合**。六层工程（Prompt/Context/Loop/Multi-Agent/Subagent/Graph）全部运行在这些组件之上；反过来，这六个组件让六层工程得以落地。**本轮要做的，是把这些 harness 组件在 yamet 里补齐/强化，使六层工程能原生承载。**
+harness 不是"一个东西"，而是**七个底层组件的集合**。六层工程（Prompt/Context/Loop/Multi-Agent/Subagent/Graph）全部运行在这些组件之上；反过来，这六个组件让六层工程得以落地。**本轮要做的，是把这些 harness 组件在 YaMet 里补齐/强化，使六层工程能原生承载。**
 
-| # | harness 组件 | 定义 | 承载的工程层 | yamet 现状 |
+| # | harness 组件 | 定义 | 承载的工程层 | YaMet 现状 |
 |---|---|---|---|---|
 | H1 | **工具桥 Tool Bridge** | 工具注册、参数校验（zod）、结果回传、工具白名单/隔离 | L1/L2/L3 | ✅ `ai/tools/*` + `tool()`，已有白名单/动态审批 |
 | H2 | **会话/状态管理 Session & State** | 会话生命周期、消息历史、agent 状态、持久化 | L2/L3 | ⚠️ `chatStore`+`Chat`，单会话，**缺 parentID 树** |
@@ -90,13 +90,13 @@ harness 不是"一个东西"，而是**七个底层组件的集合**。六层工
 | H6 | **checkpoint/恢复 Checkpoint** | 断点续跑、journal 重放、快照回滚 | L4 | ❌ 无 |
 | H7 | **记忆 Memory** | 长期/会话/项目记忆的写、检索、隔离、跨会话持久化 | L1/L3 | ⚠️ 读写+注入链路存在但**全量无差别注入/无标记隔离/无自动沉淀** |
 
-**结论**：yamet 已有 H1（工具桥）✅，H2/H3/H4/H7 部分（⚠️ 需强化），H5/H6 完全缺失（❌）。**本轮需求 = 六层工程的缺失部分 + harness 的缺失组件一起融合**，不是只做 agent 编排层。
+**结论**：YaMet 已有 H1（工具桥）✅，H2/H3/H4/H7 部分（⚠️ 需强化），H5/H6 完全缺失（❌）。**本轮需求 = 六层工程的缺失部分 + harness 的缺失组件一起融合**，不是只做 agent 编排层。
 
-### 0.6 这些概念如何落进 yamet（harness 映射）
+### 0.6 这些概念如何落进 YaMet（harness 映射）
 
-yamet 的 harness = **Tauri 2 + Rust 桌面壳**。它已经提供了 L1/L2/L3-委派 的大部分基础设施，缺的是 L3-组织 和 L4-编排。
+YaMet 的 harness = **Tauri 2 + Rust 桌面壳**。它已经提供了 L1/L2/L3-委派 的大部分基础设施，缺的是 L3-组织 和 L4-编排。
 
-| 层级 | yamet 现状 | 缺口 | 本轮动作 |
+| 层级 | YaMet 现状 | 缺口 | 本轮动作 |
 |---|---|---|---|
 | L1 Prompt | ✅ `agents.ts`（5内置agent的systemPrompt）+ `registry.ts`（subagent systemPrompt） | 无 | 不动 |
 | L1 Context | ✅ `compact.ts`（压缩/隔离）、`prepareAgentPrompt`（注入）、`agentActivityStore` | 子agent共享主上下文，无独立记忆 | **P1-2**：subagent 定向上下文注入 |
@@ -196,8 +196,8 @@ graph human 节点 + **H3 审批通道升级为三态**（opencode/claude）。
 ### P1-4【H7 记忆】记忆系统重构：召回式注入 + 标记隔离 + 自动沉淀
 **参考源**：hermes `E:/Agent/hermes-agent-main/agent/memory_provider.py`（build_memory_context_block + StreamingContextScrubber 标记隔离）+ `agent/context_engine.py`（select_context 召回）+ `agent/learning_graph.py`（记忆图）
 
-> **核查证据**（2026-08-08 源码确认）：yamet 记忆的读/写/注入链路**都存在**——写(`update_project_memory` tools.ts:51)、读(`list_project_memory`)、跨会话检索(`search_memories` tools.ts:52)、注入(`transport.ts:254-257` 调 `formatSessionMemory`→`mergeProjectMemory`)。但注入层有 4 个真实缺陷，用户判断"记忆系统有问题"成立：
-> ① **全量无差别注入**：`readYametMd`(YAMET.md 全文) + `formatSessionMemory`(本会话全量) **无条件拼接**进每次请求，无相关性召回 → 记忆膨胀后每次请求灌全量（hermes 用 `select_context` 解决）
+> **核查证据**（2026-08-08 源码确认）：YaMet 记忆的读/写/注入链路**都存在**——写(`update_project_memory` tools.ts:51)、读(`list_project_memory`)、跨会话检索(`search_memories` tools.ts:52)、注入(`transport.ts:254-257` 调 `formatSessionMemory`→`mergeProjectMemory`)。但注入层有 4 个真实缺陷，用户判断"记忆系统有问题"成立：
+> ① **全量无差别注入**：`readYametMd`(YaMet.md 全文) + `formatSessionMemory`(本会话全量) **无条件拼接**进每次请求，无相关性召回 → 记忆膨胀后每次请求灌全量（hermes 用 `select_context` 解决）
 > ② **无标记隔离**：注入块无 `[System note: recalled memory]` 包裹，模型回显记忆块无法清洗 → 有被当用户输入的风险
 > ③ **无自动沉淀**：只有 agent 主动调工具写，无 hermes `on_turn_complete` 观察钩子自动提炼
 > ④ **子 agent 无记忆策略**：subagent 既不继承也不显式隔离记忆
@@ -216,7 +216,7 @@ graph human 节点 + **H3 审批通道升级为三态**（opencode/claude）。
 ### P1-5【skill 沉淀】skill 自动策展维护（curator 式）
 **参考源**：hermes `E:/Agent/hermes-agent-main/agent/curator.py`（后台策展：inactivity-triggered + pin/archive/consolidate + 只动 agent 创建/永不删除/pinned 豁免）
 
-> **核查证据**（2026-08-08 源码确认）：yamet 的 skill **主动创建已有**——`create_skill` 工具（tools.ts:54 注册），agent 完成任务后可主动调它沉淀 skill 到 `<workspace>/skills/<name>/skill.json`。但**无后台自动策展/维护**：grep 不到任何 curator/onTurnComplete/自动沉淀机制。
+> **核查证据**（2026-08-08 源码确认）：YaMet 的 skill **主动创建已有**——`create_skill` 工具（tools.ts:54 注册），agent 完成任务后可主动调它沉淀 skill 到 `<workspace>/skills/<name>/skill.json`。但**无后台自动策展/维护**：grep 不到任何 curator/onTurnComplete/自动沉淀机制。
 > **参照澄清**（hermes）：hermes 的 `/learn` 是**主动**提炼（build_learn_prompt → skill_manage 写 SKILL.md），curator 是**后台策展**（aux-model，inactivity-triggered，维护已有 skill 集合：pin/archive/consolidate，**不自动生成新 skill**）。即业界也没有"全自动从对话生成新 skill"，但**后台自动策展维护**是成熟可吸收的。
 
 **本轮**：新增 skill **后台自动策展**（吸收 hermes curator）——维护已有 skill 集合的生命周期，而非自动生成新 skill。
@@ -411,6 +411,6 @@ graph human 节点 + **H3 审批通道升级为三态**（opencode/claude）。
 
 ### 构建
 - 版本 0.1.20 → 0.1.21（四文件同步）；`npx tauri build`；部署 `C:\Users\Admin\AppData\Local\YaMet\`
-- 根目录三文档同步（CHANGELOG/ROADMAP/YAMET）补第20轮
+- 根目录三文档同步（CHANGELOG/ROADMAP/YaMet）补第20轮
 
 **验收总门禁**：cargo test 全绿（含 graph 单测）+ clippy + tsc 0 错误 + vitest 全绿 + i18n-scan + drift + `npx tauri build` exit 0。

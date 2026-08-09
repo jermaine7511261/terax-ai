@@ -97,7 +97,7 @@ export function useTerminalFileDrop(): TerminalPathDropTarget {
         if (disposed) fn();
         else unlisten = fn;
       })
-      .catch((err) => console.error("[yamet] drag-drop listen failed:", err));
+      .catch((err) => console.error("[YaMet] drag-drop listen failed:", err));
 
     return () => {
       disposed = true;

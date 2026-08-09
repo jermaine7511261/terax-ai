@@ -1,6 +1,6 @@
 # 终端渲染池
 
-本指南展开说明 `YAMET.md`。如有冲突，以 `YAMET.md` 为准。
+本指南展开说明 `YaMet.md`。如有冲突，以 `YaMet.md` 为准。
 
 ## 为什么有池
 
@@ -60,6 +60,6 @@ WebGL addon 在槽位变可见时创建，停放超宽限期后回收。addon �
 
 ## 参见
 
-- [`YAMET.md`](../../YAMET.md)：架构事实来源
+- [`YaMet.md`](../../YaMet.md)：架构事实来源
 - [`docs/README.md`](../README.md)：贡献者指南索引
 - [PTY shell 集成](pty-shell-integration.md)：会话、OSC 序列与 ConPTY

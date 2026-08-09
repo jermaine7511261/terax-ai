@@ -14,7 +14,7 @@ import type { ToolContext } from "./context";
  *
  * Search core (`extractSessionText` / `scoreHit` / `snippetAround` /
  * `searchEntries`) is pure and unit-tested; the execute layer only assembles
- * data (sessions store + YAMET.md memory).
+ * data (sessions store + YaMet.md memory).
  */
 
 const MAX_SESSIONS_SCAN = 100;
@@ -133,7 +133,7 @@ export function buildSearchMemoriesTools(ctx: ToolContext) {
 
         const entries: MemorySearchEntry[] = [];
 
-        // 1) Project memory: this session's store + persisted YAMET.md block.
+        // 1) Project memory: this session's store + persisted YaMet.md block.
         const sessionId = ctx.getSessionId();
         for (const m of getSessionMemory(sessionId)) {
           entries.push({
@@ -147,7 +147,7 @@ export function buildSearchMemoriesTools(ctx: ToolContext) {
         if (workspaceRoot) {
           try {
             const r = await native.readFile(
-              `${workspaceRoot.replace(/\/$/, "")}/YAMET.md`,
+              `${workspaceRoot.replace(/\/$/, "")}/YaMet.md`,
             );
             if (r.kind === "text") {
               for (const line of parseBlock(r.content).lines) {
@@ -155,7 +155,7 @@ export function buildSearchMemoriesTools(ctx: ToolContext) {
                 if (content) {
                   entries.push({
                     kind: "memory",
-                    title: "项目记忆（YAMET.md）",
+                    title: "项目记忆（YaMet.md）",
                     time: 0,
                     text: content,
                   });
@@ -163,7 +163,7 @@ export function buildSearchMemoriesTools(ctx: ToolContext) {
               }
             }
           } catch {
-            // No YAMET.md yet.
+            // No YaMet.md yet.
           }
         }
 

@@ -73,7 +73,7 @@
 
 1. **为什么 platform/web 该测而 tauri 难测**：web 层是纯逻辑（path.join、事件、os、clipboard 的浏览器实现），node 环境直接测；tauri 层依赖 `@tauri-apps/api`（invoke/事件），需 mock 或跳过。打磨聚焦 web 层可测部分。
 2. **coverage 阈值提升要谨慎**：实测余量小（statements 34.35 仅超阈值 33 约 1.3pp），提太多会误杀 CI。建议小幅提到 35/30/28/35，配合补测试后验证。
-3. **"抽纯函数"是 yamet 架构铁律**：`mcp.ts` 的 `sanitizeToolName`/`formatMcpResult` 是纯函数式核心，抽出来可测；tauri 命令/组件保持薄壳。这正好符合"新逻辑放纯函数、少依赖"的质量门槛。
+3. **"抽纯函数"是 YaMet 架构铁律**：`mcp.ts` 的 `sanitizeToolName`/`formatMcpResult` 是纯函数式核心，抽出来可测；tauri 命令/组件保持薄壳。这正好符合"新逻辑放纯函数、少依赖"的质量门槛。
 
 ---
 
@@ -180,5 +180,5 @@ P0-1 platform/web 测试 → P0-2 mcp 纯函数测试 → P0-3 graph 纯函数�
 ### 构建
 
 - 版本 0.1.22 → 0.1.23，四文件同步。
-- CHANGELOG / ROADMAP / YAMET 三文档同步。
+- CHANGELOG / ROADMAP / YaMet 三文档同步。
 - 验证：tsc 0、vitest 全绿、`pnpm build`、size budget、cargo test。

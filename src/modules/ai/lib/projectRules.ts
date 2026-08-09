@@ -1,6 +1,6 @@
 /**
  * S5 rules glob activation: discover project rule files (AGENTS.md / CLAUDE.md /
- * YAMET.md) and match rule scopes to file paths. Pure, no I/O, unit-tested.
+ * YaMet.md) and match rule scopes to file paths. Pure, no I/O, unit-tested.
  *
  * Convention: standard rule files at the workspace root are always active.
  * `.yamet/rules/` rule files may carry a `scope:` glob in frontmatter; a rule
@@ -10,7 +10,7 @@
 export const STANDARD_RULE_FILES = [
   "AGENTS.md",
   "CLAUDE.md",
-  "YAMET.md",
+  "YaMet.md",
 ] as const;
 
 /** A rule file + its activation glob (absent = active everywhere). */

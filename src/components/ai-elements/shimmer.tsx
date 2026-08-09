@@ -28,7 +28,7 @@ const ShimmerComponent = ({
     Component,
     {
       className: cn(
-        "yamet-shimmer relative inline-block bg-clip-text text-transparent",
+        "YaMet-shimmer relative inline-block bg-clip-text text-transparent",
         className
       ),
       style: {

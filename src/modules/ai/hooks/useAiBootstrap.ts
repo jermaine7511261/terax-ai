@@ -21,7 +21,7 @@ import { runBackgroundCurator } from "../lib/skillCuratorRunner";
 import { createStorage } from "@/platform";
 import type { FiredTask } from "../lib/scheduler";
 
-const curatorStore = createStorage("yamet-ai-skill-curator.json");
+const curatorStore = createStorage("YaMet-ai-skill-curator.json");
 
 /**
  * Startup wiring for the AI subsystem: loads provider keys (and keeps them in
@@ -145,7 +145,7 @@ export function useAiBootstrap(): {
           }
           if (granted) {
             sendNotification({
-              title: `Yamet · ${fired.name}`,
+              title: `YaMet · ${fired.name}`,
               body: fired.prompt.slice(0, 120),
             });
           }

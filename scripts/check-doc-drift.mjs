@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 // Round-12 drift gate (P0): the three doc-code invariants, machine-checked.
 //   1. Every command registered in `generate_handler!` (src-tauri/src/lib.rs)
-//      must be documented in YAMET.md (as the command itself or its module
+//      must be documented in YaMet.md (as the command itself or its module
 //      prefix group, e.g. `dap::*`).
-//   2. Every `src/modules/*` directory must appear in the YAMET.md module
+//   2. Every `src/modules/*` directory must appear in the YaMet.md module
 //      layout section.
 //   3. Native-only rule: no tmux / vscode-debugadapter / js-debug / external
 //      MCP crate / non-native plugin runtime anywhere in Rust source or
@@ -49,13 +49,13 @@ if (blockStart < 0) {
     .filter((c) => /^[a-z_][a-z0-9_]*$/.test(c));
   const unique = [...new Set(commands)];
 
-  const YaMet = readFileSync(join(root, "YAMET.md"), "utf8");
+  const YaMet = readFileSync(join(root, "YaMet.md"), "utf8");
   const missing = unique.filter((cmd) => {
     const prefix = cmd.split("_")[0];
-    return !yamet.includes(`\`${cmd}\``) && !yamet.includes(`${prefix}::`);
+    return !YaMet.includes(`\`${cmd}\``) && !YaMet.includes(`${prefix}::`);
   });
   if (missing.length) {
-    fail(`YAMET.md 未覆盖以下已注册命令: ${missing.join(", ")}`);
+    fail(`YaMet.md 未覆盖以下已注册命令: ${missing.join(", ")}`);
   }
 
   // 4. Frontend invoke() command names must be registered in generate_handler!.
@@ -93,7 +93,7 @@ if (blockStart < 0) {
   }
 }
 
-// ---- 2. src/modules/* directories in YAMET.md ----
+// ---- 2. src/modules/* directories in YaMet.md ----
 const modulesDir = join(root, "src", "modules");
 if (!statSync(modulesDir, { throwIfNoEntry: false })) {
   fail("src/modules 目录不存在");
@@ -101,22 +101,22 @@ if (!statSync(modulesDir, { throwIfNoEntry: false })) {
   const modules = readdirSync(modulesDir, { withFileTypes: true })
     .filter((d) => d.isDirectory())
     .map((d) => d.name);
-  const YaMet = readFileSync(join(root, "YAMET.md"), "utf8");
+  const YaMet = readFileSync(join(root, "YaMet.md"), "utf8");
   const missingMods = modules.filter(
-    (m) => !yamet.includes(`- **${m}/**`) && !yamet.includes(`**/${m}/**`),
+    (m) => !YaMet.includes(`- **${m}/**`) && !YaMet.includes(`**/${m}/**`),
   );
   if (missingMods.length) {
-    fail(`YAMET.md 模块布局未列出: ${missingMods.join(", ")}`);
+    fail(`YaMet.md 模块布局未列出: ${missingMods.join(", ")}`);
   }
 }
 
 // ---- 2b. web server handlers are a second command surface ----
-// Every command the web backend registers must be covered by the YAMET.md
+// Every command the web backend registers must be covered by the YaMet.md
 // WebUI note (or the explicit `WRITE_BLOCKED` rejection set), so the Node
 // re-implementation can't silently drift from the documented contract.
 {
   const handlersDir = join(root, "src", "platform", "web", "server", "handlers");
-  const YaMet = readFileSync(join(root, "YAMET.md"), "utf8");
+  const YaMet = readFileSync(join(root, "YaMet.md"), "utf8");
   const registered = new Set();
   for (const f of readdirSync(handlersDir, { withFileTypes: true })) {
     if (!f.isFile() || !f.name.endsWith(".ts") || f.name === "workspace.ts") continue;
@@ -126,10 +126,10 @@ if (!statSync(modulesDir, { throwIfNoEntry: false })) {
     }
   }
   const missing = [...registered].filter(
-    (cmd) => !yamet.includes(`\`${cmd}\``) && !yamet.includes("web/server"),
+    (cmd) => !YaMet.includes(`\`${cmd}\``) && !YaMet.includes("web/server"),
   );
   if (missing.length) {
-    fail(`YAMET.md 未覆盖 web server 命令: ${missing.join(", ")}`);
+    fail(`YaMet.md 未覆盖 web server 命令: ${missing.join(", ")}`);
   }
 }
 

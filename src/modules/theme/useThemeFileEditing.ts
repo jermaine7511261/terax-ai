@@ -43,12 +43,12 @@ export function useThemeFileEditing({ tabsRef, openFileTab }: Params) {
                 return;
               const parsed = parseThemeFile(res.content);
               if (!parsed.ok) {
-                console.warn("[yamet] theme not applied:", parsed.error);
+                console.warn("[YaMet] theme not applied:", parsed.error);
                 return;
               }
               await saveCustomTheme(parsed.theme);
             } catch (e) {
-              console.warn("[yamet] theme ingest failed:", e);
+              console.warn("[YaMet] theme ingest failed:", e);
             }
           })();
         },

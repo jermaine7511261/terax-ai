@@ -132,7 +132,7 @@ function AddAdapterDialog({
       setAdapterCommand("");
       setAdapterArgs("");
     } catch (e) {
-      console.error("[yamet] dap create failed", e);
+      console.error("[YaMet] dap create failed", e);
       const msg = String(e instanceof Error ? e.message : e);
       try {
         const parsed = JSON.parse(msg) as { code?: string; command?: string };

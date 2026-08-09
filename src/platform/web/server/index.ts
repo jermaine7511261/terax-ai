@@ -1,5 +1,5 @@
 /**
- * Web backend server for yamet.
+ * Web backend server for YaMet.
  *
  * Bridges IPC commands from the frontend WebSocket to native file system /
  * shell / git operations. This is the web-mode equivalent of Tauri's
@@ -76,20 +76,20 @@ function reject(ws: { send: (s: string) => void }, id: string, message: string):
 }
 
 wss.on("listening", () => {
-  console.log(`[yamet-web-server] listening on ws://${HOST}:${PORT}`);
-  console.log(`[yamet-web-server] workspace: ${WORKSPACE}`);
-  console.log(`[yamet-web-server] ${listCommands().length} commands registered`);
+  console.log(`[YaMet-web-server] listening on ws://${HOST}:${PORT}`);
+  console.log(`[YaMet-web-server] workspace: ${WORKSPACE}`);
+  console.log(`[YaMet-web-server] ${listCommands().length} commands registered`);
 });
 
 wss.on("connection", (ws, req) => {
   // Origin check: browsers always send the Origin header on a WS handshake.
   const origin = req.headers.origin;
   if (!origin || !ALLOWED_ORIGINS.has(origin)) {
-    console.warn(`[yamet-web-server] rejected connection from origin: ${origin ?? "none"}`);
+    console.warn(`[YaMet-web-server] rejected connection from origin: ${origin ?? "none"}`);
     ws.close(1008, "origin not allowed");
     return;
   }
-  console.log("[yamet-web-server] client connected");
+  console.log("[YaMet-web-server] client connected");
 
   ws.on("message", async (raw) => {
     let msg: { id: string; cmd: string; args?: Record<string, unknown>; token?: string };
@@ -121,13 +121,13 @@ wss.on("connection", (ws, req) => {
   });
 
   ws.on("close", () => {
-    console.log("[yamet-web-server] client disconnected");
+    console.log("[YaMet-web-server] client disconnected");
   });
 });
 
 // Graceful shutdown
 process.on("SIGINT", () => {
-  console.log("\n[yamet-web-server] shutting down");
+  console.log("\n[YaMet-web-server] shutting down");
   wss.close();
   process.exit(0);
 });

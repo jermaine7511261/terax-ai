@@ -89,7 +89,7 @@ export async function saveTerminalSnapshot(
   try {
     await native.writeFile(snapPath(leafId, home), content);
   } catch (e) {
-    console.warn("[yamet] terminal snapshot save failed:", e);
+    console.warn("[YaMet] terminal snapshot save failed:", e);
   }
 }
 

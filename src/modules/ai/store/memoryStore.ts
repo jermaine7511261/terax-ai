@@ -7,7 +7,7 @@ import { create } from "zustand";
  *  - In-session: entries live here keyed by chat session id, so a note written
  *    mid-conversation is immediately available to subsequent turns (merged into
  *    the system prompt on the next run).
- *  - Cross-session: each entry is ALSO persisted to YAMET.md via
+ *  - Cross-session: each entry is ALSO persisted to YaMet.md via
  *    transport.appendProjectMemory/updateProjectMemory, so it survives restart.
  */
 export type ProjectMemoryEntry = {
@@ -69,7 +69,7 @@ export function formatSessionMemory(
 ): string | null {
   if (entries.length === 0) return null;
   const lines = entries.map((e) => `- ${e.content.replace(/\r?\n/g, " ")}`);
-  return `<yamet-session-memory>\n${lines.join("\n")}\n</yamet-session-memory>`;
+  return `<YaMet-session-memory>\n${lines.join("\n")}\n</yamet-session-memory>`;
 }
 
 /**

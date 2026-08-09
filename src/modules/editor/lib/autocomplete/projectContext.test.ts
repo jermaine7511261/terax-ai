@@ -40,7 +40,7 @@ describe("getProjectContext", () => {
     expect(mockNative.readFile).not.toHaveBeenCalled();
   });
 
-  it("walks up for AGENTS/YAMET/CLAUDE notes and caps them at 6000 chars", async () => {
+  it("walks up for AGENTS/YaMet/CLAUDE notes and caps them at 6000 chars", async () => {
     const big = "x".repeat(9000);
     mockNative.readFile.mockResolvedValue(text(big));
 

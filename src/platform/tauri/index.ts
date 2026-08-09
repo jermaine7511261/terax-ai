@@ -16,8 +16,8 @@ import { tauriClipboard } from "./clipboard";
 import { tauriWatch } from "./watch";
 
 // Storage is per-file; expose a factory so callers get their own LazyStore.
-// For the composite adapter, the default store is "yamet-settings.json".
-const defaultStorage = createTauriStorage("yamet-settings.json");
+// For the composite adapter, the default store is "YaMet-settings.json".
+const defaultStorage = createTauriStorage("YaMet-settings.json");
 
 export const tauriAdapter: IPlatformAdapter = {
   name: "tauri",

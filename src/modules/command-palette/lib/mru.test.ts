@@ -2,7 +2,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { mruRank, mruSnapshot, recordUse } from "./mru";
 
-const KEY = "yamet-palette-mru";
+const KEY = "YaMet-palette-mru";
 
 beforeEach(() => {
   localStorage.clear();

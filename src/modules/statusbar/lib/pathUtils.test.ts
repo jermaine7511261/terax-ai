@@ -11,10 +11,10 @@ function shape(cwd: string, home: string | null) {
 
 describe("segmentsFromCwd", () => {
   it("renders a path under home with a ~ root and accumulated paths", () => {
-    expect(shape("/Users/me/projects/yamet", "/Users/me")).toEqual([
+    expect(shape("/Users/me/projects/YaMet", "/Users/me")).toEqual([
       { label: "~", fullPath: "/Users/me", isHome: true },
       { label: "projects", fullPath: "/Users/me/projects", isHome: false },
-      { label: "yamet", fullPath: "/Users/me/projects/yamet", isHome: false },
+      { label: "YaMet", fullPath: "/Users/me/projects/YaMet", isHome: false },
     ]);
   });
 

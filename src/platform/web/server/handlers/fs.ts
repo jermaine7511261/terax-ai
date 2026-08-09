@@ -35,7 +35,7 @@ function resolve(p: string): string {
 
 /** Sensitive basenames refused on read AND write (mirrors fs/policy.rs). */
 const SENSITIVE_RE = /(^|[./\\])(\.env|\.env\.[^/\\]*|\.pem|\.key|\.p12|\.pfx|id_rsa|id_ed25519|id_dsa|id_ecdsa|known_hosts|credentials|\.kubeconfig|\.netrc|\.git-credentials)$/i;
-const PROTECTED_DIRS = /(^|[./\\])(\.ssh|\.aws|\.kube|\.gnupg|\.config\/yamet|\.config\/git|\.git|\.svn|\.hg)([\\/]|$)/i;
+const PROTECTED_DIRS = /(^|[./\\])(\.ssh|\.aws|\.kube|\.gnupg|\.config\/YaMet|\.config\/git|\.git|\.svn|\.hg)([\\/]|$)/i;
 
 /** Resolve + verify the resolved path stays in-workspace and is not sensitive. */
 function resolveRead(p: string): string {

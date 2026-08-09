@@ -133,7 +133,7 @@ export function CommandPalette({
     setQuery(initialMode === "content" ? "#" : "");
     setPage("root");
     const handle = window.setTimeout(() => {
-      document.getElementById("yamet-command-palette-input")?.focus();
+      document.getElementById("YaMet-command-palette-input")?.focus();
     }, 0);
     return () => window.clearTimeout(handle);
   }, [open, initialMode]);
@@ -241,7 +241,7 @@ export function CommandPalette({
         onKeyDown={onKeyDown}
       >
         <CommandInput
-          id="yamet-command-palette-input"
+          id="YaMet-command-palette-input"
           value={query}
           onValueChange={setQuery}
           placeholder={placeholder}

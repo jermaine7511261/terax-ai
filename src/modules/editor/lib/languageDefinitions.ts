@@ -464,7 +464,7 @@ export const LANGUAGES: LanguageDefinition[] = [
       ),
   },
   {
-    name: "Yamet Theme",
+    name: "YaMet Theme",
     extensions: ["yamet-theme"],
     loader: async () => {
       const [{ json }, { colorSwatches }] = await Promise.all([

@@ -19,7 +19,7 @@ const langFixture = vi.hoisted(() => {
       loader: () => import("@codemirror/lang-markdown").then((m) => m.markdown()),
     },
     {
-      name: "Yamet Theme",
+      name: "YaMet Theme",
       extensions: ["ytheme"],
       loader: () => Promise.resolve({} as never),
     },
@@ -43,12 +43,12 @@ function viewFor(doc: string): EditorView {
 }
 
 describe("markdownCodeLanguages", () => {
-  it("excludes Markdown and Yamet Theme from fence languages", () => {
+  it("excludes Markdown and YaMet Theme from fence languages", () => {
     const langs = markdownCodeLanguages();
     const names = langs.map((l) => l.name);
     expect(names).toContain("TypeScript");
     expect(names).not.toContain("Markdown");
-    expect(names).not.toContain("Yamet Theme");
+    expect(names).not.toContain("YaMet Theme");
   });
 
   it("resolves a language support via its loader", async () => {

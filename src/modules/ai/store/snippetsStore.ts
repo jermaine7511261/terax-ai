@@ -9,7 +9,7 @@ import {
   type Snippet,
 } from "../lib/snippets";
 
-const CHANGED_EVENT = "yamet://ai-snippets-changed";
+const CHANGED_EVENT = "YaMet://ai-snippets-changed";
 
 type State = {
   hydrated: boolean;

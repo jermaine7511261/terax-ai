@@ -19,7 +19,7 @@ describe("formatSessionMemory", () => {
 
   it("formats single entry", () => {
     const result = formatSessionMemory([entry("remember this", "1")]);
-    expect(result).toContain("<yamet-session-memory>");
+    expect(result).toContain("<YaMet-session-memory>");
     expect(result).toContain("- remember this");
     expect(result).toContain("</yamet-session-memory>");
   });

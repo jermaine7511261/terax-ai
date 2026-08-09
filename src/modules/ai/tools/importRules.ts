@@ -4,9 +4,9 @@ import { native } from "../lib/native";
 import type { ToolContext } from "./context";
 
 /**
- * §3.4.3 Import Cursor/Windsurf rules as yamet skills.
+ * §3.4.3 Import Cursor/Windsurf rules as YaMet skills.
  * Parses `.cursorrules` (MDC format: YAML frontmatter + markdown body)
- * and converts them to yamet skill.json structure.
+ * and converts them to YaMet skill.json structure.
  */
 
 interface CursorRulesPayload {
@@ -53,7 +53,7 @@ export function buildImportRulesTools(ctx: ToolContext) {
   return {
     import_rules: tool({
       description:
-        "Import Cursor/Windsurf rules as yamet skills. Parses a .cursorrules file (MDC: YAML frontmatter + markdown body) into skill.json format and saves it under skills/. Requires approval.",
+        "Import Cursor/Windsurf rules as YaMet skills. Parses a .cursorrules file (MDC: YAML frontmatter + markdown body) into skill.json format and saves it under skills/. Requires approval.",
       inputSchema: z.object({
         path: z
           .string()

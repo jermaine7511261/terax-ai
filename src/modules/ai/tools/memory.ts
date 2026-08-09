@@ -24,7 +24,7 @@ export function buildMemoryTools(ctx: ToolContext) {
   return {
     update_project_memory: tool({
       description:
-        "Persist a short, reusable fact or decision about this project so future sessions can recall it. Two-level: written to this session's memory immediately (visible to later turns) AND appended to YAMET.md on disk (survives restart). Use it for stable project facts — architecture decisions, naming conventions, gotchas, chosen libraries, avoided approaches. Keep each entry to one concise sentence. Replace an existing entry by passing the same id; omit id to append a new one. Auto-executes (no approval); refuses paths outside the workspace. When finishing a task with reusable findings, prefer persisting them here.",
+        "Persist a short, reusable fact or decision about this project so future sessions can recall it. Two-level: written to this session's memory immediately (visible to later turns) AND appended to YaMet.md on disk (survives restart). Use it for stable project facts — architecture decisions, naming conventions, gotchas, chosen libraries, avoided approaches. Keep each entry to one concise sentence. Replace an existing entry by passing the same id; omit id to append a new one. Auto-executes (no approval); refuses paths outside the workspace. When finishing a task with reusable findings, prefer persisting them here.",
       inputSchema: z.object({
         entry: z
           .string()
@@ -64,7 +64,7 @@ export function buildMemoryTools(ctx: ToolContext) {
           useMemoryStore.getState().addMemory(sessionId, memEntry);
         }
 
-        // Level 2 — cross-session: persist to YAMET.md on disk.
+        // Level 2 — cross-session: persist to YaMet.md on disk.
         const workspaceRoot = ctx.getWorkspaceRoot();
         let persisted:
           | { ok: true; path: string }
@@ -76,12 +76,12 @@ export function buildMemoryTools(ctx: ToolContext) {
             : await appendProjectMemory(workspaceRoot, memEntry);
         }
 
-        // §3.5.1 Auto-compact: when YAMET.md entries exceed 20, compress oldest half.
+        // §3.5.1 Auto-compact: when YaMet.md entries exceed 20, compress oldest half.
         if (workspaceRoot && persisted?.ok) {
           const root = workspaceRoot;
           try {
             const re = await native.readFile(
-              `${root.replace(/\/$/, "")}/YAMET.md`,
+              `${root.replace(/\/$/, "")}/YaMet.md`,
             );
             if (re.kind === "text" && "content" in re) {
               const text = (re as { kind: "text"; content: string }).content;
@@ -102,11 +102,11 @@ export function buildMemoryTools(ctx: ToolContext) {
                   .map((l: string) => `- ${l.replace(/^-\\s*/, "")}`)
                   .join("\n");
                 await native.writeFile(
-                  `${root.replace(/\/$/, "")}/YAMET.md`,
-                  `<!-- yamet-project-memory:start -->\n${merged}\n<!-- yamet-project-memory:end -->\n`,
+                  `${root.replace(/\/$/, "")}/YaMet.md`,
+                  `<!-- YaMet-project-memory:start -->\n${merged}\n<!-- YaMet-project-memory:end -->\n`,
                 );
                 console.log(
-                  "[yamet] auto-summarize triggered: compacted " +
+                  "[YaMet] auto-summarize triggered: compacted " +
                     oldLines.length +
                     " old entries",
                 );
@@ -129,7 +129,7 @@ export function buildMemoryTools(ctx: ToolContext) {
 
     list_project_memory: tool({
       description:
-        "List all project memory entries: this session's in-memory notes plus the persisted YAMET.md block. Returns each entry's id (for delete_project_memory), content, source (tool/auto), and persisted flag. Use it before replacing or deleting an entry.",
+        "List all project memory entries: this session's in-memory notes plus the persisted YaMet.md block. Returns each entry's id (for delete_project_memory), content, source (tool/auto), and persisted flag. Use it before replacing or deleting an entry.",
       inputSchema: z.object({}),
       execute: async () => {
         const sessionId = ctx.getSessionId();
@@ -156,7 +156,7 @@ export function buildMemoryTools(ctx: ToolContext) {
         if (workspaceRoot) {
           try {
             const r = await native.readFile(
-              `${workspaceRoot.replace(/\/$/, "")}/YAMET.md`,
+              `${workspaceRoot.replace(/\/$/, "")}/YaMet.md`,
             );
             if (r.kind === "text" && "content" in r) {
               const content = (r as { kind: "text"; content: string }).content;
@@ -173,7 +173,7 @@ export function buildMemoryTools(ctx: ToolContext) {
               }
             }
           } catch {
-            // No YAMET.md yet — nothing persisted.
+            // No YaMet.md yet — nothing persisted.
           }
         }
 
@@ -186,7 +186,7 @@ export function buildMemoryTools(ctx: ToolContext) {
 
     delete_project_memory: tool({
       description:
-        "Delete a project memory entry by its id (from a prior list_project_memory call). Both the in-session copy and the persisted YAMET.md copy (if any) are removed. Idempotent for missing entries.",
+        "Delete a project memory entry by its id (from a prior list_project_memory call). Both the in-session copy and the persisted YaMet.md copy (if any) are removed. Idempotent for missing entries.",
       inputSchema: z.object({
         id: z.string().describe("Entry id returned by list_project_memory."),
       }),

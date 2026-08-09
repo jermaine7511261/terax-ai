@@ -14,8 +14,8 @@ type State = Preferences & {
 
 let initPromise: Promise<void> | null = null;
 
-const FAST_BG_KIND_KEY = "yamet-ui-bg-kind-shadow";
-const FAST_BG_IMAGE_ID_KEY = "yamet-ui-bg-image-shadow";
+const FAST_BG_KIND_KEY = "YaMet-ui-bg-kind-shadow";
+const FAST_BG_IMAGE_ID_KEY = "YaMet-ui-bg-image-shadow";
 
 function mirrorBgFastPath(
   kind: Preferences["backgroundKind"],

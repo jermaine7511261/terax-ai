@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { loadBookmarks, navBack, navForward, pushNav, toggleBookmark } from "./nav";
 
-const KEY = "yamet.preview.bookmarks";
+const KEY = "YaMet.preview.bookmarks";
 
 function stubStorage(initial: Record<string, string> = {}) {
   const map = new Map(Object.entries(initial));

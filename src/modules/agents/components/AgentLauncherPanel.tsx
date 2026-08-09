@@ -58,7 +58,7 @@ export function AgentLauncherPanel({ onBack, onLaunch }: Props) {
     persistedRef.current = next;
     void setAgentLaunchCommands(next).catch((error) => {
       persistedRef.current = previous;
-      console.error("[yamet] failed to save agent launch commands:", error);
+      console.error("[YaMet] failed to save agent launch commands:", error);
     });
   };
 

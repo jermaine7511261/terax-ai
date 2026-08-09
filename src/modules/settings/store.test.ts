@@ -104,11 +104,11 @@ describe("loadPreferences", () => {
 
   it("applies stored scalar values", async () => {
     storeBacking.memory.set("theme", "dark");
-    storeBacking.memory.set("themeId", "yamet-alternate");
+    storeBacking.memory.set("themeId", "YaMet-alternate");
     storeBacking.memory.set("vimMode", true);
     const prefs = await loadPreferences();
     expect(prefs.theme).toBe("dark");
-    expect(prefs.themeId).toBe("yamet-alternate");
+    expect(prefs.themeId).toBe("YaMet-alternate");
     expect(prefs.vimMode).toBe(true);
   });
 
@@ -158,7 +158,7 @@ describe("setters", () => {
   it("persist through the fake store and broadcast the prefs-changed event", async () => {
     await setTheme("light");
     expect(storeBacking.memory.get("theme")).toBe("light");
-    expect(eventMock.emit).toHaveBeenCalledWith("yamet://prefs-changed", {
+    expect(eventMock.emit).toHaveBeenCalledWith("YaMet://prefs-changed", {
       key: "theme",
       value: "light",
     });
@@ -173,10 +173,10 @@ describe("setters", () => {
 
   it("round-trips through loadPreferences", async () => {
     await setTheme("dark");
-    await setThemeId("yamet-alt");
+    await setThemeId("YaMet-alt");
     const prefs = await loadPreferences();
     expect(prefs.theme).toBe("dark");
-    expect(prefs.themeId).toBe("yamet-alt");
+    expect(prefs.themeId).toBe("YaMet-alt");
   });
 
   it("setUseNativeAi persists the dual-track switch and defaults off", async () => {
@@ -184,7 +184,7 @@ describe("setters", () => {
     expect(DEFAULT_PREFERENCES.useNativeAi).toBe(false);
     await setUseNativeAi(true);
     expect(storeBacking.memory.get("useNativeAi")).toBe(true);
-    expect(eventMock.emit).toHaveBeenCalledWith("yamet://prefs-changed", {
+    expect(eventMock.emit).toHaveBeenCalledWith("YaMet://prefs-changed", {
       key: "useNativeAi",
       value: true,
     });
@@ -211,13 +211,13 @@ describe("onPreferencesChange", () => {
     const cb = vi.fn();
     await onPreferencesChange(cb);
     expect(eventMock.listen).toHaveBeenCalledWith(
-      "yamet://prefs-changed",
+      "YaMet://prefs-changed",
       expect.any(Function),
     );
     const handler = eventMock.listen.mock.calls[0]?.[1] as (e: {
       payload: { key: string; value: string };
     }) => void;
-    handler({ payload: { key: "themeId", value: "yamet-x" } });
-    expect(cb).toHaveBeenCalledWith("themeId", "yamet-x");
+    handler({ payload: { key: "themeId", value: "YaMet-x" } });
+    expect(cb).toHaveBeenCalledWith("themeId", "YaMet-x");
   });
 });

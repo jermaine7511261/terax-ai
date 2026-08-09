@@ -4,35 +4,35 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useMemoryStore } from "../store/memoryStore";
 import type { ToolContext } from "./context";
 
-const MEM_START = "<!-- yamet-project-memory:start -->";
-const MEM_END = "<!-- yamet-project-memory:end -->";
+const MEM_START = "<!-- YaMet-project-memory:start -->";
+const MEM_END = "<!-- YaMet-project-memory:end -->";
 
 const transportMock = vi.hoisted(() => ({
   appendProjectMemory: vi.fn(async () => ({
     ok: true as const,
-    path: "/w/YAMET.md",
+    path: "/w/YaMet.md",
   })),
   updateProjectMemory: vi.fn(async () => ({
     ok: true as const,
-    path: "/w/YAMET.md",
+    path: "/w/YaMet.md",
   })),
   removeProjectMemory: vi.fn(async () => ({
     ok: true as const,
-    path: "/w/YAMET.md",
+    path: "/w/YaMet.md",
   })),
   parseBlock: (content: string) => {
-    const start = content.indexOf("<!-- yamet-project-memory:start -->");
-    const end = content.indexOf("<!-- yamet-project-memory:end -->");
+    const start = content.indexOf("<!-- YaMet-project-memory:start -->");
+    const end = content.indexOf("<!-- YaMet-project-memory:end -->");
     if (start === -1 || end === -1 || end <= start) {
       return { prefix: content, lines: [], suffix: "" };
     }
     return {
       prefix: content.slice(0, start),
       lines: content
-        .slice(start + "<!-- yamet-project-memory:start -->".length, end)
+        .slice(start + "<!-- YaMet-project-memory:start -->".length, end)
         .split("\n")
         .filter((l) => l.trim().length > 0),
-      suffix: content.slice(end + "<!-- yamet-project-memory:end -->".length),
+      suffix: content.slice(end + "<!-- YaMet-project-memory:end -->".length),
     };
   },
 }));
@@ -99,7 +99,7 @@ beforeEach(() => {
 });
 
 describe("update_project_memory", () => {
-  it("writes to the in-session store and persists to YAMET.md", async () => {
+  it("writes to the in-session store and persists to YaMet.md", async () => {
     const result = await runMemory(makeContext(), {
       entry: "We use pnpm, never npm.",
     });
@@ -184,7 +184,7 @@ describe("update_project_memory source", () => {
 });
 
 describe("list_project_memory", () => {
-  it("merges session entries with persisted YAMET.md entries", async () => {
+  it("merges session entries with persisted YaMet.md entries", async () => {
     await runMemory(makeContext(), { entry: "session fact" });
     nativeMock.readFile.mockResolvedValue({
       kind: "text",

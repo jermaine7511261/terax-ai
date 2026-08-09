@@ -66,7 +66,7 @@ export function useWorkspaceSwitcher({
           setHome(normalized);
           // Keep Rust's workspace_current_dir in sync with the live workspace
           // root so settings-side consumers (project memory, skills scan) see
-          // the same YAMET.md the AI memory tool writes to.
+          // the same YaMet.md the AI memory tool writes to.
           void native.workspaceSetCurrent(normalized).catch(() => {});
           try {
             await native.workspaceAuthorize(normalized);

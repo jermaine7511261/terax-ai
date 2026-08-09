@@ -327,16 +327,16 @@ function AgentEditorDialog({
 }
 
 
-// YAMET.md managed memory block — mirrors the format used by the
+// YaMet.md managed memory block — mirrors the format used by the
 // update_project_memory tool (lib/transport.ts), kept dependency-free here so
 // the settings window doesn't eagerly pull the AI stack (eager-budget test).
-const MEM_START = "<!-- yamet-project-memory:start -->";
-const MEM_END = "<!-- yamet-project-memory:end -->";
+const MEM_START = "<!-- YaMet-project-memory:start -->";
+const MEM_END = "<!-- YaMet-project-memory:end -->";
 
-/** Read the managed memory block lines from YAMET.md (bare contents). */
+/** Read the managed memory block lines from YaMet.md (bare contents). */
 async function readMemoryEntries(root: string): Promise<string[]> {
   try {
-    const r = await native.readFile(`${root.replace(/\/$/, "")}/YAMET.md`);
+    const r = await native.readFile(`${root.replace(/\/$/, "")}/YaMet.md`);
     if (r.kind !== "text") return [];
     const start = r.content.indexOf(MEM_START);
     const end = r.content.indexOf(MEM_END);
@@ -351,7 +351,7 @@ async function readMemoryEntries(root: string): Promise<string[]> {
   }
 }
 
-/** Rebuild YAMET.md preserving everything outside the managed block. */
+/** Rebuild YaMet.md preserving everything outside the managed block. */
 function rebuildMemoryBlock(content: string, entries: string[]): string {
   const start = content.indexOf(MEM_START);
   const end = content.indexOf(MEM_END);
@@ -395,13 +395,13 @@ function ProjectMemoryBlock() {
   }, [load]);
 
   const writeEntries = async (root: string, entries: string[]) => {
-    const path = `${root.replace(/\/$/, "")}/YAMET.md`;
+    const path = `${root.replace(/\/$/, "")}/YaMet.md`;
     let content = "";
     try {
       const r = await native.readFile(path);
       if (r.kind === "text") content = r.content;
     } catch {
-      // YAMET.md may not exist yet — start fresh.
+      // YaMet.md may not exist yet — start fresh.
     }
     await native.writeFile(path, rebuildMemoryBlock(content, entries));
   };

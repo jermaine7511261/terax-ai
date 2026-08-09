@@ -34,8 +34,8 @@ describe("LANGUAGES", () => {
 
   it("excludes languages without an explicit userSelectable flag from pickers", () => {
     const exposedNames = EXPOSED_LANGUAGES.map((l) => l.name);
-    // "Yamet Theme" is internal and never user-pickable.
-    expect(exposedNames).not.toContain("Yamet Theme");
+    // "YaMet Theme" is internal and never user-pickable.
+    expect(exposedNames).not.toContain("YaMet Theme");
   });
 });
 

@@ -62,7 +62,7 @@ export const TOOL_REGISTRY: ReadonlyArray<{ id: string; description: string }> =
   // §3.3 model fusion
   { id: "model_fusion", description: "多模型融合：N 模型并行 + judge 综合（需审批）" },
   // §3.4.3 rules import
-  { id: "import_rules", description: "导入 Cursor/Windsurf rules 为 yamet 技能（需审批）" },
+  { id: "import_rules", description: "导入 Cursor/Windsurf rules 为 YaMet 技能（需审批）" },
   // §3.6.2 media generation
   { id: "generate_image", description: "AI 生成图片（DALL-E/Imagen/Stability，需审批）" },
   // §3.7 LSP

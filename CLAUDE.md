@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-YaMet 的 AI 编码约定。改动前先读 `YAMET.md`（活架构文档）。
+YaMet 的 AI 编码约定。改动前先读 `YaMet.md`（活架构文档）。
 
 ---
 

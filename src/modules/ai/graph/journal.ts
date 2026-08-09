@@ -10,7 +10,7 @@ import type { JournalEntry } from "./types";
  * Storage is a JSON blob per graphId — a single key write per snapshot keeps
  * it cheap and lets us overwrite (dedup) on re-run.
  */
-const STORE_PATH = "yamet-ai-graph-journal.json";
+const STORE_PATH = "YaMet-ai-graph-journal.json";
 const KEY_PREFIX = "journal:";
 
 const store = createStorage(STORE_PATH);

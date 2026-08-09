@@ -1,4 +1,4 @@
-# yamet-shell-integration (zshrc)
+# YaMet-shell-integration (zshrc)
 #
 # Emits OSC 7 (cwd) + OSC 133 A/B/C/D (prompt-start / prompt-end / pre-exec /
 # command-done-with-exit-code) so the host can detect command boundaries and

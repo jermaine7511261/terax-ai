@@ -1,16 +1,16 @@
-# 第二十一轮迭代需求：Grok 网络工具移植（grok-build 源码 → yamet 原生）
+# 第二十一轮迭代需求：Grok 网络工具移植（grok-build 源码 → YaMet 原生）
 
 > 目标版本 **0.1.22**（功能性构建）。
-> 用户核心命题：「grok 也是 rust，功能整体移植过来」。**实指**：本地 `E:\Agent\grok-build-main` 是 **Grok 开源的 agentic coding 引擎**（GitHub grok-build，Rust），其 `xai-grok-tools` crate 里有完整、可直接移植的 `web_fetch` / `web_search` / `search_tool` 实现。用户要求把这套**网络工具整体移植**到 yamet（同为 Rust/Tauri）的 agent 工具面。
+> 用户核心命题：「grok 也是 rust，功能整体移植过来」。**实指**：本地 `E:\Agent\grok-build-main` 是 **Grok 开源的 agentic coding 引擎**（GitHub grok-build，Rust），其 `xai-grok-tools` crate 里有完整、可直接移植的 `web_fetch` / `web_search` / `search_tool` 实现。用户要求把这套**网络工具整体移植**到 YaMet（同为 Rust/Tauri）的 agent 工具面。
 > 范围：**概念模型 + 深度源码调研 + 需求规划 + 实施方案**。
 
 ---
 
-## §0 概念模型（先把 Grok 网络工具 vs yamet 现状搞清楚）
+## §0 概念模型（先把 Grok 网络工具 vs YaMet 现状搞清楚）
 
 ### 0.1 一句话总纲
 
-Grok 的「网络工具」不是一组并列函数，而是**三个能力层次的嵌套**：L1 单点获取（`web_fetch` 读一个 URL）、L2 实时检索（`web_search` 搜全网）、L3 多步调研（**`deep-research` 工作流**：Rhai 脚本编排，Plan→Research→Verify→Report 四阶段）。**关键发现：Grok 的这三层在 grok-build 里都是完整开源实现，与 yamet 同为 Rust——不是「复刻」，是「全功能移植源码 + 适配 yamet 栈」。**
+Grok 的「网络工具」不是一组并列函数，而是**三个能力层次的嵌套**：L1 单点获取（`web_fetch` 读一个 URL）、L2 实时检索（`web_search` 搜全网）、L3 多步调研（**`deep-research` 工作流**：Rhai 脚本编排，Plan→Research→Verify→Report 四阶段）。**关键发现：Grok 的这三层在 grok-build 里都是完整开源实现，与 YaMet 同为 Rust——不是「复刻」，是「全功能移植源码 + 适配 YaMet 栈」。**
 
 ```
 ┌────────────────────────────── Grok 网络能力（grok-build 源码）──────────────┐
@@ -87,7 +87,7 @@ enum WebFetchOutput {
 
 #### 0.2.3 `search_tool`（`implementations/search_tool/`）— 非网络
 
-**澄清：`search_tool` 是「工具发现」工具（BM25 关键词搜本地 MCP 工具清单），不联网。** 与 `web_search` 完全无关。移植时**不包含**它（yamet 已有类似工具注册）。
+**澄清：`search_tool` 是「工具发现」工具（BM25 关键词搜本地 MCP 工具清单），不联网。** 与 `web_search` 完全无关。移植时**不包含**它（YaMet 已有类似工具注册）。
 
 #### 0.2.4 工具注册链路（`registry/types.rs:689-690`）
 
@@ -101,7 +101,7 @@ b.register_with_params::<grok_build::WebFetchTool, WebFetchParams>(); // 带配�
 - `ToolKind` 31 种分类含 `WebSearch`/`WebFetch`/`SearchTool`
 - 网络工具均 `is_read_only:true, tool_scope:Read`（只读，不触写路径）
 
-### 0.3 深度调研：yamet 现状（已核实代码）
+### 0.3 深度调研：YaMet 现状（已核实代码）
 
 | 组件 | 现状 | 与 Grok 对应 |
 |---|---|---|
@@ -113,7 +113,7 @@ b.register_with_params::<grok_build::WebFetchTool, WebFetchParams>(); // 带配�
 | 网络 agent 工具 | **0 个** | 差距核心 |
 | keyring | ✅ | 可存 api_key |
 
-**结论**：Grok 的 `web_fetch`/`web_search` 是**完整、可移植的 Rust 实现**。yamet 的 `ai_http_request` 只覆盖了 Grok `web_fetch` 的一部分（SSRF 通道），缺域名白名单/内容分发/缓存/HTTPS 升级。移植 = **把 grok-build 的 web_fetch/web_search 适配进 yamet 的 net.rs + tools 层**。
+**结论**：Grok 的 `web_fetch`/`web_search` 是**完整、可移植的 Rust 实现**。YaMet 的 `ai_http_request` 只覆盖了 Grok `web_fetch` 的一部分（SSRF 通道），缺域名白名单/内容分发/缓存/HTTPS 升级。移植 = **把 grok-build 的 web_fetch/web_search 适配进 YaMet 的 net.rs + tools 层**。
 
 ### 0.4 移植策略（关键决策）
 
@@ -129,9 +129,9 @@ b.register_with_params::<grok_build::WebFetchTool, WebFetchParams>(); // 带配�
 
 ## 需求规划（Grok 网络工具整体移植）
 
-### 融合矩阵（Grok 源码 → yamet）
+### 融合矩阵（Grok 源码 → YaMet）
 
-| Grok 源码 | yamet 对应 | 状态 |
+| Grok 源码 | YaMet 对应 | 状态 |
 |---|---|---|
 | `web_fetch/` 全部 9 文件 | `net.rs`/`modules/net/` | **移植（P0）** |
 | `web_fetch` SSRF（ssrf.rs） | `net.rs` SSRF 升级 | 移植（P0） |
@@ -141,7 +141,7 @@ b.register_with_params::<grok_build::WebFetchTool, WebFetchParams>(); // 带配�
 | `web_fetch` HTTPS 升级 | 新增 | 移植（P0） |
 | `web_search`（Responses API client.rs） | `web_search` 工具 | **移植（P1，需 xAI key）** |
 | `deep_research.rhai` + workflow 引擎 | `deep_search` 工具 + workflow 运行时 | **移植（P2）** |
-| `search_tool`（工具发现） | yamet 已有工具注册 | **不移植**（重复） |
+| `search_tool`（工具发现） | YaMet 已有工具注册 | **不移植**（重复） |
 
 ### P0-1【Rust】移植 Grok web_fetch 到 net 模块
 
@@ -170,7 +170,7 @@ b.register_with_params::<grok_build::WebFetchTool, WebFetchParams>(); // 带配�
 
 - `fetch_url`/`web_search` 只读（Grok `capabilities{is_read_only:true, tool_scope:Read}`），不进写路径。
 - SSRF + 域名白名单由 Rust 层兜底，agent 无法翻越。
-- 文档（YAMET.md + CHANGELOG）注明安全边界。
+- 文档（YaMet.md + CHANGELOG）注明安全边界。
 
 ### P2-1【L3 调研】移植 Grok deep-research 工作流（全功能）
 
@@ -190,7 +190,7 @@ b.register_with_params::<grok_build::WebFetchTool, WebFetchParams>(); // 带配�
 
 - 实时 X/Twitter 数据（xAI 专有授权）
 - 图像生成 / App SDK / 视频生成（超出 ADE 定位，且依赖 xAI 平台）
-- `search_tool` 工具发现（yamet 已有工具注册，重复）
+- `search_tool` 工具发现（YaMet 已有工具注册，重复）
 - `workflow` 通用脚本能力（deep-research 移植时顺带的基础，但通用 workflow 面不扩）
 - 完整浏览器（ROADMAP 明言"不是浏览器"）
 
@@ -212,8 +212,8 @@ P0-1 移植 web_fetch 到 Rust（cargo test 全绿）
 
 **批次 A（搬运 + 编译）**
 1. `src-tauri/src/modules/net/` 建 `web_fetch/` 子模块，搬运 grok-build 的 `client.rs`/`ssrf.rs`/`config.rs`/`domain.rs`/`http.rs`/`cache.rs`/`overflow.rs`/`error.rs`。
-2. 适配：grok 的 `xai_tool_runtime::ToolError`/`Resources` → yamet 的 `Result<_, String>`/状态；`SessionFileWriter` → 简化/去掉。
-3. **错误枚举映射**（`WebFetchError` 16 种 → yamet String）：`UnsupportedScheme`/`CredentialsInUrl`/`SingleLabelHost`/`InvalidUrl`/`SsrfBlocked{host,ip}`/`DnsResolution`/`DnsEmpty`/`ClientBuildError`/`HttpRequest`/`InvalidRedirect`/`TooManyRedirects{max=10}`/`ResponseTooLarge{max}`/`ProxyConfigError`/`IoError`/`UnsupportedContentType`/`ContentTypeMismatch`。**保留 Grok 的智能提示**：SSRF 拦截时若 host 含 "github" 且 `gh` 在 PATH，追加"改用 gh CLI 取数据"。
+2. 适配：grok 的 `xai_tool_runtime::ToolError`/`Resources` → YaMet 的 `Result<_, String>`/状态；`SessionFileWriter` → 简化/去掉。
+3. **错误枚举映射**（`WebFetchError` 16 种 → YaMet String）：`UnsupportedScheme`/`CredentialsInUrl`/`SingleLabelHost`/`InvalidUrl`/`SsrfBlocked{host,ip}`/`DnsResolution`/`DnsEmpty`/`ClientBuildError`/`HttpRequest`/`InvalidRedirect`/`TooManyRedirects{max=10}`/`ResponseTooLarge{max}`/`ProxyConfigError`/`IoError`/`UnsupportedContentType`/`ContentTypeMismatch`。**保留 Grok 的智能提示**：SSRF 拦截时若 host 含 "github" 且 `gh` 在 PATH，追加"改用 gh CLI 取数据"。
 4. Cargo.toml 加 `htmd`/`arc-swap`/`parking_lot`。
 5. `mod.rs` 注册 `web_fetch` Tauri 命令 + `generate_handler!`。
 6. 门禁：`cargo check` + `cargo test`（移植 Grok 的 ssrf/domain/http 测试，应全绿）。
@@ -251,14 +251,14 @@ P0-1 移植 web_fetch 到 Rust（cargo test 全绿）
 6. 门禁：tsc + vitest + cargo test。
 
 ### P1-1 安全边界文档
-1. YAMET.md + CHANGELOG 注明只读/SSRF/域名白名单/keyring。
+1. YaMet.md + CHANGELOG 注明只读/SSRF/域名白名单/keyring。
 2. 单测固化（SSRF 阻断用例从 Grok 移植）。
 
 ### P2-1 移植 deep-research 工作流（大任务 → 拆 3 批）
 
 **批次 A（workflow 引擎）**
 1. 移植 Grok `xai-workflow` crate 的运行时：`agent()`/`parallel()`/`phase()`/`pause()`/`complete()`/`write_scratch_file()` 内建函数 + Rhai 脚本执行。
-2. 适配：`agent()` → yamet subagent（runSubagent）；`parallel()` → delegate_many；`write_scratch_file` → 工作区临时目录。
+2. 适配：`agent()` → YaMet subagent（runSubagent）；`parallel()` → delegate_many；`write_scratch_file` → 工作区临时目录。
 3. Cargo.toml 加 `rhai`。
 4. 门禁：cargo test（workflow 引擎单测，mock agent/parallel）。
 
@@ -274,5 +274,5 @@ P0-1 移植 web_fetch 到 Rust（cargo test 全绿）
 
 ### 构建
 - 版本 0.1.21 → 0.1.22，四文件同步。
-- CHANGELOG / ROADMAP / YAMET 三文档同步。
+- CHANGELOG / ROADMAP / YaMet 三文档同步。
 - 验证：tsc 0、vitest 全绿、cargo test（含移植的 SSRF 测试）、pnpm build、size budget。

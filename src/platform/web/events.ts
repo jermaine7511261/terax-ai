@@ -24,7 +24,7 @@ export const webEvents: IEventAdapter = {
           cb({ payload: ce.detail });
         }
       };
-      window.addEventListener(`yamet:${event}`, bridge);
+      window.addEventListener(`YaMet:${event}`, bridge);
     }
     const set = listeners.get(event);
     if (set) {
@@ -39,6 +39,6 @@ export const webEvents: IEventAdapter = {
   },
 
   async emit(event: string, payload: unknown): Promise<void> {
-    window.dispatchEvent(new CustomEvent(`yamet:${event}`, { detail: payload }));
+    window.dispatchEvent(new CustomEvent(`YaMet:${event}`, { detail: payload }));
   },
 };

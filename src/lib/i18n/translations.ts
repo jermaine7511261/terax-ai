@@ -983,7 +983,7 @@ export const zhMessages = {
     snippetAllowlistHint: "留空 = 仅注入提示、不限制工具；选择后该技能回合仅暴露所选工具。",
     memory: "项目记忆",
     memoryHint:
-      "持久化在项目根 YAMET.md 中的记忆条目，跨会话保留；agent 完成任务后也会主动沉淀。",
+      "持久化在项目根 YaMet.md 中的记忆条目，跨会话保留；agent 完成任务后也会主动沉淀。",
     memoryEmpty: "还没有记忆条目。",
     memoryNoWorkspace: "未打开工作区，无法读取项目记忆。",
     memoryAdd: "添加",
@@ -2143,7 +2143,7 @@ export const enMessages = {
       "Leave empty = prompt only (no tool restriction); when set, only the selected tools are exposed for that skill's turn.",
     memory: "Project memory",
     memoryHint:
-      "Memory entries persisted in the workspace YAMET.md, kept across sessions; the agent also settles findings proactively.",
+      "Memory entries persisted in the workspace YaMet.md, kept across sessions; the agent also settles findings proactively.",
     memoryEmpty: "No memory entries yet.",
     memoryNoWorkspace: "No workspace open — cannot read project memory.",
     memoryAdd: "Add",

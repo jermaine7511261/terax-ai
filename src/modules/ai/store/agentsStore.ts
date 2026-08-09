@@ -9,7 +9,7 @@ import {
   type Agent,
 } from "../lib/agents";
 
-const CHANGED_EVENT = "yamet://ai-agents-changed";
+const CHANGED_EVENT = "YaMet://ai-agents-changed";
 
 type AgentsState = {
   hydrated: boolean;

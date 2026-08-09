@@ -61,7 +61,7 @@ export function normalizeAutoSettle(
 
 /**
  * Write an auto-settled note into the in-session memory store (source:"auto"),
- * deduped by near-identical content. Cross-session YAMET.md persistence is
+ * deduped by near-identical content. Cross-session YaMet.md persistence is
  * skipped for auto-settles to avoid spamming the durable file with every
  * turn's summary.
  */

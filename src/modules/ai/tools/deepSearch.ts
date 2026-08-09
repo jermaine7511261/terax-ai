@@ -12,7 +12,7 @@ import {
 import type { ToolContext } from "./context";
 
 /**
- * deep_search — 's `deep-research` workflow ported to yamet's subagent
+ * deep_search — 's `deep-research` workflow ported to YaMet's subagent
  * stack. Four phases (Plan → Research → Verify → Report), driven by read-only
  * subagents that use web_search / fetch_url tools:
  *

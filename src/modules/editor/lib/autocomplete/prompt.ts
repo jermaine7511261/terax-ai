@@ -5,7 +5,7 @@ export type CompletionRequest = {
   filename: string | null;
   /** CodeMirror indent unit: "\\t" or a run of spaces. */
   indentUnit: string | null;
-  /** Optional project context (AGENTS.md/YAMET.md + sibling snippets). */
+  /** Optional project context (AGENTS.md/YaMet.md + sibling snippets). */
   projectContext?: {
     dir: string;
     notes: string;

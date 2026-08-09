@@ -18,7 +18,7 @@ export type SpaceState = {
   activeTabIndex: number;
 };
 
-const STORE_PATH = "yamet-spaces.json";
+const STORE_PATH = "YaMet-spaces.json";
 const KEY_SPACES = "spaces";
 const KEY_ACTIVE = "activeId";
 const KEY_RECENT = "recent";

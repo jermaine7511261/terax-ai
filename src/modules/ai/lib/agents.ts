@@ -151,7 +151,7 @@ export function agentDisplayDescription(agent: Agent): string {
   return map[agent.id] ?? agent.description;
 }
 
-const STORE_PATH = "yamet-ai-agents.json";
+const STORE_PATH = "YaMet-ai-agents.json";
 const KEY_CUSTOM = "customAgents";
 const KEY_ACTIVE = "activeAgentId";
 

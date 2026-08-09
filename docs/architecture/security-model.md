@@ -1,6 +1,6 @@
 # 安全模型
 
-本指南展开说明 `YAMET.md`。如有冲突，以 `YAMET.md` 为准。
+本指南展开说明 `YaMet.md`。如有冲突，以 `YaMet.md` 为准。
 
 YaMet 运行 shell、读写文件、向 AI 提供商发数据。安全模型是纵深防御：单层守卫不够，所以每个边界都在行动前校验输入。
 
@@ -68,7 +68,7 @@ API 密钥经 `secrets_*` 命令存储（`src-tauri/src/modules/secrets.rs`）�
 - Windows：经 `keyring` 的凭据管理器
 - Linux：应用本地数据目录里的 JSON 文件，权限 `0600`（原子写 `.tmp` 后 rename）
 
-服务常量：`yamet-ai`。API 密钥绝不进 `localStorage`，绝不进日志。
+服务常量：`YaMet-ai`。API 密钥绝不进 `localStorage`，绝不进日志。
 
 例外：**IM 网关凭据**（`gateway:*`）在写入钥匙串之外，还会经 `persist_creds_to_file`
 存到应用本地数据目录 `gateway-creds/<platform>.json`。这是有意的 file-backed 兜底
@@ -99,7 +99,7 @@ agent 检测器（`src-tauri/src/modules/pty/agent_detect.rs`）由 `OSC 133;C;<
 
 ## 参见
 
-- [`YAMET.md`](../../YAMET.md)：架构事实来源
+- [`YaMet.md`](../../YaMet.md)：架构事实来源
 - [`docs/README.md`](../README.md)：贡献者指南索引
 - [双进程模型](two-process-model.md)：IPC 边界与命令目录
 - [AI 子系统](ai-subsystem.md)：工具、审批流与提供商处理

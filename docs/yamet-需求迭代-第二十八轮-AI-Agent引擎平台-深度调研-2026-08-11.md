@@ -2,14 +2,14 @@
 
 > 目标版本 **0.1.28**（架构性构建）。
 > 用户命题：「向 AI Agent 工作台/Agent 引擎平台跨越，深度调研迭代需求」。
-> 调研方式：对 `E:\Agent\` 下 **9 个参考项目**做源码级调研，提取 Agent 平台模式，与 yamet 现状对比，输出细化需求文档。
+> 调研方式：对 `E:\Agent\` 下 **9 个参考项目**做源码级调研，提取 Agent 平台模式，与 YaMet 现状对比，输出细化需求文档。
 > 调研规模：9 项目 × 多文件源码级审计。
 
 ---
 
 ## §0 调研基线
 
-### 0.1 yamet 现状（v0.1.27，HEAD 4afce4f）
+### 0.1 YaMet 现状（v0.1.27，HEAD 4afce4f）
 
 | 维度 | 数据 |
 |---|---|
@@ -43,7 +43,7 @@
 
 > **铁律：Agent Definition 是 Agent 平台的第一性原理——它决定了平台能承载多复杂的 Agent 行为。**
 
-| 字段类别 | PraisonAI | Flock | OpenCode | Hermes | Claude-code | Grok | **yamet 现状** |
+| 字段类别 | PraisonAI | Flock | OpenCode | Hermes | Claude-code | Grok | **YaMet 现状** |
 |---|---|---|---|---|---|---|---|
 | **身份** | `name`, `role`, `goal`, `backstory` | (无独立 schema，config 驱动) | `id`, `name`, `description` | `session_id`, `_subagent_id` | `agentType`, `whenToUse` | `AgentDef {name, type}` | `type: string`（仅名称） |
 | **系统提示** | `instructions` | `system_prompt` (Builder) | `system`, `prompt` (.md body) | `system_prompt.py` 模块 | `getSystemPrompt()` 闭包 | AgentDef prompt | 硬编码在 `agents.ts` |
@@ -68,11 +68,11 @@
 - **优点**：功能完备，一个 Agent 几乎可以做任何事
 - **缺点**：复杂度爆炸，学习曲线陡峭，Python 动态类型不安全
 
-**发现 2：Flock 的 Rust Agent Engine 最值得 yamet 吸收**
+**发现 2：Flock 的 Rust Agent Engine 最值得 YaMet 吸收**
 - `AgentEngine` struct：30+ 字段，但**每个字段类型明确**（Rust 编译期保证）
 - LangGraph 状态图：`START → compaction → llm → tools → (loop or END)`
 - `AgentState` 用 `#[langgraph_state]` 宏 + `#[channel]` 属性声明式定义
-- **核心优势**：Rust 原生、类型安全、与 yamet 技术栈同构
+- **核心优势**：Rust 原生、类型安全、与 YaMet 技术栈同构
 
 **发现 3：Hermes 是唯一有显式生命周期状态机的**
 - `SubagentState: PENDING → STARTING → RUNNING → SUCCEEDED | FAILED | INTERRUPTED`
@@ -82,7 +82,7 @@
 **发现 4：所有项目的共同最小集（Agent Schema 必备字段）**
 
 ```rust
-// 七项目交集 = yamet AgentDef 最小集
+// 七项目交集 = YaMet AgentDef 最小集
 pub struct AgentDef {
     // 身份
     pub id: AgentId,              // 唯一标识
@@ -119,13 +119,13 @@ pub struct AgentDef {
 | **OpenCode** | parentID 树 | session → sub-session | session 持久化 | ✅ |
 | **PraisonAI** | (隐式) | 无显式状态枚举 | session 持久化 | ⚠️ 部分 |
 | **Claude-code** | (隐式) | 无显式状态枚举 | (无) | ❌ |
-| **yamet** | (隐式) | **完全无状态** | ❌ 无 | ❌ 无 |
+| **YaMet** | (隐式) | **完全无状态** | ❌ 无 | ❌ 无 |
 
 ### 2.2 核心发现
 
-**发现 5：yamet 的 Agent 是「即用即毁」的——这是最大的平台差距**
+**发现 5：YaMet 的 Agent 是「即用即毁」的——这是最大的平台差距**
 
-yamet 当前的 Agent 使用模式：
+YaMet 当前的 Agent 使用模式：
 ```
 用户请求 → run_subagent(prompt) → 创建新 session → 执行 → 返回 summary → session 销毁
 ```
@@ -136,7 +136,7 @@ yamet 当前的 Agent 使用模式：
 3. **无复用**：同一个 Agent 配置不能重复执行
 4. **无观测**：不知道 Agent 在做什么、做了多久、花了多少 token
 
-**发现 6：Flock 的 LangGraph checkpoint 模式最适合 yamet**
+**发现 6：Flock 的 LangGraph checkpoint 模式最适合 YaMet**
 
 ```rust
 // Flock: SQLite-backed checkpoint，每步自动保存
@@ -173,7 +173,7 @@ class SubagentHandle:
 
 ### 3.1 七项目编排模式矩阵
 
-| 模式 | PraisonAI | Flock | Grok | Hermes | OpenCode | Claude-code | yamet |
+| 模式 | PraisonAI | Flock | Grok | Hermes | OpenCode | Claude-code | YaMet |
 |---|---|---|---|---|---|---|---|
 | **单 Agent** | ✅ `agent.start()` | ✅ `engine.run()` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **Handoff（移交）** | ✅ `handoffs=[agent_b]` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
@@ -211,9 +211,9 @@ START → compaction → llm ─┬─► tools ─► (back to compaction)
 - `FlockToolNode` 内部调用 `interrupt()` 实现人机交互
 - Checkpoint 每步自动保存，支持 `resume`
 
-**发现 10：yamet 的 `run_graph` 比 Flock 更轻量，但缺少状态持久化**
+**发现 10：YaMet 的 `run_graph` 比 Flock 更轻量，但缺少状态持久化**
 
-yamet 的 graph 编排器已经实现了拓扑排序 + 并发执行 + journal 断点续跑，但：
+YaMet 的 graph 编排器已经实现了拓扑排序 + 并发执行 + journal 断点续跑，但：
 - Journal 是内存态的 `RwLock<HashMap>`，app 重启丢失
 - 无 SQLite checkpoint
 - 无 LangGraph 的条件边（conditional edges）
@@ -232,11 +232,11 @@ yamet 的 graph 编排器已经实现了拓扑排序 + 并发执行 + journal �
 | **PraisonAI** | 函数 + MCP | `Agent.tools: List[Any]` | `toolsets` 命名组 | 无 |
 | **OpenCode** | Tool API + MCP | 统一 ToolPool | `Permission.Ruleset` | 无 |
 | **Hermes** | Toolset 命名组 | `enabled_toolsets/disabled_toolsets` | `ToolCallGuardrailController` | 无 |
-| **yamet** | `tool()` 函数 | `buildTools(ctx)` → 统一对象 | `toolAllowlist` 白名单 | 无显式声明 |
+| **YaMet** | `tool()` 函数 | `buildTools(ctx)` → 统一对象 | `toolAllowlist` 白名单 | 无显式声明 |
 
 ### 4.2 核心发现
 
-**发现 11：Flock 的 `Tool::is_concurrency_safe()` 是 yamet 缺失的关键能力**
+**发现 11：Flock 的 `Tool::is_concurrency_safe()` 是 YaMet 缺失的关键能力**
 
 ```rust
 pub trait Tool: Send + Sync {
@@ -249,7 +249,7 @@ pub trait Tool: Send + Sync {
 }
 ```
 
-yamet 的 46 个工具中，有些是并发安全的（read_file, grep, glob），有些不是（write_file, bash_run）。但当前没有声明机制，delegate_many 的并行 worker 可能同时调用不安全的工具。
+YaMet 的 46 个工具中，有些是并发安全的（read_file, grep, glob），有些不是（write_file, bash_run）。但当前没有声明机制，delegate_many 的并行 worker 可能同时调用不安全的工具。
 
 **发现 12：Flock 的 `ContextModifier` 是工具对 Agent 行为的动态影响机制**
 
@@ -263,7 +263,7 @@ pub struct ContextModifier {
 }
 ```
 
-工具不仅可以执行，还可以**动态修改 Agent 的行为**——切换模型、调整推理深度、进入/退出 Plan 模式、加载延迟工具。yamet 完全没有这个能力。
+工具不仅可以执行，还可以**动态修改 Agent 的行为**——切换模型、调整推理深度、进入/退出 Plan 模式、加载延迟工具。YaMet 完全没有这个能力。
 
 ---
 
@@ -278,13 +278,13 @@ pub struct ContextModifier {
 | **Flock** | (无独立 memory) | (无) | ❌ | ❌ |
 | **OpenCode** | CLAUDE.md 一级 | 全量注入 | ❌ | ✅ |
 | **Grok** | AgentDef memory 字段 | (简单) | ❌ | ✅ |
-| **yamet** | 三层记忆（session/global/workspace） | CJK 2-gram 打分 | ✅ `source:"auto"` | ✅ |
+| **YaMet** | 三层记忆（session/global/workspace） | CJK 2-gram 打分 | ✅ `source:"auto"` | ✅ |
 
 ### 5.2 核心发现
 
-**发现 13：yamet 的记忆系统已经是最先进的之一**
+**发现 13：YaMet 的记忆系统已经是最先进的之一**
 
-yamet 已实现：
+YaMet 已实现：
 - 三层记忆（session/global/workspace）✅
 - 召回式注入（按相关性检索，非全量拼接）✅
 - 标记隔离（`[System note: recalled memory context]`）✅
@@ -300,7 +300,7 @@ PraisonAI 支持：
 - KnowledgeConfig 配置化
 - 与 Agent 绑定（per-agent knowledge）
 
-yamet 的 `knowledge_base` 是全局的，没有 per-agent 隔离。
+YaMet 的 `knowledge_base` 是全局的，没有 per-agent 隔离。
 
 ---
 
@@ -314,13 +314,13 @@ yamet 的 `knowledge_base` 是全局的，没有 per-agent 隔离。
 | **Hermes** | `SubagentStatus` + `SubagentResult` | `IterationBudget` 消耗追踪 | (无) | (无) |
 | **Grok** | Journal 确定性重放 | `session_metrics` | (无) | ✅ Journal resume |
 | **Flock** | LangGraph stream updates | Token accounting in state | (无) | ✅ Checkpoint resume |
-| **yamet** | ❌ 无 | ❌ 无 | ❌ 无 | ❌ 无 |
+| **YaMet** | ❌ 无 | ❌ 无 | ❌ 无 | ❌ 无 |
 
 ### 6.2 核心发现
 
-**发现 15：yamet 的可观测性是零——这是从 ADE 到 Agent 平台的最大鸿沟**
+**发现 15：YaMet 的可观测性是零——这是从 ADE 到 Agent 平台的最大鸿沟**
 
-当前 yamet Agent 执行是黑盒：
+当前 YaMet Agent 执行是黑盒：
 - 不知道 Agent 调了哪些工具
 - 不知道每步花了多少 token
 - 不知道执行了多长时间
@@ -349,11 +349,11 @@ pub type ProgressCallback = Box<dyn Fn(&ComputerUseStep) + Send + Sync>;
 | **Hermes** | `nudge` 门（注入指令续 loop） | per-call | ❌ | ❌ |
 | **Claude-code** | `ToolUseConfirm` 权限队列 | per-tool | ✅ 权限持久化 | ❌ |
 | **Flock** | `ToolApprovalManager` | per-tool | ❌ | ❌ |
-| **yamet** | `needsApproval` 二元 | per-tool（静态） | ❌ | ❌ |
+| **YaMet** | `needsApproval` 二元 | per-tool（静态） | ❌ | ❌ |
 
 ### 7.2 核心发现
 
-**发现 17：yamet 的审批是二元的（approve/deny），缺三态 + 级联 + 持久化**
+**发现 17：YaMet 的审批是二元的（approve/deny），缺三态 + 级联 + 持久化**
 
 OpenCode 的审批模型是最成熟的：
 - `once`：本次允许
@@ -517,7 +517,7 @@ pub struct AgentRegistry {
 }
 
 pub enum AgentSource {
-    BuiltIn,                      // 内置（yamet 自带）
+    BuiltIn,                      // 内置（YaMet 自带）
     Workspace(PathBuf),           // workspace/.yamet/agents/
     User(PathBuf),                // ~/.yamet/agents/
     SkillDerived(AgentId),        // 从 Skill 派生
@@ -679,7 +679,7 @@ pub struct AgentTrace {
 **参考源**：Flock `Tool::is_concurrency_safe()`
 
 ```rust
-// 在 yamet 现有 tool() 函数基础上扩展
+// 在 YaMet 现有 tool() 函数基础上扩展
 
 pub struct ToolMeta {
     pub name: String,
@@ -712,7 +712,7 @@ pub struct ToolMeta {
 
 ## §11 跨项目可复用模式速查表
 
-| 模式 | 最佳参考 | yamet 落点 | 复杂度 |
+| 模式 | 最佳参考 | YaMet 落点 | 复杂度 |
 |---|---|---|---|
 | **Agent Schema** | PraisonAI `Agent.__init__` + Flock `AgentEngine` | `agents/schema.rs` | 中 |
 | **Tool Trait** | Flock `trait Tool` + `ToolRegistry` | 扩展现有 `tool()` 函数 | 低 |
@@ -732,4 +732,4 @@ pub struct ToolMeta {
 
 ## §12 一句话总结
 
-> **yamet 已经拥有 46 个工具 + 多 Agent 编排 + 记忆/技能系统的能力底座，但缺少「Agent 作为一等公民」的平台层：Schema 定义 → 注册表 → 生命周期状态机 → 可观测性 → Checkpoint → 审批三态。补齐 Phase 1（#1-#5，~9 天）后，yamet 从 ADE 跃迁为 Agent 引擎；补齐 Phase 2（#6-#11，~18 天）后，成为真正的 AI Agent 工作台。参考项目的最优模式：Flock（Rust AgentEngine + LangGraph）、PraisonAI（60 字段 Schema + Handoff）、Hermes（状态机 + 预算）、OpenCode（审批三态 + parentID）。**
+> **YaMet 已经拥有 46 个工具 + 多 Agent 编排 + 记忆/技能系统的能力底座，但缺少「Agent 作为一等公民」的平台层：Schema 定义 → 注册表 → 生命周期状态机 → 可观测性 → Checkpoint → 审批三态。补齐 Phase 1（#1-#5，~9 天）后，YaMet 从 ADE 跃迁为 Agent 引擎；补齐 Phase 2（#6-#11，~18 天）后，成为真正的 AI Agent 工作台。参考项目的最优模式：Flock（Rust AgentEngine + LangGraph）、PraisonAI（60 字段 Schema + Handoff）、Hermes（状态机 + 预算）、OpenCode（审批三态 + parentID）。**

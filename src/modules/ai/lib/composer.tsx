@@ -355,7 +355,7 @@ export function AiComposerProvider({ children }: ProviderProps) {
     }
 
     // Slash-command interception. `/plan` toggles plan mode; `/init` rewrites
-    // the prompt to the YAMET.md scan template before sending.
+    // the prompt to the YaMet.md scan template before sending.
     let effectiveText = trimmed;
     let commandMarker: string | null = null;
     let commandSource = trimmed;
@@ -376,7 +376,7 @@ export function AiComposerProvider({ children }: ProviderProps) {
       if (outcome.kind === "send-prompt") {
         effectiveText = outcome.prompt;
         if (outcome.commandName) {
-          commandMarker = `<yamet-command name="${outcome.commandName}" />`;
+          commandMarker = `<YaMet-command name="${outcome.commandName}" />`;
         }
       }
     }

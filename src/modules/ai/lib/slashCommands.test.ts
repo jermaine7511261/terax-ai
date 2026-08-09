@@ -39,14 +39,14 @@ beforeEach(() => {
 
 describe("YAMET_CMD_RE", () => {
   it("matches a bare command with no state", () => {
-    const m = '<yamet-command name="init" />'.match(YAMET_CMD_RE);
+    const m = '<YaMet-command name="init" />'.match(YAMET_CMD_RE);
     expect(m).not.toBeNull();
     expect(m?.[1]).toBe("init");
     expect(m?.[2]).toBeUndefined();
   });
 
   it("matches a command with a state attribute", () => {
-    const m = '<yamet-command name="review" state="active" />'.match(
+    const m = '<YaMet-command name="review" state="active" />'.match(
       YAMET_CMD_RE,
     );
     expect(m).not.toBeNull();
@@ -55,51 +55,51 @@ describe("YAMET_CMD_RE", () => {
   });
 
   it("requires the trailing /> (not >)", () => {
-    expect('<yamet-command name="init" >'.match(YAMET_CMD_RE)).toBeNull();
+    expect('<YaMet-command name="init" >'.match(YAMET_CMD_RE)).toBeNull();
   });
 
   it("requires the trailing newline or end-of-string", () => {
     expect(
-      '<yamet-command name="init" />\n'.match(YAMET_CMD_RE),
+      '<YaMet-command name="init" />\n'.match(YAMET_CMD_RE),
     ).not.toBeNull();
     expect(
-      '<yamet-command name="init" />'.match(YAMET_CMD_RE),
+      '<YaMet-command name="init" />'.match(YAMET_CMD_RE),
     ).not.toBeNull();
     // No trailing newline and nothing after should still match (end-of-string).
   });
 
   it("allows multiple trailing newlines", () => {
-    const m = '<yamet-command name="fix" />\n\n\n'.match(YAMET_CMD_RE);
+    const m = '<YaMet-command name="fix" />\n\n\n'.match(YAMET_CMD_RE);
     expect(m).not.toBeNull();
     expect(m?.[1]).toBe("fix");
   });
 
   it("does not match a name with uppercase letters", () => {
     expect(
-      '<yamet-command name="Init" />'.match(YAMET_CMD_RE),
+      '<YaMet-command name="Init" />'.match(YAMET_CMD_RE),
     ).toBeNull();
   });
 
   it("does not match a name with spaces", () => {
     expect(
-      '<yamet-command name="claude code" />'.match(YAMET_CMD_RE),
+      '<YaMet-command name="claude code" />'.match(YAMET_CMD_RE),
     ).toBeNull();
   });
 
   it("does not match a name with special characters", () => {
     expect(
-      '<yamet-command name="init!" />'.match(YAMET_CMD_RE),
+      '<YaMet-command name="init!" />'.match(YAMET_CMD_RE),
     ).toBeNull();
   });
 
   it("matches hyphenated names like claude-code", () => {
-    const m = '<yamet-command name="claude-code" />'.match(YAMET_CMD_RE);
+    const m = '<YaMet-command name="claude-code" />'.match(YAMET_CMD_RE);
     expect(m).not.toBeNull();
     expect(m?.[1]).toBe("claude-code");
   });
 
   it("matches numeric names", () => {
-    const m = '<yamet-command name="cmd123" />'.match(YAMET_CMD_RE);
+    const m = '<YaMet-command name="cmd123" />'.match(YAMET_CMD_RE);
     expect(m).not.toBeNull();
     expect(m?.[1]).toBe("cmd123");
   });
@@ -113,14 +113,14 @@ describe("wrapWithCommandMarker", () => {
   it("wraps a prompt with the given command name", () => {
     const result = wrapWithCommandMarker("do something", "init");
     expect(result).toBe(
-      '<yamet-command name="init" />\n\ndo something',
+      '<YaMet-command name="init" />\n\ndo something',
     );
   });
 
   it("works with hyphenated command names", () => {
     const result = wrapWithCommandMarker("my request", "claude-code");
     expect(result).toBe(
-      '<yamet-command name="claude-code" />\n\nmy request',
+      '<YaMet-command name="claude-code" />\n\nmy request',
     );
   });
 
@@ -128,12 +128,12 @@ describe("wrapWithCommandMarker", () => {
     const long = "Line one\nLine two\nLine three";
     const result = wrapWithCommandMarker(long, "review");
     expect(result).toContain(long);
-    expect(result).toMatch(/^<yamet-command name="review" \/>\n\n/);
+    expect(result).toMatch(/^<YaMet-command name="review" \/>\n\n/);
   });
 
   it("works with an empty prompt", () => {
     const result = wrapWithCommandMarker("", "test");
-    expect(result).toBe('<yamet-command name="test" />\n\n');
+    expect(result).toBe('<YaMet-command name="test" />\n\n');
   });
 });
 

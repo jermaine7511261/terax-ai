@@ -1,6 +1,6 @@
 # PTY shell 集成
 
-本指南展开说明 `YAMET.md`。如有冲突，以 `YAMET.md` 为准。
+本指南展开说明 `YaMet.md`。如有冲突，以 `YaMet.md` 为准。
 
 ## 会话模型
 
@@ -98,7 +98,7 @@ reader 线程对字节流跑 `AgentDetector`（`agent_detect.rs`）。它由 `OS
 
 ## 参见
 
-- [`YAMET.md`](../../YAMET.md)：架构事实来源
+- [`YaMet.md`](../../YaMet.md)：架构事实来源
 - [`docs/README.md`](../README.md)：贡献者指南索引
 - [双进程模型](two-process-model.md)：IPC 边界与命令目录
 - [终端渲染池](terminal-renderer-pool.md)：槽位池化与 DormantRing

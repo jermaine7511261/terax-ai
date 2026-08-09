@@ -1,10 +1,10 @@
-# yamet-shell-integration (fish)
+# YaMet-shell-integration (fish)
 # Emits OSC 7 (cwd) + OSC 133 A/B/C/D so the host tracks cwd and prompt
 # boundaries without re-parsing the prompt. fish 4.0+ writes its own OSC 133
-# A/B (the `mark-prompt` feature); Yamet disables it at spawn via
+# A/B (the `mark-prompt` feature); YaMet disables it at spawn via
 # fish_features=no-mark-prompt so these markers aren't emitted twice.
 
-# Installed into conf.d, which every fish session sources; only Yamet-spawned
+# Installed into conf.d, which every fish session sources; only YaMet-spawned
 # shells (YAMET_TERMINAL=1) may get their prompt wrapped.
 if not set -q YAMET_TERMINAL
     exit 0
@@ -14,7 +14,7 @@ if set -q __YAMET_HOOKS_LOADED
 end
 set -g __YAMET_HOOKS_LOADED 1
 
-# Yamet is a clean terminal; drop fish's default startup greeting. A user who
+# YaMet is a clean terminal; drop fish's default startup greeting. A user who
 # sets their own in config.fish (sourced after this) keeps it.
 function fish_greeting
 end

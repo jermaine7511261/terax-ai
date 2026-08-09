@@ -51,7 +51,7 @@ describe("buildLanguageModel success branches", () => {
     await buildLanguageModel("openrouter", KEYS, "anthropic/claude-sonnet-5");
     const opts = createCompatibleMock.mock.calls[0][0] as Record<string, unknown>;
     expect(opts.baseURL).toBe("https://openrouter.ai/api/v1");
-    expect(opts.headers).toMatchObject({ "HTTP-Referer": "https://yamet.ai", "X-Title": "Yamet" });
+    expect(opts.headers).toMatchObject({ "HTTP-Referer": "https://yamet.ai", "X-Title": "YaMet" });
   });
 
   it("openai-compatible passes the configured base URL and key", async () => {

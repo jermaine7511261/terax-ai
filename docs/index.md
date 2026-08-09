@@ -29,7 +29,7 @@ docs/
 
 | 文件 | 职责 | 必读场景 |
 |---|---|---|
-| `YAMET.md` | 活架构文档（agent 记忆） | 任何代码改动前 |
+| `YaMet.md` | 活架构文档（agent 记忆） | 任何代码改动前 |
 | `AGENTS.md` | Agent 系统 + 多端接入 + 扩展 + Rust 规范 | Agent 相关开发 |
 | `CLAUDE.md` | DTO 边界 + 映射规则 + 验证门禁 + 回复格式 | 任何代码改动前 |
 | `CHANGELOG.md` | 每轮变更记录 | 版本发布前 |
@@ -68,7 +68,7 @@ docs/
 
 ### 新贡献者
 
-1. `YAMET.md`（项目概况 + 质量门槛 + 约定）
+1. `YaMet.md`（项目概况 + 质量门槛 + 约定）
 2. `AGENTS.md`（Agent 系统 + 多端接入）
 3. `CLAUDE.md`（编码规范 + DTO 规则）
 4. `docs/architecture/two-process-model.md`（理解双进程）

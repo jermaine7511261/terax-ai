@@ -1,7 +1,7 @@
 import { native, type DirEntry } from "@/modules/ai/lib/native";
 
 /**
- * Project context for AI completion: AGENTS.md / YAMET.md / CLAUDE.md found by
+ * Project context for AI completion: AGENTS.md / YaMet.md / CLAUDE.md found by
  * walking up from the edited file's directory, plus a small capped set of
  * same-directory source files. Injected into the completion prompt so
  * suggestions follow the project's symbols and conventions instead of being
@@ -43,7 +43,7 @@ const SIBLING_EXTENSIONS = new Set([
   ".hpp",
 ]);
 
-const NOTES_NAMES = ["AGENTS.md", "YAMET.md", "CLAUDE.md"];
+const NOTES_NAMES = ["AGENTS.md", "YaMet.md", "CLAUDE.md"];
 
 const cache = new Map<string, CacheEntry>();
 const inflight = new Map<string, Promise<DirContext | null>>();

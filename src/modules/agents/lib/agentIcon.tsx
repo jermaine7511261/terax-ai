@@ -51,7 +51,7 @@ export function AgentIcon({
   if (agent.toLowerCase() === "pi") {
     return <PiIcon size={size} className={className} />;
   }
-  if (agent.toLowerCase().includes("yamet")) {
+  if (agent.toLowerCase().includes("YaMet")) {
     return (
       <img
         src="/logo.png"

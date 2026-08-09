@@ -787,4 +787,22 @@ mod tests {
         // Restore for other tests.
         INFLIGHT_RESPONSE_BYTES.store(0, Ordering::SeqCst);
     }
+
+    #[test]
+    fn system_proxy_detection_runs() {
+        // Returns a bool on every platform without panicking (env or registry).
+        let _ = system_proxy_configured();
+    }
+
+    // One-off connectivity check against the built-in opencode endpoint (this
+    // machine uses fake-IP DNS + a system proxy). Kept #[ignore] — network
+    // tests must not run in CI. Run manually: cargo test --lib -- --ignored net::egress_reaches_opencode
+    #[tokio::test]
+    #[ignore]
+    async fn egress_reaches_opencode() {
+        let url = "https://opencode.ai/zen/go/v1/models";
+        let (parsed, client) = safe_client_for_url(url, true).await.unwrap();
+        let resp = client.get(parsed).send().await.unwrap();
+        assert!(resp.status().is_success(), "status: {}", resp.status());
+    }
 }

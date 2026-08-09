@@ -9,7 +9,7 @@ import {
   type Viewport,
 } from "./miniWindowGeometry";
 
-const STORE_KEY = "yamet-ui-mini-window-geom";
+const STORE_KEY = "YaMet-ui-mini-window-geom";
 
 const viewport = (): Viewport => ({
   vw: window.innerWidth,

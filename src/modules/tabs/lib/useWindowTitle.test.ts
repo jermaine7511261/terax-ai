@@ -26,25 +26,25 @@ beforeEach(() => {
 describe("useWindowTitle", () => {
   it("falls back to the app name when nothing is focused", () => {
     renderHook(() => useWindowTitle(undefined, null));
-    expect(document.title).toBe("Yamet");
-    expect(setTitleMock).toHaveBeenCalledWith("Yamet");
+    expect(document.title).toBe("YaMet");
+    expect(setTitleMock).toHaveBeenCalledWith("YaMet");
   });
 
   it("shows just the project when a terminal sits at the project root", () => {
-    renderHook(() => useWindowTitle(undefined, "/ws/yamet"));
-    expect(setTitleMock).toHaveBeenCalledWith("yamet");
+    renderHook(() => useWindowTitle(undefined, "/ws/YaMet"));
+    expect(setTitleMock).toHaveBeenCalledWith("YaMet");
   });
 
   it("shows project — label for a focused editor tab", () => {
     const tab = { kind: "editor", title: "app.tsx" } as never;
-    renderHook(() => useWindowTitle(tab, "/ws/yamet"));
-    expect(setTitleMock).toHaveBeenCalledWith("yamet — app.tsx");
+    renderHook(() => useWindowTitle(tab, "/ws/YaMet"));
+    expect(setTitleMock).toHaveBeenCalledWith("YaMet — app.tsx");
   });
 
   it("collapses when the label equals the project", () => {
-    const tab = { kind: "editor", title: "yamet" } as never;
-    renderHook(() => useWindowTitle(tab, "/ws/yamet"));
-    expect(setTitleMock).toHaveBeenCalledWith("yamet");
+    const tab = { kind: "editor", title: "YaMet" } as never;
+    renderHook(() => useWindowTitle(tab, "/ws/YaMet"));
+    expect(setTitleMock).toHaveBeenCalledWith("YaMet");
   });
 
   it("uses the active terminal pane cwd basename", () => {
@@ -52,11 +52,11 @@ describe("useWindowTitle", () => {
     const tab = {
       kind: "terminal",
       title: "zsh",
-      cwd: "/ws/yamet",
+      cwd: "/ws/YaMet",
       paneTree: null,
       activeLeafId: 3,
     } as never;
-    renderHook(() => useWindowTitle(tab, "/ws/yamet"));
-    expect(setTitleMock).toHaveBeenCalledWith("yamet — src");
+    renderHook(() => useWindowTitle(tab, "/ws/YaMet"));
+    expect(setTitleMock).toHaveBeenCalledWith("YaMet — src");
   });
 });

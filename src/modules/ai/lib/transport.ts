@@ -24,8 +24,8 @@ export type ProjectMemoryEntry = {
   source?: "tool" | "auto";
 };
 
-const MEM_START = "<!-- yamet-project-memory:start -->";
-const MEM_END = "<!-- yamet-project-memory:end -->";
+const MEM_START = "<!-- YaMet-project-memory:start -->";
+const MEM_END = "<!-- YaMet-project-memory:end -->";
 
 export {
   MEMORY_NOTE,
@@ -36,7 +36,7 @@ import { MEMORY_NOTE, MEMORY_NOTE_END } from "./memoryMarker";
 
 
 function memoryPath(workspaceRoot: string): string {
-  return `${workspaceRoot.replace(/\/$/, "")}/YAMET.md`;
+  return `${workspaceRoot.replace(/\/$/, "")}/YaMet.md`;
 }
 
 function invalidateCache(workspaceRoot: string): void {
@@ -93,7 +93,7 @@ async function readMemoryFile(
 }
 
 /**
- * Append a project memory note to YAMET.md (dedup by exact content within the
+ * Append a project memory note to YaMet.md (dedup by exact content within the
  * managed block), cap to YAMET_MD_MAX_BYTES, and invalidate the read cache so
  * the next run re-reads from disk.
  */
@@ -115,7 +115,7 @@ export async function appendProjectMemory(
 }
 
 /**
- * Update (replace-or-append) a project memory note in YAMET.md, capped and
+ * Update (replace-or-append) a project memory note in YaMet.md, capped and
  * cache-invalidated like {@link appendProjectMemory}.
  */
 export async function updateProjectMemory(
@@ -137,7 +137,7 @@ export async function updateProjectMemory(
 }
 
 /**
- * Remove a project memory entry from YAMET.md by exact content match (the
+ * Remove a project memory entry from YaMet.md by exact content match (the
  * persisted block stores plain `- content` lines, so content is the id).
  */
 export async function removeProjectMemory(
@@ -162,7 +162,7 @@ export async function removeProjectMemory(
 }
 
 /**
- * Merge the static YAMET.md content with this session's in-memory notes into a
+ * Merge the static YaMet.md content with this session's in-memory notes into a
  * single block for the system prompt. Dedups identical trimmed lines and caps
  * the total at YAMET_MD_MAX_BYTES to prevent the model from growing the prompt
  * unboundedly.
@@ -190,7 +190,7 @@ export function mergeProjectMemory(
 
 async function readYametMd(workspaceRoot: string | null): Promise<string | null> {
   if (!workspaceRoot) return null;
-  const path = `${workspaceRoot.replace(/\/$/, "")}/YAMET.md`;
+  const path = `${workspaceRoot.replace(/\/$/, "")}/YaMet.md`;
   const cached = projectMemoryCache.get(workspaceRoot);
   if (cached && Date.now() - cached.mtime < 30_000) return cached.content;
   try {
@@ -312,7 +312,7 @@ export function createContextAwareTransport(deps: Deps) {
     await useMcpStore.getState().refresh().catch(() => {});
     const live = deps.getLive();
     // P1-4 recall-based injection: instead of blindly splicing the full
-    // YAMET.md + full session memory, recall only the relevant lines for the
+    // YaMet.md + full session memory, recall only the relevant lines for the
     // latest user query and wrap them in an isolation marker (
     // select_context + build_memory_context_block).
     const staticMemory = await readYametMd(live.workspaceRoot);
@@ -379,7 +379,7 @@ function lastUserText(messages: UIMessage[]): string {
 }
 
 /**
- * P1-4 recall-based memory injection: rank the combined static YAMET.md lines
+ * P1-4 recall-based memory injection: rank the combined static YaMet.md lines
  * + session-memory entries against the user query, keep only the relevant hits,
  * and wrap them in an isolation marker. Returns null when nothing relevant (or
  * no memory exists) — keeping the prompt lean instead of splicing full memory.

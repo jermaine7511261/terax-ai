@@ -21,7 +21,7 @@ export function navForward(h: NavHistory): NavHistory | null {
   return { urls: h.urls, index: h.index + 1 };
 }
 
-const BOOKMARKS_KEY = "yamet.preview.bookmarks";
+const BOOKMARKS_KEY = "YaMet.preview.bookmarks";
 
 export function loadBookmarks(): string[] {
   try {

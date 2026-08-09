@@ -41,7 +41,7 @@ export async function openPty(
     try {
       return await openPtyViaHelper(cols, rows, handlers, cwd, blocks, shell);
     } catch (e) {
-      console.warn("[yamet] pty helper unavailable, falling back:", e);
+      console.warn("[YaMet] pty helper unavailable, falling back:", e);
     }
   }
   return openPtyInProcess(cols, rows, handlers, cwd, blocks, shell, ssh);

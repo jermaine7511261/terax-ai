@@ -1,6 +1,6 @@
 # AI 子系统
 
-本指南展开说明 `YAMET.md`。如有冲突，以 `YAMET.md` 为准。
+本指南展开说明 `YaMet.md`。如有冲突，以 `YaMet.md` 为准。
 
 ## 概览
 
@@ -36,7 +36,7 @@ AI 子系统是 BYOK（自带密钥）。云端提供商经 `@ai-sdk/*`，本地
 `runAgentStream`（`agent.ts:391`）：
 
 1. 经 `buildConfiguredLanguageModel` 解析模型。
-2. 由 `selectSystemPrompt(modelId)` 加可选人设、自定义指令与 `YAMET.md` 项目记忆构建稳定系统提示词。
+2. 由 `selectSystemPrompt(modelId)` 加可选人设、自定义指令与 `YaMet.md` 项目记忆构建稳定系统提示词。
 3. 把 UI 消息转成模型消息，模型不保留推理时修剪 reasoning 内容，超上下文上限时压缩旧消息。
 4. 用 `buildTools(ctx)` 的工具集与 `stopWhen: stepCountIs(MAX_AGENT_STEPS)` 经 `streamText` 流式输出。
 5. 发出步骤标签、用量增量与结束元数据。
@@ -49,7 +49,7 @@ AI 子系统是 BYOK（自带密钥）。云端提供商经 `@ai-sdk/*`，本地
 
 ## 会话
 
-对话组织成会话。持久化在 `yamet-ai-sessions.json`，经 `tauri-plugin-store`（`src/modules/ai/lib/sessions.ts`）：
+对话组织成会话。持久化在 `YaMet-ai-sessions.json`，经 `tauri-plugin-store`（`src/modules/ai/lib/sessions.ts`）：
 
 - `sessions` 键：会话元数据列表
 - `activeId` 键：活动会话 id
@@ -91,7 +91,7 @@ AI 提议的文件编辑打开 `ai-diff` 标签。用户逐块接受或拒绝。
 
 ## 参见
 
-- [`YAMET.md`](../../YAMET.md)：架构事实来源
+- [`YaMet.md`](../../YaMet.md)：架构事实来源
 - [`docs/README.md`](../README.md)：贡献者指南索引
 - [双进程模型](two-process-model.md)：IPC 边界与命令目录
 - [安全模型](security-model.md)：每条工具都必须遵守的边界

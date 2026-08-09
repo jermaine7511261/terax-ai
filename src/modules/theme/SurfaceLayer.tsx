@@ -82,7 +82,7 @@ function BackgroundImage({ fastImageId }: { fastImageId: string | null }) {
   return createPortal(
     <div
       aria-hidden
-      className="yamet-bg-surface"
+      className="YaMet-bg-surface"
       style={{
         position: "fixed",
         inset: 0,

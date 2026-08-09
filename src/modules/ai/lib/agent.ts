@@ -208,7 +208,7 @@ export async function buildLanguageModel(
         apiKey: key,
         headers: {
           "HTTP-Referer": "https://yamet.ai",
-          "X-Title": "Yamet",
+          "X-Title": "YaMet",
         },
       })(resolvedModelId);
       break;
@@ -329,7 +329,7 @@ function buildStableSystem(
     : "";
   const memoryBlock =
     projectMemory && projectMemory.trim().length > 0
-      ? `\n\n## PROJECT — YAMET.md\n${projectMemory.trim()}`
+      ? `\n\n## PROJECT — YaMet.md\n${projectMemory.trim()}`
       : "";
   // ★ H2: periodic nudge — settle reusable findings into project
   // memory at task end so future sessions can recall them.

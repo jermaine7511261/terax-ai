@@ -38,8 +38,8 @@ const mockReadFile = vi.mocked(native.readFile);
 const mockWriteFile = vi.mocked(native.writeFile);
 const mockRunAgentStream = vi.mocked(runAgentStream);
 
-const MEM_START = "<!-- yamet-project-memory:start -->";
-const MEM_END = "<!-- yamet-project-memory:end -->";
+const MEM_START = "<!-- YaMet-project-memory:start -->";
+const MEM_END = "<!-- YaMet-project-memory:end -->";
 
 beforeEach(() => {
   mockReadFile.mockReset();
@@ -103,11 +103,11 @@ describe("mergeProjectMemory", () => {
 
 describe("appendProjectMemory", () => {
   it("appends a new entry and writes back", async () => {
-    mockReadFile.mockResolvedValue({ kind: "text", content: `# YAMET\n${MEM_START}\n- a\n${MEM_END}`, size: 0 });
+    mockReadFile.mockResolvedValue({ kind: "text", content: `# YaMet\n${MEM_START}\n- a\n${MEM_END}`, size: 0 });
     mockWriteFile.mockResolvedValue(undefined);
 
     const res = await appendProjectMemory("/ws", { id: "1", content: "b", createdAt: 0 });
-    expect(res).toEqual({ ok: true, path: "/ws/YAMET.md" });
+    expect(res).toEqual({ ok: true, path: "/ws/YaMet.md" });
     expect(mockWriteFile).toHaveBeenCalledTimes(1);
     expect(mockWriteFile.mock.calls[0][1]).toContain("- a");
     expect(mockWriteFile.mock.calls[0][1]).toContain("- b");
@@ -142,7 +142,7 @@ describe("updateProjectMemory / removeProjectMemory", () => {
   it("removeProjectMemory is idempotent when nothing matches", async () => {
     mockReadFile.mockResolvedValue({ kind: "text", content: `${MEM_START}\n- a\n${MEM_END}`, size: 0 });
     const res = await removeProjectMemory("/ws", "zzz");
-    expect(res).toEqual({ ok: true, path: "/ws/YAMET.md" });
+    expect(res).toEqual({ ok: true, path: "/ws/YaMet.md" });
     expect(mockWriteFile).not.toHaveBeenCalled();
   });
 
@@ -150,7 +150,7 @@ describe("updateProjectMemory / removeProjectMemory", () => {
     mockReadFile.mockResolvedValue({ kind: "text", content: `${MEM_START}\n- a\n- b\n${MEM_END}`, size: 0 });
     mockWriteFile.mockResolvedValue(undefined);
     const res = await removeProjectMemory("/ws", "a");
-    expect(res).toEqual({ ok: true, path: "/ws/YAMET.md" });
+    expect(res).toEqual({ ok: true, path: "/ws/YaMet.md" });
     expect(mockWriteFile.mock.calls[0][1]).toBe(`${MEM_START}\n- b\n${MEM_END}`);
   });
 });
@@ -222,7 +222,7 @@ describe("createContextAwareTransport run() (env injection + memory recall)", ()
   it("injects an env block into the last user message and passes recalled memory", async () => {
     mockReadFile.mockResolvedValue({
       kind: "text",
-      content: "# YAMET\n- use pnpm\n- commit often",
+      content: "# YaMet\n- use pnpm\n- commit often",
       size: 0,
     });
     mockRunAgentStream.mockResolvedValue({ toUIMessageStream: vi.fn() } as never);
@@ -246,7 +246,7 @@ describe("createContextAwareTransport run() (env injection + memory recall)", ()
     expect(args.projectMemory).toContain("use pnpm");
   });
 
-  it("recalls session memory entries alongside static YAMET.md", async () => {
+  it("recalls session memory entries alongside static YaMet.md", async () => {
     mockReadFile.mockResolvedValue({ kind: "text", content: "", size: 0 });
     vi.mocked(getSessionMemory).mockReturnValue([
       { content: "session note", id: "n1", createdAt: 0, source: "tool" as const },

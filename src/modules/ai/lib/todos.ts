@@ -16,7 +16,7 @@ export type Todo = {
   dependencies?: string[];
 };
 
-const STORE_PATH = "yamet-ai-todos.json";
+const STORE_PATH = "YaMet-ai-todos.json";
 const todosKey = (sessionId: string) => `todos:${sessionId}`;
 
 const store = createStorage(STORE_PATH);

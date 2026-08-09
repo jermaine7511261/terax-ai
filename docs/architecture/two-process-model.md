@@ -1,6 +1,6 @@
 # 双进程模型与 IPC 命令参考
 
-本指南展开说明 `YAMET.md`。如有冲突，以 `YAMET.md` 为准。
+本指南展开说明 `YaMet.md`。如有冲突，以 `YaMet.md` 为准。
 
 ## 分工
 
@@ -106,7 +106,7 @@ YaMet 是两个进程：Rust 后端（`src-tauri/`）与 webview 前端（`src/`
 
 ### 密钥（`src-tauri/src/modules/secrets.rs`）
 
-- `secrets_get` / `secrets_set` / `secrets_delete` / `secrets_get_all`：OS 钥匙串访问，服务 `yamet-ai`
+- `secrets_get` / `secrets_set` / `secrets_delete` / `secrets_get_all`：OS 钥匙串访问，服务 `YaMet-ai`
 
 ### Agent hooks（`src-tauri/src/modules/agent.rs`）
 
@@ -129,7 +129,7 @@ YaMet 是两个进程：Rust 后端（`src-tauri/`）与 webview 前端（`src/`
 
 ## 参见
 
-- [`YAMET.md`](../../YAMET.md)：架构事实来源
+- [`YaMet.md`](../../YaMet.md)：架构事实来源
 - [`docs/README.md`](../README.md)：贡献者指南索引
 - [PTY shell 集成](pty-shell-integration.md)：会话与 shell 集成如何工作
 - [安全模型](security-model.md)：每条命令都必须遵守的边界

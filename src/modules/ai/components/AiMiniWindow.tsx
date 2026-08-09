@@ -777,7 +777,7 @@ function HistoryPanel({
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.href = url;
-            a.download = "yamet-sessions.md";
+            a.download = "YaMet-sessions.md";
             a.click();
             URL.revokeObjectURL(url);
           })}
@@ -935,7 +935,7 @@ function EmptyState({ onPick }: { onPick: (text: string) => void }) {
   const { t } = useI18n();
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-6 px-8 py-10 text-center">
-      <img src="/logo.png" alt="Yamet" className="size-14 opacity-90" />
+      <img src="/logo.png" alt="YaMet" className="size-14 opacity-90" />
       <div className="space-y-1.5">
         <p className="text-[14px] font-semibold tracking-tight">
           {t("ai.askYamet")}

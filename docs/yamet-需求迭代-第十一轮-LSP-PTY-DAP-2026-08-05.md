@@ -2,7 +2,7 @@
 
 > 目标版本 **0.1.12**（功能性构建，四文件同步：`package.json` / `tauri.conf.json` / `Cargo.toml` / `Cargo.lock`）。
 > 本文是**只读调研 + 需求定稿（含规划方案）**（未改任何源码）。参考项目全部位于 `E:\Agent`，逐一源码级调研其 LSP/PTY/DAP 实现。
-> 铁律：本文每个「差距」必须引用 yamet 与参考项目双方的源码位置作证据；每个需求必须含**规划方案（§3 架构/数据结构/命令签名/状态机/接缝/测试）** 与 **实施计划（§4 改动文件→步骤→验证）**。
+> 铁律：本文每个「差距」必须引用 YaMet 与参考项目双方的源码位置作证据；每个需求必须含**规划方案（§3 架构/数据结构/命令签名/状态机/接缝/测试）** 与 **实施计划（§4 改动文件→步骤→验证）**。
 
 ---
 
@@ -16,9 +16,9 @@
 | `hermes-agent-main` | Python agent 框架 | **LSP 诊断 freshness 的最优范本**（`hermes-lsp-pty-edit-research.md`）|
 | `grok-build-main` | Rust | **PTY 跨重启长驻 server + pty-harness 测试矩阵**（`grok_pty_lsp_dap_report.md`）|
 | `xora-code-main` | Theia 桌面 IDE | **DAP 架构参照**（`@theia/debug` 的会话/配置/断点模型）（`xora-dap-lsp-report.md`）|
-| `terax-ai-main` | Tauri 终端（yamet 早期形态）| 差异复核（`LSP_PTY_DAP_调研.md`）|
+| `terax-ai-main` | Tauri 终端（YaMet 早期形态）| 差异复核（`LSP_PTY_DAP_调研.md`）|
 
-**yamet 现状（源码为权威，round-10 未提交代码已含部分能力）：**
+**YaMet 现状（源码为权威，round-10 未提交代码已含部分能力）：**
 - PTY：`src-tauri/src/modules/pty/`，portable-pty 会话 + reader/flusher/waiter 三线程、ConPTY 生命周期锁、Job 对象树杀、4MiB backpressure、agent-detect、da_filter、SSH、WSL；**round-10 未提交已含 `pty_helper`（跨重启常驻 helper，`--pty-helper` 模式 + `pty_helper_open/attach/write/resize/close/list` 命令）**。
 - LSP：`src-tauri/src/modules/lsp/` + `src/modules/lsp/`，会话/崩溃守卫/跨文件 edits/WSL；round-10 未提交已含 `diagnose.ts` AI 工具诊断桥（`newDiagnosticsAfterWrite`/`captureBaseline`/`withLspDiagnostics`）。
 - DAP：**完全没有**（全仓 grep `dap|debug_adapter|breakpoint|DebugSession` 零命中，唯一 `adapter.rs` 是网关适配器，与调试无关）。
@@ -27,46 +27,46 @@
 
 ## 1. 差距矩阵（证据引用的对比结论）
 
-### 1.1 DAP：yamet 缺失，参考项目有成熟范本 —— 本轮最大工程
+### 1.1 DAP：YaMet 缺失，参考项目有成熟范本 —— 本轮最大工程
 
-| 能力 | yamet | oh-my-pi | xora(@theia/debug) | 结论 |
+| 能力 | YaMet | oh-my-pi | xora(@theia/debug) | 结论 |
 |---|---|---|---|---|
-| DAP 客户端 | ❌ 无 | ✅ `dap/client.ts`(1043行,`DapClient` JSON-RPC stdio/tcp + MessageFramer) | ✅ 由 `@theia/debug` 提供 | **yamet 从零建** |
-| 会话管理 | ❌ | ✅ `dap/session.ts`(1841行,`DapSessionManager`: launch/attach/断点/线程/栈帧/变量/作用域/反汇编/内存/reverse requests) | ✅ `DebugSessionManager` | **yamet 从零建** |
-| 适配器注册表 | ❌ | ✅ `dap/defaults.json` ~14 适配器(gdb/lldb-dap/codelldb/debugpy/dlv/js-debug/netcoredbg/kotlin/rdbg/php/bash-debug/flutter) + `config.ts` 自动选择 | ✅ `DebugAdapterContribution` 注册点 | **yamet 从零建** |
-| launch.json 配置 | ❌ | ✅ `dap/config.ts` launch/attachDefaults merge | ✅ `DebugConfigurationManager` + schema | **yamet 从零建** |
+| DAP 客户端 | ❌ 无 | ✅ `dap/client.ts`(1043行,`DapClient` JSON-RPC stdio/tcp + MessageFramer) | ✅ 由 `@theia/debug` 提供 | **YaMet 从零建** |
+| 会话管理 | ❌ | ✅ `dap/session.ts`(1841行,`DapSessionManager`: launch/attach/断点/线程/栈帧/变量/作用域/反汇编/内存/reverse requests) | ✅ `DebugSessionManager` | **YaMet 从零建** |
+| 适配器注册表 | ❌ | ✅ `dap/defaults.json` ~14 适配器(gdb/lldb-dap/codelldb/debugpy/dlv/js-debug/netcoredbg/kotlin/rdbg/php/bash-debug/flutter) + `config.ts` 自动选择 | ✅ `DebugAdapterContribution` 注册点 | **YaMet 从零建** |
+| launch.json 配置 | ❌ | ✅ `dap/config.ts` launch/attachDefaults merge | ✅ `DebugConfigurationManager` + schema | **YaMet 从零建** |
 | 传输/分帧 | 已有 LSP `framing.rs`(Content-Length)可复用 | `MessageFramer`(与 LSP 同构) | `DebugAdapterSession` stdio | **复用 `lsp/framing.rs`** |
 
-**关键结论**：DAP 与 LSP 同构（JSON-RPC + Content-Length 分帧 + 子进程宿主 + 会话管理）。yamet 的 `lsp/framing.rs`（`FrameDecoder`/`encode_frame`）和 `lsp/session.rs`（子进程 stdin/stdout/stderr + 内存看门狗 + 崩溃 tail）可 90% 复用。oh-my-pi 的 `dap/` 是直接范本，`@theia/debug` 是架构参照（会话/配置/断点模型分离）。
+**关键结论**：DAP 与 LSP 同构（JSON-RPC + Content-Length 分帧 + 子进程宿主 + 会话管理）。YaMet 的 `lsp/framing.rs`（`FrameDecoder`/`encode_frame`）和 `lsp/session.rs`（子进程 stdin/stdout/stderr + 内存看门狗 + 崩溃 tail）可 90% 复用。oh-my-pi 的 `dap/` 是直接范本，`@theia/debug` 是架构参照（会话/配置/断点模型分离）。
 
-### 1.2 PTY：yamet 已成熟，但 Windows ConPTY 健壮性差 oh-my-pi
+### 1.2 PTY：YaMet 已成熟，但 Windows ConPTY 健壮性差 oh-my-pi
 
-| 能力 | yamet | oh-my-pi | 结论 |
+| 能力 | YaMet | oh-my-pi | 结论 |
 |---|---|---|---|
 | ConPTY 生命周期锁 | ✅ `pty/session.rs:113` `CONPTY_LIFECYCLE_LOCK` | ✅ | 对齐 |
 | ESC[6n 光标查询应答 | ✅ `pty/da_filter.rs` 拦截回答 | ✅ `pty.rs:366-373` 写 `\x1b[1;1R` | 对齐 |
-| **openpty 超时兜底** | ❌ `session.rs:183` 同步 `openpty()` 无超时 | ✅ `pty.rs:280-313` 独立线程 + `recv_timeout(5s)`，超时 reject「ConPTY may be unavailable」 | **yamet 缺口**：ConPTY openpty 可能无限挂起 |
-| **child.wait() 挂死兜底** | ❌ `session.rs:339` 阻塞 `child.wait()` | ✅ `pty.rs:538-560` Windows 5s 轮询 `try_wait()` | **yamet 缺口**：ConPTY wait 可无限挂 |
-| **teardown 顺序 + 超时 drain** | ⚠️ 有 drop 顺序(注释)但无显式分阶段超时 | ✅ `pty.rs:563-625` drop(writer)→drain reader(超时)→drop(master)后台线程+2s 超时→reader_done 才 join | **yamet 缺口**：ClosePseudoConsole 死锁无 2s 后台线程兜底 |
+| **openpty 超时兜底** | ❌ `session.rs:183` 同步 `openpty()` 无超时 | ✅ `pty.rs:280-313` 独立线程 + `recv_timeout(5s)`，超时 reject「ConPTY may be unavailable」 | **YaMet 缺口**：ConPTY openpty 可能无限挂起 |
+| **child.wait() 挂死兜底** | ❌ `session.rs:339` 阻塞 `child.wait()` | ✅ `pty.rs:538-560` Windows 5s 轮询 `try_wait()` | **YaMet 缺口**：ConPTY wait 可无限挂 |
+| **teardown 顺序 + 超时 drain** | ⚠️ 有 drop 顺序(注释)但无显式分阶段超时 | ✅ `pty.rs:563-625` drop(writer)→drain reader(超时)→drop(master)后台线程+2s 超时→reader_done 才 join | **YaMet 缺口**：ClosePseudoConsole 死锁无 2s 后台线程兜底 |
 | 跨重启重连 | ✅ round-10 未提交 `pty_helper`(常驻 helper) | ✅ `launch/broker.ts` per-project 守护 + `meta.json` 原子持久化 + pid 重连 | 方向一致 |
 
-**关键结论**：yamet 的 round-10 `pty_helper` 已解决「跨重启进程级重连」这个最大工程（与 grok `ptyctl`、oh-my-pi `broker` 同构：长驻 server 进程持有 PTY + 命名注册表 + 客户端重连）。**剩余缺口集中在 Windows ConPTY 的 3 个健壮性点**：openpty 超时、wait 挂死兜底、teardown 分阶段超时。参考 grok `ptyctl` 的命名会话注册表「非 PID 判活（端口+响应体形状校验）」和事件驱动 wait（`watch` generation，绝不轮询）可进一步强化 helper。
+**关键结论**：YaMet 的 round-10 `pty_helper` 已解决「跨重启进程级重连」这个最大工程（与 grok `ptyctl`、oh-my-pi `broker` 同构：长驻 server 进程持有 PTY + 命名注册表 + 客户端重连）。**剩余缺口集中在 Windows ConPTY 的 3 个健壮性点**：openpty 超时、wait 挂死兜底、teardown 分阶段超时。参考 grok `ptyctl` 的命名会话注册表「非 PID 判活（端口+响应体形状校验）」和事件驱动 wait（`watch` generation，绝不轮询）可进一步强化 helper。
 
-### 1.3 LSP：yamet 已成熟，诊断 freshness 缺 line-shift
+### 1.3 LSP：YaMet 已成熟，诊断 freshness 缺 line-shift
 
-| 能力 | yamet | hermes | 结论 |
+| 能力 | YaMet | hermes | 结论 |
 |---|---|---|---|
 | 写后诊断反馈 | ✅ `diagnose.ts` `newDiagnosticsAfterWrite` | ✅ `_maybe_lsp_diagnostics` | 对齐 |
 | freshness 只报新错 | ✅ `captureBaseline` + `sameDiagnostic`(行/列/消息/source 五元组 diff) | ✅ `client.py` 版本号模型 + `manager.py` delta baseline(`_diag_key` 五元组) | 对齐 |
-| **行偏移映射(line-shift)** | ❌ `diagnose.ts:159` 直接 `baselineByPath.get` 比较，**无行偏移** | ✅ `range_shift.py` difflib `SequenceMatcher` `build_line_shift`，把基线诊断映射到编辑后坐标 | **yamet 缺口**：中间插行会让编辑点下方所有基线诊断错位 → 误报"本次编辑引入的新错误" |
-| git 仓库门控 | ⚠️ 靠 `lsp_resolve_root` marker(含 .git)隐含门控 | ✅ `workspace.py` 显式 `find_git_worktree`，非 git 不触发 | 对齐（yamet 用 sessionsForPath 的 root 前缀覆盖当 gate）|
+| **行偏移映射(line-shift)** | ❌ `diagnose.ts:159` 直接 `baselineByPath.get` 比较，**无行偏移** | ✅ `range_shift.py` difflib `SequenceMatcher` `build_line_shift`，把基线诊断映射到编辑后坐标 | **YaMet 缺口**：中间插行会让编辑点下方所有基线诊断错位 → 误报"本次编辑引入的新错误" |
+| git 仓库门控 | ⚠️ 靠 `lsp_resolve_root` marker(含 .git)隐含门控 | ✅ `workspace.py` 显式 `find_git_worktree`，非 git 不触发 | 对齐（YaMet 用 sessionsForPath 的 root 前缀覆盖当 gate）|
 | broken-set 崩溃 | ✅ crashTimes/crashedOut/退避 | ✅ `manager.py _broken` | 对齐 |
 
-**关键结论**：hermes 的 `range_shift.py` 是 yamet 唯一明确的 LSP 缺口——编辑在文件中段增删行后，`diagnose.ts` 拿编辑前的基线（旧行号）与编辑后的诊断（新行号）直接比行号，会把基线里「位于编辑点下方、但行号已偏移」的诊断误判成新增。移植 hermes 的行偏移映射即可消除假新错。
+**关键结论**：hermes 的 `range_shift.py` 是 YaMet 唯一明确的 LSP 缺口——编辑在文件中段增删行后，`diagnose.ts` 拿编辑前的基线（旧行号）与编辑后的诊断（新行号）直接比行号，会把基线里「位于编辑点下方、但行号已偏移」的诊断误判成新增。移植 hermes 的行偏移映射即可消除假新错。
 
 ### 1.4 参考项目共性可借鉴项
 
-| 借鉴点 | 来源 | 应用到 yamet |
+| 借鉴点 | 来源 | 应用到 YaMet |
 |---|---|---|
 | `@theia/debug` 断点/线程/栈帧/变量**模型分离** | xora | DAP UI 层用可观察模型对象映射 DAP 状态 |
 | `DebugAdapterContribution` 适配器**贡献点注入** | xora | DAP 适配器按需注册，非硬编码 |
@@ -81,7 +81,7 @@
 
 ### P1 · DAP 调试器（最大工程，参考 oh-my-pi `dap/` + `@theia/debug`）
 
-**背景**：yamet 是完整 ADE（AI 原生终端 + 编辑器 + 文件浏览 + 源码管理），但**无任何调试能力**。参考项目证明：DAP 与既有 LSP 基础设施同构，可复用 `lsp/framing.rs` 与 `lsp/session.rs` 的子进程宿主，工程量可控。
+**背景**：YaMet 是完整 ADE（AI 原生终端 + 编辑器 + 文件浏览 + 源码管理），但**无任何调试能力**。参考项目证明：DAP 与既有 LSP 基础设施同构，可复用 `lsp/framing.rs` 与 `lsp/session.rs` 的子进程宿主，工程量可控。
 
 **需求**：
 
@@ -100,7 +100,7 @@
 
 ### P1 · PTY Windows ConPTY 健壮性（参考 oh-my-pi `pty.rs`）
 
-**背景**：yamet 的 PTY 已成熟（round-10 已含跨重启 helper），但 Windows ConPTY 有三个参考项目已解决的挂死风险：openpty 无限挂、wait 无限挂、ClosePseudoConsole 死锁。
+**背景**：YaMet 的 PTY 已成熟（round-10 已含跨重启 helper），但 Windows ConPTY 有三个参考项目已解决的挂死风险：openpty 无限挂、wait 无限挂、ClosePseudoConsole 死锁。
 
 **需求**：
 
@@ -139,12 +139,12 @@
 - helper 会话注册表对「进程已退出但端口仍占用」不误判为存活。
 - （若做 wait）wait 不轮询，resize 也 bump generation。
 
-### P0 · 根目录三文档同步（CHANGELOG / ROADMAP / YAMET，每轮必做）
+### P0 · 根目录三文档同步（CHANGELOG / ROADMAP / YaMet，每轮必做）
 
-**背景**：根目录 `CHANGELOG.md`、`ROADMAP.md`、`YAMET.md` 三个文件是迭代交付的一部分，**每轮必须随功能同步**，否则出现「功能已实现但文档停滞」的 doc debt（跨轮遗留审计反复踩的坑）。三者职责不同：
+**背景**：根目录 `CHANGELOG.md`、`ROADMAP.md`、`YaMet.md` 三个文件是迭代交付的一部分，**每轮必须随功能同步**，否则出现「功能已实现但文档停滞」的 doc debt（跨轮遗留审计反复踩的坑）。三者职责不同：
 - **CHANGELOG.md**：每轮交付逐条记录，顶部 `[未发布]` 段按「第十N轮（0.1.x）」标注；`release.mjs` 发布时把 `[未发布]` 固化并做非空门禁，`verify.ps1` 也校验 `[未发布]` 段非空。
 - **ROADMAP.md**：战略方向 + 已交付/规划中/范围外勾选。轮次交付把对应 `[ ]` 勾为 `[x]`；若把原「范围外」项纳入（如第十轮 DAP），须像 ROADMAP.md:148 那样在「范围外」末尾加一句「…经维护者决定纳入第十一轮，见 docs/…」。
-- **YAMET.md**：活架构文档（agent 记忆），改动前先读。新 Rust 命令面、新前端模块、新架构不变量必须补进对应段落（`## 架构` 的 `lsp::*` 那段、`src/modules/` 布局、`## 已知坑`）。
+- **YaMet.md**：活架构文档（agent 记忆），改动前先读。新 Rust 命令面、新前端模块、新架构不变量必须补进对应段落（`## 架构` 的 `lsp::*` 那段、`src/modules/` 布局、`## 已知坑`）。
 
 **本轮（第十一轮）三文件具体同步内容**：
 
@@ -156,7 +156,7 @@
 2. **ROADMAP.md**：
    - 若本轮把原「范围外」的 DAP 纳入：在「范围外」末尾补「…经维护者决定纳入第十一轮，见 docs/yamet-需求迭代-第十一轮-LSP-PTY-DAP-2026-08-05.md」。
    - 「下一批」若有 DAP/调试器相关项则勾 `[x]`。
-3. **YAMET.md**：
+3. **YaMet.md**：
    - `## 架构` 的 `lsp::*` 段旁新增 `dap::*` 命令面段（`dap_launch/attach/send/kill/list`，复用 `lsp/framing.rs`，DAP 与 LSP 同构 JSON-RPC）。
    - `src/modules/` 布局新增 `debug/`（DebugPanel + DebugSessionModel + breakpoints + launch）。
    - 若引入新不变量（如 DAP 请求 30s 超时、断点变更串行队列），补进对应段落或 `## 已知坑`。
@@ -167,7 +167,7 @@
 
 ## 3. 规划方案（技术设计）
 
-> 本节给出每项需求的**架构 / 数据结构 / 命令签名 / 状态机 / 前端组件树 / 与现有代码接缝 / 测试策略 / 风险**。实现细节在 §4 实施计划落为步骤。所有 Rust 端复用 yamet 既有 `lsp/framing.rs` 与 `lsp/session.rs` 的子进程宿主模式；前端复用 `invoke` + 事件订阅。
+> 本节给出每项需求的**架构 / 数据结构 / 命令签名 / 状态机 / 前端组件树 / 与现有代码接缝 / 测试策略 / 风险**。实现细节在 §4 实施计划落为步骤。所有 Rust 端复用 YaMet 既有 `lsp/framing.rs` 与 `lsp/session.rs` 的子进程宿主模式；前端复用 `invoke` + 事件订阅。
 
 ---
 
@@ -337,7 +337,7 @@ DebugSessionModel      // 会话状态(started/running/stopped/exited) + 事件�
 | **D** | PTY helper 强化（非 PID 判活） | 无 | `pty_helper/` | `cargo test pty_helper::` |
 | **A-M2** | DAP 前端：断点 + 启动/停止 + Debug Console | A-M1 | `src/modules/debug/`(新) + `editor/` + tabs | `npx tsc` + `vitest debug` |
 | **A-M3** | DAP 单步 + 变量/调用栈 + 真实验证 | A-M2 | `debug/` + `editor/` | `npx tsc` + 手动 debugpy/node-inspect |
-| **E** | 根目录三文档同步 + i18n + 构建 | 全部功能交付 | CHANGELOG/ROADMAP/YAMET + i18n 键 + 四文件版本 | `pnpm verify` + `npx tauri build` |
+| **E** | 根目录三文档同步 + i18n + 构建 | 全部功能交付 | CHANGELOG/ROADMAP/YaMet + i18n 键 + 四文件版本 | `pnpm verify` + `npx tauri build` |
 
 **执行顺序链**：`A-M1 → {B, C, D}（并行）→ A-M2 → A-M3 → E → 构建`。
 Rust 后端先行（A-M1/B/D），前端消费在后（A-M2/A-M3/C）；无跨里程碑硬依赖的 B/C/D 可并行。
@@ -411,7 +411,7 @@ Rust 后端先行（A-M1/B/D），前端消费在后（A-M2/A-M3/C）；无跨�
 | 1 | DAP/debug 全部 UI 文案走 i18n（zh-CN 主 + en 回退），新增键双语 | `src/lib/i18n/translations.ts` | `npx tsc` |
 | 2 | CHANGELOG.md `[未发布]` 段新增「第十一轮（0.1.12）」条目 | `CHANGELOG.md` | — |
 | 3 | ROADMAP.md 勾选/纳入标注（DAP 纳入 + 下一批勾选） | `ROADMAP.md` | — |
-| 4 | YAMET.md 补 `dap::*` 命令面 + `debug/` 模块布局 | `YAMET.md` | — |
+| 4 | YaMet.md 补 `dap::*` 命令面 + `debug/` 模块布局 | `YaMet.md` | — |
 | 5 | 版本 0.1.12 四文件同步（`node scripts/version-bump.mjs`） | package.json/tauri.conf.json/Cargo.toml/Cargo.lock | — |
 | 6 | 全量门禁 + 构建 | — | `pnpm verify` + `npx tauri build` |
 
@@ -439,7 +439,7 @@ A-M1 → ┌ B ┐ → A-M2 → A-M3 → E(收尾/构建)
 
 ### 质量门禁（每项功能交付前必过）
 
-> 对应 YAMET.md 的质量门槛与 yamet 既有验证链。四维门禁，缺一不可。
+> 对应 YaMet.md 的质量门槛与 YaMet 既有验证链。四维门禁，缺一不可。
 
 #### 前端对齐（四级链路，防死代码）
 
@@ -504,7 +504,7 @@ A-M1 → ┌ B ┐ → A-M2 → A-M3 → E(收尾/构建)
 - [ ] DAP：debugpy 与 node-inspect 各端到端跑通（断点/单步/变量/调用栈）。
 - [ ] PTY：openpty/wait/teardown 三处超时兜底有单测；Windows 无挂死。
 - [ ] LSP：中部插行不误报假新错误。
-- [ ] **根目录三文档同步**：CHANGELOG.md 新增「第十一轮」条目、ROADMAP.md 勾选/纳入标注、YAMET.md 补 `dap::*` 命令面 + `debug/` 模块（见 §2 P0）。
+- [ ] **根目录三文档同步**：CHANGELOG.md 新增「第十一轮」条目、ROADMAP.md 勾选/纳入标注、YaMet.md 补 `dap::*` 命令面 + `debug/` 模块（见 §2 P0）。
 
 ## 6. 范围外（维持）
 

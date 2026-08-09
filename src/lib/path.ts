@@ -2,7 +2,7 @@
  * Cross-platform path helpers. Every path that may originate from OSC 7, the
  * explorer, or the OS uses backslash-aware splitting (`.split(/[\\/]/)`) so
  * Windows drive paths and UNC paths behave like Unix ones. Per the repo
- * convention in YAMET.md, the canonical path form is forward slashes.
+ * convention in YaMet.md, the canonical path form is forward slashes.
  */
 
 /**

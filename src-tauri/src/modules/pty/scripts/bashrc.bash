@@ -1,4 +1,4 @@
-# yamet-shell-integration (bashrc)
+# YaMet-shell-integration (bashrc)
 #
 # Differences vs zsh integration:
 # - We emulate login-shell init manually (/etc/profile, profile files) because

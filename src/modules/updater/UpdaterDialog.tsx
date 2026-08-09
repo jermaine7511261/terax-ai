@@ -22,7 +22,7 @@ function distroCommand(key: DistroKey, version: string): string {
     case "debian":
       return `sudo apt install ./Yamet_${version}_amd64.deb`;
     case "fedora":
-      return `sudo dnf install ./Yamet-${version}-1.x86_64.rpm`;
+      return `sudo dnf install ./YaMet-${version}-1.x86_64.rpm`;
   }
 }
 

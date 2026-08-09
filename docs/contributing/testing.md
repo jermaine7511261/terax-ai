@@ -1,6 +1,6 @@
 # 测试
 
-本指南展开说明 `YAMET.md` 与 `CONTRIBUTING.md`。如有冲突，以它们为准。
+本指南展开说明 `YaMet.md` 与 `CONTRIBUTING.md`。如有冲突，以它们为准。
 
 ## 本地跑检查
 
@@ -84,6 +84,6 @@ ConPTY/作业对象的测试放 `#[cfg(windows)]` 后；Unix PTY 生命周期的
 
 ## 参见
 
-- [`YAMET.md`](../../YAMET.md)：架构事实来源
+- [`YaMet.md`](../../YaMet.md)：架构事实来源
 - [`CONTRIBUTING.md`](../../CONTRIBUTING.md)：质量门槛、项目布局、如何贡献
 - [`docs/README.md`](../README.md)：贡献者指南索引

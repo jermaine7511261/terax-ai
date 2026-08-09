@@ -140,7 +140,7 @@ export function useSpacesBoot({
         const activeTab = inActive[idx] ?? inActive[0] ?? restored[0];
         replaceTabs(restored, activeTab.id);
       } catch (e) {
-        console.error("[yamet] spaces boot failed:", e);
+        console.error("[YaMet] spaces boot failed:", e);
       } finally {
         markBooted();
       }

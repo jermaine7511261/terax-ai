@@ -22,7 +22,7 @@ pnpm tauri dev
 
 前置依赖：Rust（stable）、Node 20+、pnpm，以及你所在平台的 [Tauri 前置依赖](https://tauri.app/start/prerequisites/)。
 
-架构与如何安全贡献见 [YAMET.md](YAMET.md) 与 [docs/ 索引](docs/README.md)。
+架构与如何安全贡献见 [YaMet.md](YaMet.md) 与 [docs/ 索引](docs/README.md)。
 
 ## 在哪里讨论
 

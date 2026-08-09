@@ -13,7 +13,7 @@ export type Snippet = {
   builtin?: boolean;
 };
 
-const STORE_PATH = "yamet-ai-snippets.json";
+const STORE_PATH = "YaMet-ai-snippets.json";
 const KEY_LIST = "snippets";
 const KEY_DISABLED = "disabledBuiltinHandles";
 
