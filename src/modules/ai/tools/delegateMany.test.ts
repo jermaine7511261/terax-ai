@@ -181,4 +181,22 @@ describe("delegate_many (P0-2 parallel workers)", () => {
     expect(res.requested).toBe(9);
     expect(res.spawned).toBe(8);
   });
+
+  it("fails a hung worker with a timeout instead of blocking the wave", async () => {
+    vi.useFakeTimers();
+    try {
+      // runSubagent never resolves (stuck model / hung tool).
+      vi.mocked(runSubagent).mockImplementation(() => new Promise(() => {}));
+      const promise = tool().execute({
+        tasks: [{ type: "explore", prompt: "hung task" }],
+      });
+      // Advance past the per-worker timeout (7 min).
+      await vi.advanceTimersByTimeAsync(7 * 60 * 1000 + 1000);
+      const res = await promise;
+      expect(res.results[0].ok).toBe(false);
+      expect(res.results[0].error).toBe("worker timed out");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

@@ -58,6 +58,28 @@ fn mtime_millis(meta: &fs::Metadata) -> u64 {
         .unwrap_or(0)
 }
 
+/// Optimistic concurrency check (edit-tool CAS): when `expected` is provided
+/// (>0) and the on-disk mtime differs, refuse the write so a concurrent edit
+/// to the same file isn't silently clobbered (last-writer-wins data loss).
+pub fn check_mtime_cas(target: &std::path::Path, expected: Option<u64>) -> Result<(), String> {
+    let Some(expected) = expected else {
+        return Ok(());
+    };
+    if expected == 0 {
+        return Ok(());
+    }
+    let current = fs::metadata(target)
+        .ok()
+        .map(|m| mtime_millis(&m))
+        .unwrap_or(0);
+    if current != expected {
+        return Err(format!(
+            "fs_write_file: concurrent modification detected (mtime changed {expected} -> {current}); re-read the file and retry"
+        ));
+    }
+    Ok(())
+}
+
 /// Defense-in-depth for the AI write path: the frontend `security.ts` denylist
 /// is the first gate; this is the second, authoritative one. AI-sourced writes
 /// (`source == "ai"`) must resolve to a path under an authorized workspace
@@ -223,6 +245,7 @@ pub async fn fs_write_file(
     content: String,
     workspace: Option<WorkspaceEnv>,
     source: Option<String>,
+    expected_mtime: Option<u64>,
     app: tauri::AppHandle,
 ) -> Result<u64, String> {
     tauri::async_runtime::spawn_blocking(move || {
@@ -242,6 +265,15 @@ pub async fn fs_write_file(
                 log::warn!("{e}");
                 e
             })?;
+        }
+        // Optimistic concurrency (edit-tool CAS): if the caller read the file
+        // earlier and passes that mtime, refuse to overwrite when the disk has
+        // since changed. This prevents "same file concurrently edited → the
+        // later write silently clobbers the earlier one" (last-writer-wins
+        // data loss). A mismatch is returned as a conflict, not an overwrite.
+        if let Err(e) = check_mtime_cas(&target, expected_mtime) {
+            log::warn!("fs_write_file({}) CAS failed: {e}", target.display());
+            return Err(e);
         }
         let original_permissions = fs::metadata(&target).ok().map(|m| m.permissions());
         write_atomic(&target, content.as_bytes()).map_err(|e| {
@@ -352,6 +384,43 @@ pub fn fs_stat_impl(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cas_allows_when_mtime_unchanged() {
+        let dir = tempfile::tempdir().unwrap();
+        let f = dir.path().join("a.txt");
+        std::fs::write(&f, b"v1").unwrap();
+        let mtime = fs::metadata(&f).map(|m| mtime_millis(&m)).unwrap();
+        assert!(check_mtime_cas(&f, Some(mtime)).is_ok());
+        // None / 0 expected = no check.
+        assert!(check_mtime_cas(&f, None).is_ok());
+        assert!(check_mtime_cas(&f, Some(0)).is_ok());
+    }
+
+    #[test]
+    fn cas_rejects_when_mtime_changed() {
+        let dir = tempfile::tempdir().unwrap();
+        let f = dir.path().join("a.txt");
+        std::fs::write(&f, b"v1").unwrap();
+        let mtime = fs::metadata(&f).map(|m| mtime_millis(&m)).unwrap();
+        // Simulate a concurrent writer touching the file (mtime changes).
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        std::fs::write(&f, b"v2").unwrap();
+        // A stale expected mtime (the value read before the concurrent write)
+        // must be rejected.
+        let err = check_mtime_cas(&f, Some(mtime)).unwrap_err();
+        assert!(err.contains("concurrent modification"));
+    }
+
+    #[test]
+    fn cas_rejects_when_file_deleted() {
+        let dir = tempfile::tempdir().unwrap();
+        let f = dir.path().join("a.txt");
+        std::fs::write(&f, b"v1").unwrap();
+        let mtime = fs::metadata(&f).map(|m| mtime_millis(&m)).unwrap();
+        std::fs::remove_file(&f).unwrap();
+        assert!(check_mtime_cas(&f, Some(mtime)).is_err());
+    }
 
     #[test]
     fn read_file_classifies_utf8_as_text() {

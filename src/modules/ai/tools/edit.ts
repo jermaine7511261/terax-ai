@@ -183,6 +183,10 @@ async function applyEdits(
     return { error: `file too large (${r.size} bytes)`, path: abs };
 
   const original = r.content;
+  // Optimistic concurrency: record the disk mtime at read so the write can
+  // refuse if another writer changed the file in between (prevents the
+  // "concurrent edit to the same file loses the first" data-loss).
+  const expectedMtime = "mtime" in r && typeof r.mtime === "number" ? r.mtime : 0;
   let content = original;
   let totalReplacements = 0;
 
@@ -262,7 +266,7 @@ async function applyEdits(
 
   const releaseBaseline = await captureBaseline(abs);
   try {
-    await native.writeFile(abs, content);
+    await native.writeFile(abs, content, { expectedMtime });
     readCache.set(abs, { size: content.length, hash: djb2(content) });
     const lsp = await newDiagnosticsAfterWrite(abs, content);
     return withLspDiagnostics(
@@ -275,7 +279,13 @@ async function applyEdits(
       lsp,
     );
   } catch (err) {
-    return { error: String(err), path: abs };
+    const msg = String(err);
+    return {
+      error: msg.includes("concurrent modification")
+        ? `concurrent modification detected for ${abs}; re-read the file and retry`
+        : msg,
+      path: abs,
+    };
   } finally {
     releaseBaseline();
   }
@@ -430,7 +440,13 @@ export function buildEditTools(ctx: ToolContext) {
           }
           const releaseBaseline = await captureBaseline(p.abs);
           try {
-            await native.writeFile(p.abs, p.proposed);
+            // Optimistic concurrency: re-stat before write to capture the
+            // current mtime, so a concurrent writer won't be silently
+            // clobbered (the write refuses on mismatch).
+            const cur = await native.readFile(p.abs);
+            const expectedMtime =
+              "mtime" in cur && typeof cur.mtime === "number" ? cur.mtime : 0;
+            await native.writeFile(p.abs, p.proposed, { expectedMtime });
             ctx.readCache.set(p.abs, {
               size: p.proposed.length,
               hash: djb2(p.proposed),
@@ -444,7 +460,14 @@ export function buildEditTools(ctx: ToolContext) {
             );
           } catch (err) {
             releaseBaseline();
-            results.push({ path: p.abs, ok: false, error: String(err) });
+            const msg = String(err);
+            results.push({
+              path: p.abs,
+              ok: false,
+              error: msg.includes("concurrent modification")
+                ? `concurrent modification detected for ${p.abs}; re-read and retry`
+                : msg,
+            });
           }
         }
         return { files: results };

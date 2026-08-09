@@ -198,6 +198,16 @@ describe("runSubagent options building", () => {
     expect(opts.stopWhen).toEqual({ kind: "stepCount", max: 12 });
   });
 
+  it("passes bounded retries and timeouts to generateText", async () => {
+    await runSubagent(baseArgs({ type: "explore" }));
+    const opts = lastGenOpts();
+    expect(opts.maxRetries).toBe(1);
+    expect(opts.timeout).toEqual({
+      totalMs: 5 * 60 * 1000,
+      stepMs: 90 * 1000,
+    });
+  });
+
   it("reports each step's tool call via onStep", async () => {
     const onStep = vi.fn();
     await runSubagent(baseArgs({ type: "explore", onStep }));

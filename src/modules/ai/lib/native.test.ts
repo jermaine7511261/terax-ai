@@ -44,6 +44,17 @@ describe("native workspace/fs wrappers", () => {
       content: "hi",
       source: "ai",
       workspace: "default",
+      expectedMtime: null,
+    });
+
+    // expectedMtime passes through when provided.
+    await native.writeFile("/a", "hi", { expectedMtime: 123 });
+    expect(mockInvoke).toHaveBeenCalledWith("fs_write_file", {
+      path: "/a",
+      content: "hi",
+      source: "ai",
+      workspace: "default",
+      expectedMtime: 123,
     });
   });
 

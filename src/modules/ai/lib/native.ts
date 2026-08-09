@@ -3,7 +3,7 @@ import { invoke } from "@/platform";
 import type { Channel } from "@/platform";
 
 export type ReadResult =
-  | { kind: "text"; content: string; size: number }
+  | { kind: "text"; content: string; size: number; mtime?: number }
   | { kind: "binary"; size: number }
   | { kind: "toolarge"; size: number; limit: number };
 
@@ -282,12 +282,17 @@ export const native = {
       source: "ai",
       workspace: currentWorkspaceEnv(),
     }),
-  writeFile: (path: string, content: string) =>
+  writeFile: (
+    path: string,
+    content: string,
+    opts: { expectedMtime?: number } = {},
+  ) =>
     invoke<void>("fs_write_file", {
       path,
       content,
       source: "ai",
       workspace: currentWorkspaceEnv(),
+      expectedMtime: opts.expectedMtime ?? null,
     }),
   createDocx: (path: string, lines: string[]) =>
     invoke<number>("fs_create_docx", {

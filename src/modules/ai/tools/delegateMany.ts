@@ -199,7 +199,38 @@ type WorkerCtx = {
   parentId?: string;
 };
 
+/** Per-worker wall-clock cap (hermes worker timeout): a stuck subagent must
+ *  not hang the whole fan-out wave. Generous vs. SUBAGENT_TOTAL_TIMEOUT_MS
+ *  plus tool round-trips. */
+const WORKER_TIMEOUT_MS = 7 * 60 * 1000;
+
 async function runWorker(
+  t: { type: SubagentType; prompt: string; context?: string },
+  wc: WorkerCtx,
+): Promise<DelegateWorkerResult> {
+  // Outer timeout: even if runSubagent's internal timeouts are misconfigured
+  // or a tool never resolves, the wave always completes.
+  return Promise.race([
+    runWorkerInner(t, wc),
+    new Promise<DelegateWorkerResult>((resolve) => {
+      setTimeout(
+        () =>
+          resolve({
+            type: t.type,
+            prompt: t.prompt,
+            ok: false,
+            summary: "",
+            error: "worker timed out",
+            stepCount: 0,
+            durationMs: 0,
+          }),
+        WORKER_TIMEOUT_MS,
+      );
+    }),
+  ]);
+}
+
+async function runWorkerInner(
   t: { type: SubagentType; prompt: string; context?: string },
   wc: WorkerCtx,
 ): Promise<DelegateWorkerResult> {

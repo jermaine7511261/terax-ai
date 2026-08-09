@@ -13,6 +13,21 @@ import { CLOSING_RULE, SUBAGENTS, type SubagentType } from "./registry";
 
 const SUBAGENT_MAX_STEPS = 12;
 
+/** Per-request retry (network blips / provider 5xx). Default is 2; subagents
+ *  get a bounded retry so a single transient failure doesn't fail the whole
+ *  delegated task. */
+const SUBAGENT_MAX_RETRIES = 1;
+
+/** Total wall-clock cap for a subagent run. Prevents a stuck model / slow
+ *  reasoning model from hanging the parent forever (the "always times out"
+ *  symptom). 5 minutes is generous for a 12-step tool loop. */
+const SUBAGENT_TOTAL_TIMEOUT_MS = 5 * 60 * 1000;
+
+/** Per-step cap: a single model response (streaming) must make progress within
+ *  this window or the step aborts. Guards against a provider that accepts the
+ *  connection but never sends tokens. */
+const SUBAGENT_STEP_TIMEOUT_MS = 90 * 1000;
+
 /** Hard ceiling on the delegation depth (grok `subagents_max_depth` / hermes
  * `max_spawn_depth`). A subagent's workers inherit depth+1; beyond this the
  * delegate_many tool refuses to spawn deeper. */
@@ -131,6 +146,13 @@ export async function runSubagent({
     prompt: taskPrompt,
     tools: tools as Parameters<typeof generateText>[0]["tools"],
     stopWhen: stepCountIs(SUBAGENT_MAX_STEPS),
+    // Bound the run: bounded retries for transient errors + explicit step and
+    // total timeouts so a slow/hung model can't fail the parent forever.
+    maxRetries: SUBAGENT_MAX_RETRIES,
+    timeout: {
+      totalMs: SUBAGENT_TOTAL_TIMEOUT_MS,
+      stepMs: SUBAGENT_STEP_TIMEOUT_MS,
+    },
     onStepFinish: (step) => {
       if (!onStep) return;
       const last = step.toolCalls?.[step.toolCalls.length - 1];
@@ -149,6 +171,11 @@ export async function runSubagent({
       system,
       // No tools: forces a plain-text closing answer instead of another loop.
       prompt: `${taskPrompt}\n\nPlease output your final summary as plain text now. Do not call any tools. If you already found everything you need, just summarize it.`,
+      maxRetries: SUBAGENT_MAX_RETRIES,
+      timeout: {
+        totalMs: SUBAGENT_TOTAL_TIMEOUT_MS,
+        stepMs: SUBAGENT_STEP_TIMEOUT_MS,
+      },
     });
     if (closing.text && closing.text.trim().length > 0) {
       raw = closing.text;

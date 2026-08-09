@@ -175,7 +175,7 @@ describe("edit tool replacement", () => {
       new_string: "there",
     });
     expect(result.replacements).toBe(1);
-    expect(nativeMock.writeFile).toHaveBeenCalledWith(FILE, "hello there");
+    expect(nativeMock.writeFile).toHaveBeenCalledWith(FILE, "hello there", { expectedMtime: 0 });
   });
 
   it("replaces every occurrence and counts them with replace_all", async () => {
@@ -187,7 +187,7 @@ describe("edit tool replacement", () => {
       replace_all: true,
     });
     expect(result.replacements).toBe(3);
-    expect(nativeMock.writeFile).toHaveBeenCalledWith(FILE, "z b z b z");
+    expect(nativeMock.writeFile).toHaveBeenCalledWith(FILE, "z b z b z", { expectedMtime: 0 });
   });
 });
 
@@ -202,7 +202,7 @@ describe("multi_edit atomicity", () => {
       ],
     });
     expect(result.replacements).toBe(2);
-    expect(nativeMock.writeFile).toHaveBeenCalledWith(FILE, "1 2");
+    expect(nativeMock.writeFile).toHaveBeenCalledWith(FILE, "1 2", { expectedMtime: 0 });
   });
 
   it("writes nothing when a later edit in the batch fails", async () => {
