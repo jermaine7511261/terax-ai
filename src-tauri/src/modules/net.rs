@@ -331,13 +331,56 @@ pub(crate) async fn safe_client_for_url(
     allow_private: bool,
 ) -> Result<(reqwest::Url, reqwest::Client), String> {
     let parsed = validate_url(url, allow_private)?;
+    let client = build_egress_client(&parsed, allow_private).await?;
+    Ok((parsed, client))
+}
+
+/// Build the egress client for a validated URL.
+///
+/// - Literal private/loopback/metadata IP targets always use the direct,
+///   fully-classified client (local model servers must never be routed through
+///   a proxy; metadata is still blocked).
+/// - Public hostnames prefer the OS **system proxy** when one is configured.
+///   The proxy owns DNS + routing, so the DNS-rebinding pin is skipped — this
+///   is exactly what makes requests work under fake-IP DNS resolvers (Clash /
+///   v2ray / sing-box system-proxy mode return synthetic addresses such as
+///   198.18.x.x / fd00::/7 that are unreachable by direct connect, which broke
+///   every AI request) and through corporate proxies, matching how the OS and
+///   browsers reach the endpoint.
+/// - No proxy: the SSRF-safe direct client with DNS-rebinding pinning.
+async fn build_egress_client(
+    parsed: &reqwest::Url,
+    allow_private: bool,
+) -> Result<reqwest::Client, String> {
     let host = parsed
         .host_str()
         .ok_or_else(|| "missing host".to_string())?
         .to_string();
+
+    // Literal IP target: direct + fully classified.
+    if let Ok(ip) = host.parse::<IpAddr>() {
+        let k = ip_kind(ip);
+        if k == IpKind::BlockedMetadata {
+            return Err(format!("host not allowed: {host}"));
+        }
+        if !allow_private && matches!(k, IpKind::Loopback | IpKind::Private) {
+            return Err(format!(
+                "host {host} resolves to a private/loopback address; this endpoint requires explicit opt-in"
+            ));
+        }
+        return build_safe_client(allow_private, &[(host, vec![ip])]);
+    }
+
+    if let Ok(proxy) = reqwest::Proxy::system() {
+        return reqwest::Client::builder()
+            .proxy(proxy)
+            .connect_timeout(Duration::from_secs(10))
+            .build()
+            .map_err(|e| e.to_string());
+    }
+
     let safe_ips = classify_and_collect_safe_ips(&host, allow_private).await?;
-    let client = build_safe_client(allow_private, &[(host, safe_ips)])?;
-    Ok((parsed, client))
+    build_safe_client(allow_private, &[(host, safe_ips)])
 }
 
 /// Global budget for in-flight response bodies across concurrent

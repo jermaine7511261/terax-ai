@@ -8,18 +8,18 @@ import type { ToolContext } from "./context";
 export type ExternalAgentId =
   | "claude"
   | "codex"
-  | ""
+  | "opencode"
   | "gemini"
   | "pi"
-  | "";
+  | "grok";
 
 const AGENT_LABELS: Record<ExternalAgentId, string> = {
   claude: "Claude Code",
   codex: "Codex",
-  : "",
+  opencode: "OpenCode",
   gemini: "Gemini CLI",
   pi: "Pi",
-  : "",
+  grok: "Grok",
 };
 
 /**
@@ -28,8 +28,8 @@ const AGENT_LABELS: Record<ExternalAgentId, string> = {
  * - Claude Code: `claude -p <prompt> --output-format text` — print mode skips
  *   the trust/permission dialogs, returns the result and exits.
  * - Codex: `codex exec <prompt>`.
- * - : ` run <prompt>`.
- * - gemini/pi/: print via `-p` / `-q` as appropriate.
+ * - opencode: `opencode run <prompt>`.
+ * - gemini/pi/opencode/grok: print via `-p` / `-q` as appropriate.
  *
  * The prompt is single-quoted so shell metacharacters inside it can't inject a
  * second command. The whole line is validated by checkShellCommand too.
@@ -48,8 +48,8 @@ export function buildExternalAgentCommand(
     case "codex":
       base = `codex exec ${quoted}`;
       break;
-    case "":
-      base = ` run ${quoted}`;
+    case "opencode":
+      base = `opencode run ${quoted}`;
       break;
     case "gemini":
       base = `gemini -p ${quoted}`;
@@ -57,8 +57,8 @@ export function buildExternalAgentCommand(
     case "pi":
       base = `pi -p ${quoted}`;
       break;
-    case "":
-      base = ` -p ${quoted}`;
+    case "grok":
+      base = `grok -p ${quoted}`;
       break;
   }
   return cwd ? `cd ${quoteShellArg(cwd)} && ${base}` : base;
