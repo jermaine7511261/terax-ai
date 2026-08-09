@@ -1,7 +1,7 @@
-//! MCP server — exposes Yamet's read-only capabilities to external agents
+//! MCP server — exposes YaMet's read-only capabilities to external agents
 //! via the Model Context Protocol (stdio, newline-delimited JSON-RPC 2.0).
 //!
-//! Usage: `yamet __mcp_server [--workdir <path>]`
+//! Usage: `YaMet __mcp_server [--workdir <path>]`
 //!
 //! This module mirrors the  gateway architecture: a main loop reads
 //! stdin line-by-line, dispatches to tool handlers, and writes responses to
@@ -133,7 +133,7 @@ fn handle_request(req: ServerRequest, workdir: &Path) -> Option<JsonRpcResponse>
     }
 }
 
-/// CLI entry point: `yamet __mcp_server [--workdir <path>]`.
+/// CLI entry point: `YaMet __mcp_server [--workdir <path>]`.
 pub fn cli_entry() {
     let args: Vec<String> = std::env::args().collect();
     let workdir = args

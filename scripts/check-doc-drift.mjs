@@ -49,7 +49,7 @@ if (blockStart < 0) {
     .filter((c) => /^[a-z_][a-z0-9_]*$/.test(c));
   const unique = [...new Set(commands)];
 
-  const yamet = readFileSync(join(root, "YAMET.md"), "utf8");
+  const YaMet = readFileSync(join(root, "YAMET.md"), "utf8");
   const missing = unique.filter((cmd) => {
     const prefix = cmd.split("_")[0];
     return !yamet.includes(`\`${cmd}\``) && !yamet.includes(`${prefix}::`);
@@ -101,7 +101,7 @@ if (!statSync(modulesDir, { throwIfNoEntry: false })) {
   const modules = readdirSync(modulesDir, { withFileTypes: true })
     .filter((d) => d.isDirectory())
     .map((d) => d.name);
-  const yamet = readFileSync(join(root, "YAMET.md"), "utf8");
+  const YaMet = readFileSync(join(root, "YAMET.md"), "utf8");
   const missingMods = modules.filter(
     (m) => !yamet.includes(`- **${m}/**`) && !yamet.includes(`**/${m}/**`),
   );
@@ -116,7 +116,7 @@ if (!statSync(modulesDir, { throwIfNoEntry: false })) {
 // re-implementation can't silently drift from the documented contract.
 {
   const handlersDir = join(root, "src", "platform", "web", "server", "handlers");
-  const yamet = readFileSync(join(root, "YAMET.md"), "utf8");
+  const YaMet = readFileSync(join(root, "YAMET.md"), "utf8");
   const registered = new Set();
   for (const f of readdirSync(handlersDir, { withFileTypes: true })) {
     if (!f.isFile() || !f.name.endsWith(".ts") || f.name === "workspace.ts") continue;

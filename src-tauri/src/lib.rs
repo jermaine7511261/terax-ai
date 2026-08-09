@@ -13,13 +13,13 @@ use tauri_plugin_window_state::StateFlags;
 #[derive(Default)]
 struct LaunchDir(Mutex<Option<String>>);
 
-/// Standalone MCP server entry (`yamet __mcp_server`): serves read-only
+/// Standalone MCP server entry (`YaMet __mcp_server`): serves read-only
 /// workspace tools to external agents over stdio JSON-RPC (★ L1).
 pub fn mcp_server_run(cwd: &str) {
     mcp_server::run_server(std::path::Path::new(cwd))
 }
 
-/// Detached PTY helper entry (`yamet --pty-helper`): hosts portable-pty
+/// Detached PTY helper entry (`YaMet --pty-helper`): hosts portable-pty
 /// sessions outside the main process so they survive a restart (I1c).
 pub fn pty_helper_run() {
     install_console_logger();
@@ -241,7 +241,7 @@ pub fn run() {
                     ),
                     tauri_plugin_log::Target::new(
                         tauri_plugin_log::TargetKind::LogDir {
-                            file_name: Some("yamet".into()),
+                            file_name: Some("YaMet".into()),
                         },
                     ),
                 ])

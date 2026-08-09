@@ -105,7 +105,7 @@ pub fn detect_shell_name() -> String {
 pub struct ShellInfo {
     pub name: String,
     pub path: String,
-    /// True when Yamet injects OSC 7/133 integration for this shell (cwd
+    /// True when YaMet injects OSC 7/133 integration for this shell (cwd
     /// tracking, command blocks, agent detection). Others spawn bare.
     pub integrated: bool,
 }
@@ -294,7 +294,7 @@ mod unix {
             Shell::Zsh => {
                 match prepare_zdotdir() {
                     Ok(zdotdir) => {
-                        // Guard against Yamet-in-Yamet :)
+                        // Guard against YaMet-in-YaMet :)
                         if let Ok(user_zd) = std::env::var("ZDOTDIR") {
                             if Path::new(&user_zd) != zdotdir.as_path() {
                                 cmd.env("YAMET_USER_ZDOTDIR", user_zd);
@@ -348,7 +348,7 @@ mod unix {
 
     fn integration_root() -> Result<PathBuf, String> {
         let home = dirs::home_dir().ok_or_else(|| "could not resolve home dir".to_string())?;
-        let root = home.join(".cache").join("yamet").join("shell-integration");
+        let root = home.join(".cache").join("YaMet").join("shell-integration");
         fs::create_dir_all(&root).map_err(|e| format!("create {}: {e}", root.display()))?;
         Ok(root)
     }
@@ -763,7 +763,7 @@ mod windows {
 
     fn integration_root() -> Result<PathBuf, String> {
         let home = dirs::home_dir().ok_or_else(|| "could not resolve home dir".to_string())?;
-        let root = home.join(".cache").join("yamet").join("shell-integration");
+        let root = home.join(".cache").join("YaMet").join("shell-integration");
         fs::create_dir_all(&root).map_err(|e| format!("create {}: {e}", root.display()))?;
         Ok(root)
     }

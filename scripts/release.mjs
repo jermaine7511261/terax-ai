@@ -107,7 +107,7 @@ console.log("\n==> Committing");
 run(git, ["commit", "-m", `release: v${next}`]);
 
 console.log("\n==> Tagging");
-run(git, ["tag", "-a", `v${next}`, "-m", `Yamet v${next}`]);
+run(git, ["tag", "-a", `v${next}`, "-m", `YaMet v${next}`]);
 
 console.log(`\nDone. Tag v${next} created and committed locally.`);
 console.log("\nNext steps:");

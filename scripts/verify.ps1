@@ -1,4 +1,4 @@
-﻿# Yamet one-shot verification gate. Run from the repo root on a machine with
+﻿# YaMet one-shot verification gate. Run from the repo root on a machine with
 # the toolchain installed (node>=22, pnpm, cargo 1.97+, git). Mirrors the
 # CI contract described in docs/contributing/testing.md. Exits non-zero on the
 # first failing step.

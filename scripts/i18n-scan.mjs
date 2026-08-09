@@ -23,7 +23,7 @@ const fail = (msg) => {
 // Whitelisted substrings that are allowed to appear as CJK literals in JSX
 // (brand names, protocol terms, model names, operator/hint fragments).
 const WHITELIST = [
-  "Yamet",
+  "YaMet",
   "Claude",
   "Codex",
   "Gemini",

@@ -45,7 +45,7 @@ YaMet 通过统一的 Agent Runtime Layer 支持多个前端形态共享同一 R
 
 ### CLI（轻量端）
 
-- **入口**：`src-tauri/src/modules/cli.rs` → `yamet --prompt "..."` print-mode
+- **入口**：`src-tauri/src/modules/cli.rs` → `YaMet --prompt "..."` print-mode
 - **命令面**：0（直连 `ai::client`，不走 Tauri IPC）
 - **支持**：`--model` / `--base-url` / `--keyring-account` / `--reasoning-effort`
 - **输出**：stdout 流式

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// Bump the Yamet version across all four synced files (the "四处同步" rule):
+// Bump the YaMet version across all four synced files (the "四处同步" rule):
 //   package.json, src-tauri/tauri.conf.json, src-tauri/Cargo.toml,
-//   src-tauri/Cargo.lock (the `yamet` package entry).
+//   src-tauri/Cargo.lock (the `YaMet` package entry).
 //
 // Usage:
 //   node scripts/version-bump.mjs <new-version>     e.g. node scripts/version-bump.mjs 0.1.6
@@ -78,15 +78,15 @@ for (const f of FILES) {
   console.log(`  updated ${f.path}`);
 }
 
-// Cargo.lock: the `yamet` package's version (name = "yamet" block).
+// Cargo.lock: the `YaMet` package's version (name = "YaMet" block).
 const lockPath = join(root, "src-tauri", "Cargo.lock");
 const lock = readFileSync(lockPath, "utf8");
-const lockRe = /(name = "yamet"\nversion = ")(\d+\.\d+\.\d+)(")/;
+const lockRe = /(name = "YaMet"\nversion = ")(\d+\.\d+\.\d+)(")/;
 if (!lockRe.test(lock)) {
-  console.error("  ! could not find the yamet package entry in Cargo.lock");
+  console.error("  ! could not find the YaMet package entry in Cargo.lock");
   process.exit(1);
 }
 writeFileSync(lockPath, lock.replace(lockRe, `$1${next}$3`));
-console.log("  updated src-tauri/Cargo.lock (yamet package)");
+console.log("  updated src-tauri/Cargo.lock (YaMet package)");
 
 console.log("\nDone. Next: add a CHANGELOG entry and commit the four files together.");

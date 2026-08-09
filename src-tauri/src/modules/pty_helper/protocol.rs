@@ -1,4 +1,4 @@
-//! Wire protocol between the Yamet main process and the PTY helper process.
+//! Wire protocol between the YaMet main process and the PTY helper process.
 //!
 //! Transport: TCP on 127.0.0.1 (loopback only). The helper binds a random
 //! ephemeral port and publishes it (with a per-spawn random auth token) in

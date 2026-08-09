@@ -69,7 +69,7 @@ export const zhMessages = {
     block: "块",
   },
   app: {
-    name: "Yamet",
+    name: "YaMet",
     tagline: "轻量级终端优先的 AI 原生开发工作区",
     noName: "无标题",
     confirmCloseTitle: "确认关闭",
@@ -115,7 +115,7 @@ export const zhMessages = {
     completionDegraded: "补全已自动停用",
   },
   onboarding: {
-    title: "欢迎使用 Yamet",
+    title: "欢迎使用 YaMet",
     subtitle: "AI 原生的终端与开发环境",
     terminal: "多标签终端",
     terminalDesc:
@@ -465,11 +465,11 @@ export const zhMessages = {
   },
   ai: {
     panel: "AI",
-    askYamet: "询问 Yamet",
+    askYamet: "询问 YaMet",
     modelNoVision: "当前模型不支持图像",
     modelNoVisionHint: "请切换到支持视觉的模型（带 vision 标签）后再附加图片。",
     placeholder:
-      "询问 Yamet 任何问题  —  使用 # 插入片段和命令，使用 @ 附加文件",
+      "询问 YaMet 任何问题  —  使用 # 插入片段和命令，使用 @ 附加文件",
     stop: "停止",
     newChat: "新会话",
     clearConversation: "清空会话",
@@ -631,7 +631,7 @@ export const zhMessages = {
     noEditsQueued: "· 无编辑排队",
     exit: "退出",
     terminalSeesHint:
-      "Yamet 能看到活动终端——当前目录、最近命令与输出。",
+      "YaMet 能看到活动终端——当前目录、最近命令与输出。",
     suggestExplainLastError: "解释最近的错误",
     suggestExplainLastErrorHint: "读取终端缓冲区",
     suggestExplainLastErrorText: "解释终端中最近的错误。",
@@ -655,8 +655,8 @@ export const zhMessages = {
     error: "更新出错",
     updateReady: "更新就绪",
     downloadingUpdate: "正在下载更新…",
-    versionAvailable: "Yamet v{version} 已可用",
-    restartToFinish: "重启 Yamet 以完成安装。",
+    versionAvailable: "YaMet v{version} 已可用",
+    restartToFinish: "重启 YaMet 以完成安装。",
     youAreOn:
       "你当前是 v{version}。选择你的发行版并运行命令，或从 GitHub 获取安装包。",
     readyToInstall: "新版本已准备好安装。",
@@ -779,7 +779,7 @@ export const zhMessages = {
     languageLabel: "语言",
     languageDescription: "选择界面语言",
     autostart: "开机自启",
-    autostartDescription: "登录系统时自动启动 Yamet",
+    autostartDescription: "登录系统时自动启动 YaMet",
     restoreWindowState: "恢复窗口状态",
     restoreWindowStateDescription: "启动时恢复上次的窗口位置和大小",
     zoom: "界面缩放",
@@ -839,10 +839,10 @@ export const zhMessages = {
     agentsSection: "智能体",
     codingAgentNotifications: "编码智能体通知",
     codingAgentNotificationsDescription:
-      "当终端中运行的 Claude Code 或 Codex 需要你的输入或结束时提醒。Yamet 未聚焦时显示桌面通知，否则应用内通知。",
+      "当终端中运行的 Claude Code 或 Codex 需要你的输入或结束时提醒。YaMet 未聚焦时显示桌面通知，否则应用内通知。",
     startupSection: "启动",
     launchAtLogin: "登录时启动",
-    launchAtLoginDescription: "登录系统时自动打开 Yamet。",
+    launchAtLoginDescription: "登录系统时自动打开 YaMet。",
     restoreWindowPosition: "恢复窗口位置和大小",
     restoreWindowPositionDescription: "下次启动时恢复到上次的窗口位置。",
   },
@@ -873,7 +873,7 @@ export const zhMessages = {
     name_solarized: "Solarized",
     name_tide: "Tide",
     name_tokyo_night: "Tokyo Night",
-    name_yamet_default: "Yamet 默认",
+    name_yamet_default: "YaMet 默认",
     description: "主题、背景图片和自定义。",
     create: "创建",
     importTheme: "导入 .yamet-theme",
@@ -971,7 +971,7 @@ export const zhMessages = {
     handleTaken: "已被使用。",
     namePlaceholder: "例如：测试工程师",
     descriptionPlaceholder: "一行——显示在智能体选择器中",
-    instructionsPlaceholder: "人设和规则。附加到 Yamet 的核心系统提示词之后。",
+    instructionsPlaceholder: "人设和规则。附加到 YaMet 的核心系统提示词之后。",
     snippetNamePlaceholder: "例如：合并前审查清单",
     snippetDescriptionPlaceholder: "一行——显示在 # 选择器中",
     snippetContentPlaceholder: "使用 #handle 时以 <snippet> 块插入提示中。",
@@ -1034,7 +1034,7 @@ export const zhMessages = {
     stoppedDetail: "{name} 语言服务器已停止",
     restart: "重启",
     dismiss: "忽略（可在设置中重新启用）",
-    noBinaryBefore: "Yamet 在你的 PATH 中未找到 ",
+    noBinaryBefore: "YaMet 在你的 PATH 中未找到 ",
     noBinaryAfter: "。请先安装，然后重新检测：",
     copyCommand: "复制命令",
     documentation: "文档",
@@ -1050,7 +1050,7 @@ export const zhMessages = {
   settingsModels: {
     models: "模型",
     description:
-      "连接你使用的提供商。密钥存放在系统钥匙串中，仅供 Yamet 使用。",
+      "连接你使用的提供商。密钥存放在系统钥匙串中，仅供 YaMet 使用。",
     fallbackChain: "Provider 降级链",
     resetChain: "恢复默认",
     moveUp: "上移",
@@ -1426,7 +1426,7 @@ export const zhMessages = {
     closeAnyway: "仍然关闭",
     closeTerminalTitle: "关闭终端？",
     closeTerminalBody: "有进程正在运行。关闭此标签页将终止该进程。",
-    quitTitle: "退出 Yamet？",
+    quitTitle: "退出 YaMet？",
     quitAnyway: "仍然退出",
     dirtyOneFile: "1 个文件有未保存的更改",
     dirtyFiles: "{count} 个文件有未保存的更改",
@@ -1496,7 +1496,7 @@ export const enMessages = {
     block: "Block",
   },
   app: {
-    name: "Yamet",
+    name: "YaMet",
     tagline: "Lightweight Terminal-first AI-native dev workspace",
     noName: "Untitled",
     confirmCloseTitle: "Confirm Close",
@@ -1543,7 +1543,7 @@ export const enMessages = {
     completionDegraded: "Autocomplete auto-disabled",
   },
   onboarding: {
-    title: "Welcome to Yamet",
+    title: "Welcome to YaMet",
     subtitle: "An AI-native terminal and development environment",
     terminal: "Multi-tab terminal",
     terminalDesc:
@@ -1898,12 +1898,12 @@ export const enMessages = {
   },
   ai: {
     panel: "AI",
-    askYamet: "Ask Yamet",
+    askYamet: "Ask YaMet",
     modelNoVision: "Current model does not support images",
     modelNoVisionHint:
       "Switch to a vision-capable model before attaching images.",
     placeholder:
-      "Ask Yamet anything   -   # for snippets and commands, @ for files",
+      "Ask YaMet anything   -   # for snippets and commands, @ for files",
     stop: "Stop",
     newChat: "New Chat",
     clearConversation: "Clear Conversation",
@@ -2067,7 +2067,7 @@ export const enMessages = {
     noEditsQueued: "· no edits queued",
     exit: "Exit",
     terminalSeesHint:
-      "Yamet sees the active terminal — cwd, recent commands, and output.",
+      "YaMet sees the active terminal — cwd, recent commands, and output.",
     suggestExplainLastError: "Explain the last error",
     suggestExplainLastErrorHint: "Read the terminal buffer",
     suggestExplainLastErrorText: "Explain the last error in the terminal.",
@@ -2129,7 +2129,7 @@ export const enMessages = {
     namePlaceholder: "e.g. Test Engineer",
     descriptionPlaceholder: "One line — shown in the agent picker",
     instructionsPlaceholder:
-      "Persona & rules. Appended to Yamet's core system prompt.",
+      "Persona & rules. Appended to YaMet's core system prompt.",
     snippetNamePlaceholder: "e.g. Pre-merge review checklist",
     snippetDescriptionPlaceholder: "One line — shown in the # picker",
     snippetContentPlaceholder:
@@ -2164,8 +2164,8 @@ export const enMessages = {
     error: "Update error",
     updateReady: "Update ready",
     downloadingUpdate: "Downloading update…",
-    versionAvailable: "Yamet v{version} is available",
-    restartToFinish: "Restart Yamet to finish installing.",
+    versionAvailable: "YaMet v{version} is available",
+    restartToFinish: "Restart YaMet to finish installing.",
     youAreOn:
       "You're on v{version}. Pick your distro and run the command, or grab the package from GitHub.",
     readyToInstall: "A new version is ready to install.",
@@ -2288,7 +2288,7 @@ export const enMessages = {
     languageLabel: "Language",
     languageDescription: "Choose the interface language",
     autostart: "Launch at startup",
-    autostartDescription: "Automatically start Yamet when you log in",
+    autostartDescription: "Automatically start YaMet when you log in",
     restoreWindowState: "Restore window state",
     restoreWindowStateDescription:
       "Restore last window position and size on launch",
@@ -2350,10 +2350,10 @@ export const enMessages = {
     agentsSection: "Agents",
     codingAgentNotifications: "Coding agent notifications",
     codingAgentNotificationsDescription:
-      "Alert when Claude Code or Codex running in a terminal needs your input or finishes. Desktop notification when Yamet is unfocused, in-app otherwise.",
+      "Alert when Claude Code or Codex running in a terminal needs your input or finishes. Desktop notification when YaMet is unfocused, in-app otherwise.",
     startupSection: "Startup",
     launchAtLogin: "Launch at login",
-    launchAtLoginDescription: "Open Yamet automatically when you sign in.",
+    launchAtLoginDescription: "Open YaMet automatically when you sign in.",
     restoreWindowPosition: "Restore window position & size",
     restoreWindowPositionDescription:
       "Reopen the main window where you left it. Applies on next launch.",
@@ -2385,7 +2385,7 @@ export const enMessages = {
     name_solarized: "Solarized",
     name_tide: "Tide",
     name_tokyo_night: "Tokyo Night",
-    name_yamet_default: "Yamet Default",
+    name_yamet_default: "YaMet Default",
     description: "Theme, background image, and customization.",
     create: "Create",
     importTheme: "Import .yamet-theme",
@@ -2481,7 +2481,7 @@ export const enMessages = {
     stoppedDetail: "{name} language server stopped",
     restart: "Restart",
     dismiss: "Dismiss (you can re-enable from Settings)",
-    noBinaryBefore: "Yamet found no ",
+    noBinaryBefore: "YaMet found no ",
     noBinaryAfter: " on your PATH. Install it, then check again:",
     copyCommand: "Copy command",
     documentation: "Documentation",
@@ -2497,7 +2497,7 @@ export const enMessages = {
   settingsModels: {
     models: "Models",
     description:
-      "Connect the providers you use. Keys live in your OS keychain and are used only by Yamet.",
+      "Connect the providers you use. Keys live in your OS keychain and are used only by YaMet.",
     fallbackChain: "Provider fallback chain",
     resetChain: "Reset to default",
     moveUp: "Move up",
@@ -2891,7 +2891,7 @@ export const enMessages = {
     closeTerminalTitle: "Close Terminal?",
     closeTerminalBody:
       "A process is running. Closing this tab will terminate it.",
-    quitTitle: "Quit Yamet?",
+    quitTitle: "Quit YaMet?",
     quitAnyway: "Quit Anyway",
     dirtyOneFile: "1 file has unsaved changes",
     dirtyFiles: "{count} files have unsaved changes",

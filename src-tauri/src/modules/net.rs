@@ -207,18 +207,7 @@ pub async fn lm_ping(base_url: String) -> Result<u16, String> {
     }
     let probe = format!("{trimmed}/models");
     let parsed = validate_url(&probe, true)?;
-    let host = parsed
-        .host_str()
-        .ok_or_else(|| "missing host".to_string())?
-        .to_string();
-    let safe_ips = classify_and_collect_safe_ips(&host, true).await?;
-
-    let mut builder = reqwest::Client::builder()
-        .timeout(Duration::from_secs(5))
-        .redirect(reqwest::redirect::Policy::none());
-    let addrs: Vec<SocketAddr> = safe_ips.iter().map(|ip| SocketAddr::new(*ip, 0)).collect();
-    builder = builder.resolve_to_addrs(&host, &addrs);
-    let client = builder.build().map_err(|e| e.to_string())?;
+    let client = build_egress_client(&parsed, true).await?;
     client
         .get(parsed)
         .send()
@@ -335,18 +324,66 @@ pub(crate) async fn safe_client_for_url(
     Ok((parsed, client))
 }
 
+/// Whether the OS has a system proxy configured. Reads proxy env vars and, on
+/// Windows, the `Internet Settings` registry (Clash / v2ray / corporate proxies
+/// set it there; reqwest's default client honors it once the `system-proxy`
+/// feature is enabled). Used to decide between the proxy egress path (no DNS
+/// pinning — the proxy owns DNS + routing) and the direct SSRF-pinned path.
+fn system_proxy_configured() -> bool {
+    for k in [
+        "https_proxy",
+        "HTTPS_PROXY",
+        "http_proxy",
+        "HTTP_PROXY",
+        "all_proxy",
+        "ALL_PROXY",
+    ] {
+        if std::env::var_os(k).is_some_and(|v| !v.is_empty()) {
+            return true;
+        }
+    }
+    #[cfg(windows)]
+    {
+        use windows_sys::Win32::System::Registry::{
+            RegGetValueW, HKEY_CURRENT_USER, RRF_RT_DWORD,
+        };
+        fn wide(s: &str) -> Vec<u16> {
+            s.encode_utf16().chain(std::iter::once(0)).collect()
+        }
+        let subkey = wide("Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings");
+        let value = wide("ProxyEnable");
+        let mut enabled: u32 = 0;
+        let mut len = std::mem::size_of::<u32>() as u32;
+        let status = unsafe {
+            RegGetValueW(
+                HKEY_CURRENT_USER,
+                subkey.as_ptr(),
+                value.as_ptr(),
+                RRF_RT_DWORD,
+                std::ptr::null_mut(),
+                &mut enabled as *mut u32 as *mut _,
+                &mut len,
+            )
+        };
+        if status == 0 && enabled != 0 {
+            return true;
+        }
+    }
+    false
+}
+
 /// Build the egress client for a validated URL.
 ///
 /// - Literal private/loopback/metadata IP targets always use the direct,
 ///   fully-classified client (local model servers must never be routed through
 ///   a proxy; metadata is still blocked).
-/// - Public hostnames prefer the OS **system proxy** when one is configured.
-///   The proxy owns DNS + routing, so the DNS-rebinding pin is skipped — this
-///   is exactly what makes requests work under fake-IP DNS resolvers (Clash /
-///   v2ray / sing-box system-proxy mode return synthetic addresses such as
-///   198.18.x.x / fd00::/7 that are unreachable by direct connect, which broke
-///   every AI request) and through corporate proxies, matching how the OS and
-///   browsers reach the endpoint.
+/// - Public hostnames with a **system proxy** configured use a plain client —
+///   reqwest auto-applies the OS proxy, which owns DNS + routing. This is what
+///   makes requests work under fake-IP DNS resolvers (Clash / v2ray / sing-box
+///   system-proxy mode return synthetic addresses such as 198.18.x.x / fd00::/7
+///   that are unreachable by direct connect, which broke every AI request) and
+///   through corporate proxies, matching how the OS and browsers reach the
+///   endpoint. The DNS-rebinding pin is skipped because the proxy resolves.
 /// - No proxy: the SSRF-safe direct client with DNS-rebinding pinning.
 async fn build_egress_client(
     parsed: &reqwest::Url,
@@ -371,9 +408,8 @@ async fn build_egress_client(
         return build_safe_client(allow_private, &[(host, vec![ip])]);
     }
 
-    if let Ok(proxy) = reqwest::Proxy::system() {
+    if system_proxy_configured() {
         return reqwest::Client::builder()
-            .proxy(proxy)
             .connect_timeout(Duration::from_secs(10))
             .build()
             .map_err(|e| e.to_string());
@@ -452,13 +488,7 @@ pub async fn ai_http_request(
 ) -> Result<HttpResponse, String> {
     let allow_private = allow_private_network.unwrap_or(false);
     let parsed = validate_url(&url, allow_private)?;
-    let host = parsed
-        .host_str()
-        .ok_or_else(|| "missing host".to_string())?
-        .to_string();
-    let safe_ips = classify_and_collect_safe_ips(&host, allow_private).await?;
-
-    let client = build_safe_client(allow_private, &[(host, safe_ips)])?;
+    let client = build_egress_client(&parsed, allow_private).await?;
 
     let req = build_request(&client, &method, parsed, headers, body)?;
     // Reserve in-flight quota before the request; released on drop.
@@ -519,23 +549,13 @@ pub async fn ai_http_stream(
             return Err(e);
         }
     };
-    let host = match parsed.host_str() {
-        Some(h) => h.to_string(),
-        None => {
-            let e = "missing host".to_string();
-            let _ = on_event.send(AiStreamEvent::Error { message: e.clone() });
-            return Err(e);
-        }
-    };
-    let safe_ips = match classify_and_collect_safe_ips(&host, allow_private).await {
-        Ok(v) => v,
+    let client = match build_egress_client(&parsed, allow_private).await {
+        Ok(c) => c,
         Err(e) => {
             let _ = on_event.send(AiStreamEvent::Error { message: e.clone() });
             return Err(e);
         }
     };
-
-    let client = build_safe_client(allow_private, &[(host, safe_ips)])?;
 
     let req = build_request(&client, &method, parsed, headers, body)?;
     // Bound the initial response wait and each streamed chunk read so a server

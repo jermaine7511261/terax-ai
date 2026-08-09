@@ -1,4 +1,4 @@
-//! CLI agent front-end (round 25 补齐, 十六轮 CLI 愿景): `yamet --prompt`.
+//! CLI agent front-end (round 25 补齐, 十六轮 CLI 愿景): `YaMet --prompt`.
 //!
 //! Print-mode single-turn chat: reads model config from flags/env, resolves
 //! the key from keyring (or `YAMET_API_KEY` for headless), and streams a chat
@@ -21,7 +21,7 @@ pub struct CliOptions {
     pub reasoning_effort: Option<String>,
 }
 
-/// Parse `yamet --prompt "..." [--model m] [--base-url u] [--keyring-account a]`.
+/// Parse `YaMet --prompt "..." [--model m] [--base-url u] [--keyring-account a]`.
 pub fn parse_prompt_args(args: &[String]) -> Result<CliOptions, String> {
     fn value(args: &[String], name: &str) -> Option<String> {
         args.iter().position(|a| a == name).and_then(|i| args.get(i + 1)).cloned()
@@ -44,7 +44,7 @@ pub fn parse_prompt_args(args: &[String]) -> Result<CliOptions, String> {
     let system = value(args, "--system")
         .filter(|s| !s.is_empty())
         .or_else(|| std::env::var("YAMET_SYSTEM").ok().filter(|s| !s.is_empty()))
-        .unwrap_or_else(|| "You are Yamet, a concise engineering assistant.".to_string());
+        .unwrap_or_else(|| "You are YaMet, a concise engineering assistant.".to_string());
     let allow_private = args.iter().any(|a| a == "--allow-private");
     let reasoning_effort = value(args, "--reasoning-effort").filter(|s| !s.is_empty());
     Ok(CliOptions {
@@ -91,7 +91,7 @@ pub fn run_prompt(opts: &CliOptions) -> i32 {
     let key = match resolve_key(opts.keyring_account.as_deref()) {
         Ok(k) => k,
         Err(e) => {
-            eprintln!("[yamet cli] key lookup failed: {e}");
+            eprintln!("[YaMet cli] key lookup failed: {e}");
             return 1;
         }
     };
@@ -115,7 +115,7 @@ pub fn run_prompt(opts: &CliOptions) -> i32 {
     let rt = match tokio::runtime::Builder::new_current_thread().enable_all().build() {
         Ok(r) => r,
         Err(e) => {
-            eprintln!("[yamet cli] runtime init failed: {e}");
+            eprintln!("[YaMet cli] runtime init failed: {e}");
             return 1;
         }
     };
@@ -135,7 +135,7 @@ pub fn run_prompt(opts: &CliOptions) -> i32 {
                 0
             }
             Err(e) => {
-                eprintln!("\n[yamet cli] error: {e}");
+                eprintln!("\n[YaMet cli] error: {e}");
                 1
             }
         }

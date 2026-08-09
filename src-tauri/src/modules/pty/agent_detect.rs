@@ -7,9 +7,9 @@ const OSC_MAX: usize = 2048;
 
 const DEFAULT_AGENTS: &[&str] = &["claude", "codex", "gemini", "pi", "opencode", "grok"];
 
-// OSC 777 marker our agent hooks emit. Legacy 3-field `notify;Yamet;<event>`
-// (Claude) or 4-field `notify;Yamet;<agent>;<event>` (Codex/Gemini/Pi).
-const YAMET_MARKER: &[u8] = b"notify;Yamet;";
+// OSC 777 marker our agent hooks emit. Legacy 3-field `notify;YaMet;<event>`
+// (Claude) or 4-field `notify;YaMet;<agent>;<event>` (Codex/Gemini/Pi).
+const YAMET_MARKER: &[u8] = b"notify;YaMet;";
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum State {
@@ -340,17 +340,17 @@ mod tests {
     fn yamet_marker_drives_status() {
         let mut d = AgentDetector::new();
         run(&mut d, &osc("133;C;claude"));
-        assert_eq!(run(&mut d, &osc("777;notify;Yamet;attention")), vec![Transition::Attention]);
-        assert_eq!(run(&mut d, &osc("777;notify;Yamet;working")), vec![Transition::Working]);
-        assert!(run(&mut d, &osc("777;notify;Yamet;working")).is_empty());
-        assert_eq!(run(&mut d, &osc("777;notify;Yamet;finished")), vec![Transition::Finished]);
+        assert_eq!(run(&mut d, &osc("777;notify;YaMet;attention")), vec![Transition::Attention]);
+        assert_eq!(run(&mut d, &osc("777;notify;YaMet;working")), vec![Transition::Working]);
+        assert!(run(&mut d, &osc("777;notify;YaMet;working")).is_empty());
+        assert_eq!(run(&mut d, &osc("777;notify;YaMet;finished")), vec![Transition::Finished]);
     }
 
     #[test]
     fn yamet_marker_auto_arms_without_preexec() {
         let mut d = AgentDetector::new();
         assert_eq!(
-            run(&mut d, &osc("777;notify;Yamet;attention")),
+            run(&mut d, &osc("777;notify;YaMet;attention")),
             vec![started("claude"), Transition::Attention]
         );
     }
@@ -359,10 +359,10 @@ mod tests {
     fn four_field_marker_self_arms_named_agent() {
         // Fresh arm already implies Working, so `working` emits only Started.
         let mut d = AgentDetector::new();
-        assert_eq!(run(&mut d, &osc("777;notify;Yamet;codex;working")), vec![started("codex")]);
+        assert_eq!(run(&mut d, &osc("777;notify;YaMet;codex;working")), vec![started("codex")]);
         let mut g = AgentDetector::new();
         assert_eq!(
-            run(&mut g, &osc("777;notify;Yamet;gemini;finished")),
+            run(&mut g, &osc("777;notify;YaMet;gemini;finished")),
             vec![started("gemini"), Transition::Finished]
         );
     }
@@ -371,11 +371,11 @@ mod tests {
     fn pi_marker_self_arms_and_drives_status() {
         let mut d = AgentDetector::new();
         assert_eq!(
-            run(&mut d, &osc("777;notify;Yamet;pi;working")),
+            run(&mut d, &osc("777;notify;YaMet;pi;working")),
             vec![started("pi")]
         );
         assert_eq!(
-            run(&mut d, &osc("777;notify;Yamet;pi;finished")),
+            run(&mut d, &osc("777;notify;YaMet;pi;finished")),
             vec![Transition::Finished]
         );
     }
@@ -383,10 +383,10 @@ mod tests {
     #[test]
     fn four_field_marker_ignores_unknown_agent() {
         let mut d = AgentDetector::new();
-        assert!(run(&mut d, &osc("777;notify;Yamet;evil;attention")).is_empty());
+        assert!(run(&mut d, &osc("777;notify;YaMet;evil;attention")).is_empty());
         // A known agent in the same chunk still works.
         assert_eq!(
-            run(&mut d, &osc("777;notify;Yamet;codex;attention")),
+            run(&mut d, &osc("777;notify;YaMet;codex;attention")),
             vec![started("codex"), Transition::Attention]
         );
     }
@@ -395,9 +395,9 @@ mod tests {
     fn four_field_marker_drives_status_after_preexec() {
         let mut d = AgentDetector::new();
         run(&mut d, &osc("133;C;gemini"));
-        assert_eq!(run(&mut d, &osc("777;notify;Yamet;gemini;attention")), vec![Transition::Attention]);
-        assert_eq!(run(&mut d, &osc("777;notify;Yamet;gemini;working")), vec![Transition::Working]);
-        assert_eq!(run(&mut d, &osc("777;notify;Yamet;gemini;finished")), vec![Transition::Finished]);
+        assert_eq!(run(&mut d, &osc("777;notify;YaMet;gemini;attention")), vec![Transition::Attention]);
+        assert_eq!(run(&mut d, &osc("777;notify;YaMet;gemini;working")), vec![Transition::Working]);
+        assert_eq!(run(&mut d, &osc("777;notify;YaMet;gemini;finished")), vec![Transition::Finished]);
     }
 
     #[test]
@@ -458,6 +458,6 @@ mod tests {
         seq.extend(std::iter::repeat_n(b'x', OSC_MAX + 100));
         seq.extend_from_slice(&[ESC, ST_FINAL]);
         assert!(run(&mut d, &seq).is_empty());
-        assert_eq!(run(&mut d, &osc("777;notify;Yamet;attention")), vec![Transition::Attention]);
+        assert_eq!(run(&mut d, &osc("777;notify;YaMet;attention")), vec![Transition::Attention]);
     }
 }

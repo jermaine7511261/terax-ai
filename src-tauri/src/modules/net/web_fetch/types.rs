@@ -1,8 +1,8 @@
-//! yamet web_fetch — ported from  -build `web_fetch` tool.
+//! YaMet web_fetch — ported from  -build `web_fetch` tool.
 //!
 //! Fetches a URL with SSRF protection, domain allowlist, HTTPS upgrade,
 //! HTML→markdown conversion, caching, and content-type dispatch. The 
-//! implementation has been adapted to yamet's types (plain structs + String
+//! implementation has been adapted to YaMet's types (plain structs + String
 //! errors instead of xai_tool_runtime::ToolError, no session-file system).
 
 use std::collections::HashMap;

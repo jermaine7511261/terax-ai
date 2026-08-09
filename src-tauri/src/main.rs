@@ -2,7 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    // Standalone MCP server mode: `yamet __mcp_server` (★ L1). Runs
+    // Standalone MCP server mode: `YaMet __mcp_server` (★ L1). Runs
     // before the Tauri runtime so external agents (Claude Code etc.) can
     // spawn us as a stdio MCP server; `YAMET_MCP_CWD` overrides the workspace.
     let args: Vec<String> = std::env::args().collect();
@@ -24,14 +24,14 @@ fn main() {
         std::process::exit(0);
     }
 
-    // CLI agent front-end (round 25 补齐): `yamet --prompt "..."` streams a
+    // CLI agent front-end (round 25 补齐): `YaMet --prompt "..."` streams a
     // single-turn chat completion to stdout. Runs before the Tauri runtime so
     // it works headless; exit code is 0 on success, 1 on error.
     if args.iter().any(|a| a == "--prompt") {
         let opts = match yamet_lib::cli::parse_prompt_args(&args) {
             Ok(o) => o,
             Err(e) => {
-                eprintln!("[yamet cli] {e}");
+                eprintln!("[YaMet cli] {e}");
                 std::process::exit(2);
             }
         };

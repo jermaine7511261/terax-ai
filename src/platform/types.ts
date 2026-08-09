@@ -1,6 +1,6 @@
 /**
  * Platform adapter interfaces — the single abstraction boundary between
- * yamet's feature modules and the underlying runtime (Tauri desktop, web
+ * YaMet's feature modules and the underlying runtime (Tauri desktop, web
  * browser, CLI, TUI).
  *
  * Every platform-specific capability flows through one of these interfaces.

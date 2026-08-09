@@ -18,7 +18,7 @@ const PLATFORM_LABEL: Record<string, string> = {
 export function AboutSection() {
   const { t } = useI18n();
   const [version, setVersion] = useState("");
-  const [name, setName] = useState("Yamet");
+  const [name, setName] = useState("YaMet");
   const [build, setBuild] = useState("");
   const { status, check, install } = useUpdater({ autoCheck: false });
   const checking = status.kind === "checking";

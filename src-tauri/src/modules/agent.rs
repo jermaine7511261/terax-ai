@@ -66,7 +66,7 @@ const PI_STATUS_NEEDLES: [&str; 6] = [
     PI_EXTENSION_MARKER,
     "agent_start",
     "agent_settled",
-    "notify;Yamet;pi;${event}",
+    "notify;YaMet;pi;${event}",
     "emit(\"working\")",
     "emit(\"finished\")",
 ];
@@ -76,7 +76,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 export default function (pi: ExtensionAPI) {
   const emit = (event: "working" | "finished") => {
     if (process.env.YAMET_TERMINAL) {
-      process.stdout.write(`\u001b]777;notify;Yamet;pi;${event}\u0007`);
+      process.stdout.write(`\u001b]777;notify;YaMet;pi;${event}\u0007`);
     }
   };
 
@@ -89,7 +89,7 @@ export default function (pi: ExtensionAPI) {
 // emitted (legacy /dev/tty Claude, current TerminalSequence, Osc, Windows
 // helper). Used to prune our own groups before reinserting so installs are
 // idempotent and migrate older markers.
-const OWNED_MARKERS: [&str; 3] = ["notify;Yamet;", "yamet;notify", "__yamet_notify"];
+const OWNED_MARKERS: [&str; 3] = ["notify;YaMet;", "YaMet;notify", "__yamet_notify"];
 
 fn find(agent: &str) -> Result<&'static AgentSpec, String> {
     AGENTS
@@ -101,7 +101,7 @@ fn find(agent: &str) -> Result<&'static AgentSpec, String> {
 fn hook_command(spec: &AgentSpec, event: &str) -> String {
     match spec.delivery {
         Delivery::TerminalSequence => format!(
-            r#"[ -n "$YAMET_TERMINAL" ] && printf '{{"terminalSequence":"\\u001b]777;notify;Yamet;{event}\\u0007"}}' || true"#
+            r#"[ -n "$YAMET_TERMINAL" ] && printf '{{"terminalSequence":"\\u001b]777;notify;YaMet;{event}\\u0007"}}' || true"#
         ),
         Delivery::Osc => osc_command(spec.agent, event),
     }
@@ -111,7 +111,7 @@ fn hook_command(spec: &AgentSpec, event: &str) -> String {
 #[cfg(unix)]
 fn osc_command(agent: &str, event: &str) -> String {
     format!(
-        r#"[ -n "$YAMET_TERMINAL" ] && printf '\033]777;notify;Yamet;{agent};{event}\007' > /dev/tty; printf '{{}}'"#
+        r#"[ -n "$YAMET_TERMINAL" ] && printf '\033]777;notify;YaMet;{agent};{event}\007' > /dev/tty; printf '{{}}'"#
     )
 }
 
@@ -127,11 +127,11 @@ fn osc_command(agent: &str, event: &str) -> String {
 // Kept in sync with hook_command so status reflects what enable writes.
 fn status_needle(spec: &AgentSpec, event: &str) -> String {
     match spec.delivery {
-        Delivery::TerminalSequence => format!("notify;Yamet;{event}"),
+        Delivery::TerminalSequence => format!("notify;YaMet;{event}"),
         Delivery::Osc => {
             #[cfg(unix)]
             {
-                format!("notify;Yamet;{};{event}", spec.agent)
+                format!("notify;YaMet;{};{event}", spec.agent)
             }
             #[cfg(windows)]
             {
@@ -222,7 +222,7 @@ fn pi_extension_contents(
 ) -> Result<&'static str, String> {
     if existing.is_some_and(|s| !s.trim().is_empty() && !s.contains(PI_EXTENSION_MARKER)) {
         return Err(format!(
-            "{} is not managed by Yamet; refusing to overwrite",
+            "{} is not managed by YaMet; refusing to overwrite",
             path.display()
         ));
     }
@@ -291,7 +291,7 @@ pub fn agent_enable_hooks(agent: String) -> Result<(), String> {
 // CONOUT$ path can't drift from what the Unix /dev/tty hook emits.
 #[cfg(any(windows, test))]
 fn conout_marker(agent: &str, event: &str) -> String {
-    format!("\x1b]777;notify;Yamet;{agent};{event}\x07")
+    format!("\x1b]777;notify;YaMet;{agent};{event}\x07")
 }
 
 // Windows has no /dev/tty: the hook calls `yamet.exe __yamet_notify ...` and we
@@ -368,9 +368,9 @@ mod tests {
         assert_eq!(hook_count(&out, "UserPromptSubmit"), 1);
         assert_eq!(hook_count(&out, "Notification"), 1);
         assert_eq!(hook_count(&out, "Stop"), 1);
-        assert!(command(&out, "Notification", 0).contains("notify;Yamet;attention"));
-        assert!(command(&out, "Stop", 0).contains("notify;Yamet;finished"));
-        assert!(command(&out, "UserPromptSubmit", 0).contains("notify;Yamet;working"));
+        assert!(command(&out, "Notification", 0).contains("notify;YaMet;attention"));
+        assert!(command(&out, "Stop", 0).contains("notify;YaMet;finished"));
+        assert!(command(&out, "UserPromptSubmit", 0).contains("notify;YaMet;working"));
         assert!(command(&out, "Stop", 0).contains("terminalSequence"));
         assert!(!command(&out, "Stop", 0).contains("/dev/tty"));
     }
@@ -390,7 +390,7 @@ mod tests {
         // Exactly the bytes pty/agent_detect parses (ESC ] 777 ; ... BEL).
         assert_eq!(
             conout_marker("gemini", "attention"),
-            "\u{1b}]777;notify;Yamet;gemini;attention\u{7}"
+            "\u{1b}]777;notify;YaMet;gemini;attention\u{7}"
         );
     }
 
@@ -402,7 +402,7 @@ mod tests {
         assert_eq!(hook_count(&out, "PermissionRequest"), 1);
         assert_eq!(hook_count(&out, "Stop"), 1);
         let stop = command(&out, "Stop", 0);
-        assert!(stop.contains("notify;Yamet;codex;finished"));
+        assert!(stop.contains("notify;YaMet;codex;finished"));
         assert!(stop.contains("> /dev/tty"));
         // Codex Stop rejects empty/non-JSON stdout; the hook must emit a no-op.
         assert!(stop.contains("printf '{}'"));
@@ -414,8 +414,8 @@ mod tests {
     fn gemini_uses_matcher_and_named_marker() {
         let out = merge_hooks(json!({}), spec("gemini"));
         assert_eq!(out["hooks"]["BeforeAgent"][0]["matcher"], "*");
-        assert!(command(&out, "AfterAgent", 0).contains("notify;Yamet;gemini;finished"));
-        assert!(command(&out, "Notification", 0).contains("notify;Yamet;gemini;attention"));
+        assert!(command(&out, "AfterAgent", 0).contains("notify;YaMet;gemini;finished"));
+        assert!(command(&out, "Notification", 0).contains("notify;YaMet;gemini;attention"));
     }
 
     #[test]
@@ -487,7 +487,7 @@ mod tests {
                 "Notification": [
                     { "hooks": [ {
                         "type": "command",
-                        "command": "[ -n \"$YAMET_TERMINAL\" ] && printf '\\033]777;yamet;notify\\033\\\\' > /dev/tty || true"
+                        "command": "[ -n \"$YAMET_TERMINAL\" ] && printf '\\033]777;YaMet;notify\\033\\\\' > /dev/tty || true"
                     } ] }
                 ]
             }
@@ -532,7 +532,7 @@ mod tests {
         });
         let out = merge_hooks(input, spec("claude"));
         assert_eq!(hook_count(&out, "Notification"), 1);
-        assert!(command(&out, "Notification", 0).contains("notify;Yamet;attention"));
+        assert!(command(&out, "Notification", 0).contains("notify;YaMet;attention"));
     }
 
     #[test]

@@ -1,7 +1,7 @@
 {
   "name": "project-benchmark-gap",
   "description": "横向对比 N 个竞品项目找出能力缺口并逐一补齐的迭代方法论",
-  "prompt": "你是一名产品迭代工程师。执行\"横向对比 → 能力补齐\"轮次（如 yamet 第二十九轮）。流程：\n1) 侦察自身能力：grep TOOL_REGISTRY 统计工具数，读关键模块（registry.ts/tools.ts/client.rs/guardrails.rs）实证现状，不凭文档断言。\n2) 并行派 4 路 explore 子代理审计竞品目录（顶层 README + 目录结构 + 语言栈），输出每项目\"强项（具体功能）\"与\"yamet 已有/缺失\"两列。\n3) 交叉对照生成能力矩阵表，标注 ✅已有 / ⚠️需加强 / ❌需增加，并写明可复用来源项目路径。\n4) 对每个缺口按\"实现路径（分日交付）+ 验收标准（可勾选）\"写需求文档，保持 §独有优势（PTY/CodeMirror/git 图/web 预览/轻量性 ≤10MB）不被稀释。\n5) 逐项实现：Rust 模块（纯函数核心 + 单元测试优先）→ Tauri 命令注册（lib.rs generate_handler + mod.rs）→ 前端工具（registry.ts 同步 + tools.ts 接线 + native.ts 桥）→ 安全门禁（guardrails 链）。\n6) 每完成一批立即验证：cargo check + cargo test --lib + npx tsc --noEmit，错误一次清完再继续。\n7) 收尾：更新 ROADMAP 状态、对比报告归档到 docs/、将本轮方法论沉淀为技能。\n注意：Windows 下同一文件连续 edit 可能丢第一个变更，需整文件重写或逐文件单次编辑；CRLF 文件用 node 脚本打补丁而非 edit 工具。工具白名单限定为只读侦察 + 文件编辑 + 构建验证。",
+  "prompt": "你是一名产品迭代工程师。执行\"横向对比 → 能力补齐\"轮次（如 YaMet 第二十九轮）。流程：\n1) 侦察自身能力：grep TOOL_REGISTRY 统计工具数，读关键模块（registry.ts/tools.ts/client.rs/guardrails.rs）实证现状，不凭文档断言。\n2) 并行派 4 路 explore 子代理审计竞品目录（顶层 README + 目录结构 + 语言栈），输出每项目\"强项（具体功能）\"与\"YaMet 已有/缺失\"两列。\n3) 交叉对照生成能力矩阵表，标注 ✅已有 / ⚠️需加强 / ❌需增加，并写明可复用来源项目路径。\n4) 对每个缺口按\"实现路径（分日交付）+ 验收标准（可勾选）\"写需求文档，保持 §独有优势（PTY/CodeMirror/git 图/web 预览/轻量性 ≤10MB）不被稀释。\n5) 逐项实现：Rust 模块（纯函数核心 + 单元测试优先）→ Tauri 命令注册（lib.rs generate_handler + mod.rs）→ 前端工具（registry.ts 同步 + tools.ts 接线 + native.ts 桥）→ 安全门禁（guardrails 链）。\n6) 每完成一批立即验证：cargo check + cargo test --lib + npx tsc --noEmit，错误一次清完再继续。\n7) 收尾：更新 ROADMAP 状态、对比报告归档到 docs/、将本轮方法论沉淀为技能。\n注意：Windows 下同一文件连续 edit 可能丢第一个变更，需整文件重写或逐文件单次编辑；CRLF 文件用 node 脚本打补丁而非 edit 工具。工具白名单限定为只读侦察 + 文件编辑 + 构建验证。",
   "agent_created": true,
   "created_at": 1786261063199,
   "activity_ts": 1786261063199,

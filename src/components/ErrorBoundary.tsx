@@ -69,7 +69,7 @@ export class ErrorBoundary extends Component<Props, State> {
                 color: "#ff6b6b",
               }}
             >
-              Yamet 遇到问题 / Something went wrong
+              YaMet 遇到问题 / Something went wrong
             </h1>
             <pre
               style={{
