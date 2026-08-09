@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { tStatic } from "@/lib/i18n";
 import { AiInputBarConnect } from "@/modules/ai";
 import { Chip } from "@/modules/ai/components/Chip";
 import { ChipsRow } from "@/modules/ai/components/ChipsRow";
@@ -212,7 +213,7 @@ function ModeToggle({
       <SegButton
         active={mode === "shell"}
         icon={TerminalIcon}
-        label="Shell"
+        label={tStatic("ui.shell")}
         onClick={() => onChange("shell")}
       />
       <SegButton

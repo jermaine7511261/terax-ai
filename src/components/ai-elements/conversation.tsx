@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { tStatic } from "@/lib/i18n";
 import type { UIMessage } from "ai";
 import { ArrowDown01Icon, Download01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -43,8 +44,8 @@ export type ConversationEmptyStateProps = ComponentProps<"div"> & {
 
 export const ConversationEmptyState = ({
   className,
-  title = "No messages yet",
-  description = "Start a conversation to see messages here",
+  title = tStatic("ui.emptyTitle"),
+  description = tStatic("ui.emptyBody"),
   icon,
   children,
   ...props

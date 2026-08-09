@@ -38,8 +38,8 @@ describe("AiToolApproval", () => {
       />,
     );
 
-    // Tool label comes from TOOL_META.
-    expect(screen.getByText("Write file")).toBeInTheDocument();
+    // Tool label comes from TOOL_META via i18n (mocked t returns the key).
+    expect(screen.getByText("tool.writeFile")).toBeInTheDocument();
     // Approval banner uses the mocked t() returning the key.
     expect(screen.getByText("ai.needsApproval")).toBeInTheDocument();
     // write_file preview shows the path + line hint.

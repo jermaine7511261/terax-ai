@@ -5,7 +5,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { tStatic } from "@/lib/i18n";
+import { tStatic, type TranslationKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import {
   ArrowRight01Icon,
@@ -35,41 +35,59 @@ import { isValidElement, memo, useState } from "react";
 
 export type ToolPart = ToolUIPart | DynamicToolUIPart;
 
-const TOOL_META: Record<string, { label: string; icon: typeof File01Icon }> = {
-  read_file: { label: "Read", icon: File01Icon },
-  list_directory: { label: "List", icon: FolderOpenIcon },
-  write_file: { label: "Write", icon: FilePlusIcon },
-  create_directory: { label: "Create dir", icon: FolderAddIcon },
-  edit: { label: "Edit", icon: FileEditIcon },
-  multi_edit: { label: "Edit", icon: Edit02Icon },
-  bash_run: { label: "Run", icon: TerminalIcon },
-  bash_background: { label: "Spawn", icon: TerminalIcon },
-  bash_logs: { label: "Logs", icon: TerminalIcon },
-  bash_list: { label: "Jobs", icon: TerminalIcon },
-  bash_kill: { label: "Kill", icon: TerminalIcon },
-  grep: { label: "Search", icon: GlobalSearchIcon },
-  glob: { label: "Glob", icon: Folder01Icon },
-  search_memories: { label: "Search memories", icon: SparklesIcon },
-  suggest_command: { label: "Suggest", icon: SparklesIcon },
-  get_terminal_output: { label: "Terminal", icon: TerminalIcon },
-  terminal_execute: { label: "Run in terminal", icon: TerminalIcon },
-  terminal_type: { label: "Type in terminal", icon: TerminalIcon },
-  open_preview: { label: "Preview", icon: EyeIcon },
-  run_subagent: { label: "Subagent", icon: RobotIcon },
-  handoff: { label: "Handoff", icon: RobotIcon },
-  run_external_agent: { label: "External agent", icon: RobotIcon },
-  git_status: { label: "Git status", icon: FolderGitTwoIcon },
-  git_diff: { label: "Git diff", icon: FolderGitTwoIcon },
-  git_blame: { label: "Git blame", icon: FolderGitTwoIcon },
-  git_stage: { label: "Git stage", icon: FolderGitTwoIcon },
-  git_commit: { label: "Git commit", icon: FolderGitTwoIcon },
-  git_checkpoint: { label: "Checkpoint", icon: FolderGitTwoIcon },
-  git_checkpoint_restore: { label: "Restore", icon: FolderGitTwoIcon },
-  todo_write: { label: "Todos", icon: CheckListIcon },
-  generate_image: { label: "Image", icon: SparklesIcon },
-  lsp_hover: { label: "Hover", icon: SparklesIcon },
-  lsp_goto: { label: "Goto def", icon: SparklesIcon },
-  update_project_memory: { label: "Project memory", icon: SparklesIcon },
+const TOOL_META: Record<
+  string,
+  { label: string; labelKey?: TranslationKey; icon: typeof File01Icon }
+> = {
+  read_file: { label: "Read file", labelKey: "tool.readFile", icon: File01Icon },
+  list_directory: { label: "List dir", labelKey: "tool.listDir", icon: FolderOpenIcon },
+  write_file: { label: "Write file", labelKey: "tool.writeFile", icon: FilePlusIcon },
+  create_directory: { label: "Create dir", labelKey: "tool.createDir", icon: FolderAddIcon },
+  delete_file: { label: "Delete file", labelKey: "tool.deleteFile", icon: File01Icon },
+  rename_file: { label: "Rename file", labelKey: "tool.renameFile", icon: File01Icon },
+  edit: { label: "Edit", labelKey: "tool.edit", icon: FileEditIcon },
+  multi_edit: { label: "Batch edit", labelKey: "tool.multiEdit", icon: Edit02Icon },
+  apply_patch: { label: "Apply patch", labelKey: "tool.applyPatch", icon: Edit02Icon },
+  bash_run: { label: "Run", labelKey: "tool.run", icon: TerminalIcon },
+  bash_background: { label: "Spawn", labelKey: "tool.spawn", icon: TerminalIcon },
+  bash_logs: { label: "Logs", labelKey: "tool.logs", icon: TerminalIcon },
+  bash_list: { label: "Jobs", labelKey: "tool.jobs", icon: TerminalIcon },
+  bash_kill: { label: "Kill", labelKey: "tool.kill", icon: TerminalIcon },
+  grep: { label: "Search", labelKey: "tool.grep", icon: GlobalSearchIcon },
+  glob: { label: "Glob", labelKey: "tool.glob", icon: Folder01Icon },
+  web_search: { label: "Web search", labelKey: "tool.webSearch", icon: GlobalSearchIcon },
+  fetch_url: { label: "Fetch URL", labelKey: "tool.fetchUrl", icon: GlobalSearchIcon },
+  deep_search: { label: "Deep research", labelKey: "tool.deepSearch", icon: SparklesIcon },
+  search_memories: { label: "Search memories", labelKey: "tool.searchMemories", icon: SparklesIcon },
+  suggest_command: { label: "Suggest command", labelKey: "tool.suggestCommand", icon: SparklesIcon },
+  get_terminal_output: { label: "Terminal output", labelKey: "tool.terminalOutput", icon: TerminalIcon },
+  terminal_execute: { label: "Run in terminal", labelKey: "tool.terminalExecute", icon: TerminalIcon },
+  terminal_type: { label: "Type in terminal", labelKey: "tool.terminalType", icon: TerminalIcon },
+  open_preview: { label: "Preview", labelKey: "tool.preview", icon: EyeIcon },
+  run_subagent: { label: "Subagent", labelKey: "tool.subagent", icon: RobotIcon },
+  handoff: { label: "Handoff", labelKey: "tool.handoff", icon: RobotIcon },
+  run_external_agent: { label: "External agent", labelKey: "tool.externalAgent", icon: RobotIcon },
+  git_status: { label: "Git status", labelKey: "tool.gitStatus", icon: FolderGitTwoIcon },
+  git_diff: { label: "Git diff", labelKey: "tool.gitDiff", icon: FolderGitTwoIcon },
+  git_blame: { label: "Git blame", labelKey: "tool.gitBlame", icon: FolderGitTwoIcon },
+  git_stage: { label: "Git stage", labelKey: "tool.gitStage", icon: FolderGitTwoIcon },
+  git_commit: { label: "Git commit", labelKey: "tool.gitCommit", icon: FolderGitTwoIcon },
+  git_checkpoint: { label: "Checkpoint", labelKey: "tool.checkpoint", icon: FolderGitTwoIcon },
+  git_checkpoint_restore: { label: "Restore", labelKey: "tool.restore", icon: FolderGitTwoIcon },
+  todo_write: { label: "Todos", labelKey: "tool.todos", icon: CheckListIcon },
+  generate_image: { label: "Generate image", labelKey: "tool.generateImage", icon: SparklesIcon },
+  lsp_hover: { label: "Hover", labelKey: "tool.hover", icon: SparklesIcon },
+  lsp_goto: { label: "Go to def", labelKey: "tool.gotoDef", icon: SparklesIcon },
+  update_project_memory: { label: "Project memory", labelKey: "tool.projectMemory", icon: SparklesIcon },
+  create_docx: { label: "Create Word", labelKey: "tool.createDocx", icon: FilePlusIcon },
+  create_xlsx: { label: "Create Excel", labelKey: "tool.createXlsx", icon: FilePlusIcon },
+  create_pptx: { label: "Create PPT", labelKey: "tool.createPptx", icon: FilePlusIcon },
+  create_pdf: { label: "Create PDF", labelKey: "tool.createPdf", icon: FilePlusIcon },
+  edit_docx: { label: "Edit Word", labelKey: "tool.editDocx", icon: FileEditIcon },
+  edit_xlsx: { label: "Edit Excel", labelKey: "tool.editXlsx", icon: FileEditIcon },
+  edit_pptx: { label: "Edit PPT", labelKey: "tool.editPptx", icon: FileEditIcon },
+  merge_pdf: { label: "Merge PDF", labelKey: "tool.mergePdf", icon: File01Icon },
+  encrypt_pdf: { label: "Encrypt PDF", labelKey: "tool.encryptPdf", icon: File01Icon },
 };
 
 const STATUS_DOT: Record<ToolPart["state"], string> = {
@@ -82,14 +100,14 @@ const STATUS_DOT: Record<ToolPart["state"], string> = {
   "output-error": "bg-destructive",
 };
 
-const STATUS_LABEL: Record<ToolPart["state"], string> = {
-  "approval-requested": "awaiting approval",
-  "approval-responded": "responded",
-  "input-streaming": "preparing",
-  "input-available": "running",
-  "output-available": "done",
-  "output-denied": "denied",
-  "output-error": "error",
+const STATUS_LABEL: Record<ToolPart["state"], TranslationKey> = {
+  "approval-requested": "tool.awaitingApproval",
+  "approval-responded": "tool.responded",
+  "input-streaming": "tool.preparing",
+  "input-available": "tool.running",
+  "output-available": "tool.done",
+  "output-denied": "tool.denied",
+  "output-error": "tool.error",
 };
 
 function deriveSummary(toolName: string, input: unknown): string | null {
@@ -224,7 +242,9 @@ const ToolImpl = ({
   const Icon = meta?.icon ?? ToolsIcon;
   const label = isMcp
     ? `mcp · ${mcpServerNameForTool(toolName) ?? "server"}`
-    : (meta?.label ?? toolName);
+    : meta?.labelKey
+      ? tStatic(meta.labelKey)
+      : (meta?.label ?? toolName);
   const summary = deriveSummary(toolName, input);
   const isError = state === "output-error";
   const open = defaultOpen ?? isError;
@@ -258,7 +278,7 @@ const ToolImpl = ({
       >
         <span
           className={cn("size-1.5 shrink-0 rounded-full", STATUS_DOT[state])}
-          aria-label={STATUS_LABEL[state]}
+          aria-label={tStatic(STATUS_LABEL[state])}
         />
         <HugeiconsIcon
           icon={Icon}

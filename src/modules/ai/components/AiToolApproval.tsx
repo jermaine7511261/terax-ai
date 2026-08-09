@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { useI18n } from "@/lib/i18n";
+import { useI18n, type TranslationKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import {
   Cancel01Icon,
@@ -33,24 +33,26 @@ type Props = {
   onRespond: (approved: boolean, opts?: ApprovalOptions) => void;
 };
 
-const TOOL_META: Record<string, { label: string; icon: typeof FilePlusIcon }> =
-  {
-    write_file: { label: "Write file", icon: FilePlusIcon },
-    edit: { label: "Edit file", icon: FileEditIcon },
-    multi_edit: { label: "Edit file (batch)", icon: Edit02Icon },
-    create_directory: { label: "Create directory", icon: FolderAddIcon },
-    bash_run: { label: "Run shell command", icon: TerminalIcon },
-    bash_background: { label: "Spawn background process", icon: TerminalIcon },
-    terminal_execute: { label: "Run in terminal", icon: TerminalIcon },
-    terminal_type: { label: "Type in terminal", icon: TerminalIcon },
-    git_stage: { label: "Stage changes", icon: FolderGitTwoIcon },
-    git_commit: { label: "Commit", icon: FolderGitTwoIcon },
-  };
+const TOOL_META: Record<
+  string,
+  { label: string; labelKey?: TranslationKey; icon: typeof FilePlusIcon }
+> = {
+  write_file: { label: "Write file", labelKey: "tool.writeFile", icon: FilePlusIcon },
+  edit: { label: "Edit file", labelKey: "tool.edit", icon: FileEditIcon },
+  multi_edit: { label: "Edit file (batch)", labelKey: "tool.multiEdit", icon: Edit02Icon },
+  create_directory: { label: "Create directory", labelKey: "tool.createDir", icon: FolderAddIcon },
+  bash_run: { label: "Run shell command", labelKey: "tool.run", icon: TerminalIcon },
+  bash_background: { label: "Spawn background process", labelKey: "tool.spawn", icon: TerminalIcon },
+  terminal_execute: { label: "Run in terminal", labelKey: "tool.terminalExecute", icon: TerminalIcon },
+  terminal_type: { label: "Type in terminal", labelKey: "tool.terminalType", icon: TerminalIcon },
+  git_stage: { label: "Stage changes", labelKey: "tool.gitStage", icon: FolderGitTwoIcon },
+  git_commit: { label: "Commit", labelKey: "tool.gitCommit", icon: FolderGitTwoIcon },
+};
 
 function AiToolApprovalImpl({ part, toolName, onRespond }: Props) {
   const { t } = useI18n();
   const meta = TOOL_META[toolName];
-  const label = meta?.label ?? toolName;
+  const label = meta?.labelKey ? t(meta.labelKey) : (meta?.label ?? toolName);
   const Icon = meta?.icon ?? ToolsIcon;
   const input = part.input as Record<string, unknown>;
 

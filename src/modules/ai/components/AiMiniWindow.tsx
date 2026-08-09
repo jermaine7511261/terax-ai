@@ -632,22 +632,22 @@ function HistoryPanel({
             a.click();
             URL.revokeObjectURL(url);
           })}
-          title="Export all"
+          title={t("ui.exportAll")}
           className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
         >
           <svg viewBox="0 0 24 24" width={11} height={11} fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
-            <title>Export all</title>
+            <title>{t("ui.exportAll")}</title>
             <path d="M12 3v12m-4-4 4 4 4-4M4 20h16"/>
           </svg>
         </button>
         <button
           type="button"
           onClick={() => { clearAllSessions(); onSwitch(""); }}
-          title="Clear all"
+          title={t("ui.clearAll")}
           className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-red-500/10 hover:text-red-500"
         >
           <svg viewBox="0 0 24 24" width={11} height={11} fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
-            <title>Clear all</title>
+            <title>{t("ui.clearAll")}</title>
             <path d="M3 6h18M8 6V4h8v2m2 0v14H6V6"/>
           </svg>
         </button>

@@ -1,5 +1,6 @@
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { fmtShortcut, MOD_KEY } from "@/lib/platform";
+import { tStatic } from "@/lib/i18n";
 import type { PresenceState } from "@/lib/usePresence";
 import { useEffect, useRef } from "react";
 
@@ -55,7 +56,7 @@ export function SelectionAskAi({
         }}
         className="flex h-7 w-full items-center justify-between gap-1.5 rounded-md border border-border/60 bg-card/95 px-2 text-xs shadow-lg backdrop-blur-md hover:border-border hover:bg-accent"
       >
-        <span>Ask YaMet</span>
+        <span>{tStatic("ui.askYaMet")}</span>
         <KbdGroup>
           <Kbd className="h-4 min-w-4 px-1 text-[10px]">
             {fmtShortcut(MOD_KEY, "L")}

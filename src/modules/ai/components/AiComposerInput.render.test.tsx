@@ -60,7 +60,8 @@ describe("AiComposerInput render", () => {
     });
 
     // Popover content should now be in the document (SnippetPickerContent).
-    expect(screen.queryByText("Pre-built snippets")).not.toBeNull();
+    // Section header goes through i18n (mocked t returns the key).
+    expect(screen.queryByText("ui.prebuiltSnippets")).not.toBeNull();
   });
 
   it("opens the file picker when typing a leading @", async () => {

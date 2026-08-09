@@ -240,7 +240,7 @@ export const ContextInputUsage = ({
     return null;
   }
 
-  return <UsageRow label="Input" tokens={inputTokens} {...props} />;
+  return <UsageRow label={tStatic("ui.contextInput")} tokens={inputTokens} {...props} />;
 };
 
 export type ContextOutputUsageProps = ComponentProps<"div">;
@@ -260,7 +260,7 @@ export const ContextOutputUsage = ({
     return null;
   }
 
-  return <UsageRow label="Output" tokens={outputTokens} {...props} />;
+  return <UsageRow label={tStatic("ui.contextOutput")} tokens={outputTokens} {...props} />;
 };
 
 export type ContextReasoningUsageProps = ComponentProps<"div">;
@@ -280,7 +280,7 @@ export const ContextReasoningUsage = ({
     return null;
   }
 
-  return <UsageRow label="Reasoning" tokens={reasoningTokens} {...props} />;
+  return <UsageRow label={tStatic("ui.contextReasoning")} tokens={reasoningTokens} {...props} />;
 };
 
 export type ContextCacheUsageProps = ComponentProps<"div">;
@@ -300,5 +300,5 @@ export const ContextCacheUsage = ({
     return null;
   }
 
-  return <UsageRow label="Cache" tokens={cacheTokens} {...props} />;
+  return <UsageRow label={tStatic("ui.contextCache")} tokens={cacheTokens} {...props} />;
 };

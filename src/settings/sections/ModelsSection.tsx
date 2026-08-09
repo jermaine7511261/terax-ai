@@ -16,7 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { useI18n } from "@/lib/i18n";
+import { useI18n, type TranslationKey } from "@/lib/i18n";
 import { useFetchedModels } from "@/modules/ai/lib/providerModels";
 import { cn } from "@/lib/utils";
 import {
@@ -101,6 +101,22 @@ import { SectionHeader } from "../components/SectionHeader";
 type KeysMap = Record<ProviderId, string | null>;
 
 const isLocalProvider = (id: ProviderId): boolean => !providerNeedsKey(id);
+
+/** i18n key for a local provider's description card, or null to fall back to the raw string. */
+function localMetaDescriptionKey(
+  id: ProviderId,
+): TranslationKey | null {
+  switch (id) {
+    case "llama.cpp":
+      return "settingsModels.localLlamaDesc";
+    case "openai-compatible":
+      return "settingsModels.localCompatDesc";
+    case "openrouter":
+      return "settingsModels.localOpenrouterDesc";
+    default:
+      return null;
+  }
+}
 
 type LocalMeta = {
   urlPlaceholder: string;
@@ -896,7 +912,10 @@ function LocalProviderCard({
       </div>
 
       <span className="text-[10.5px] leading-relaxed text-muted-foreground">
-        {meta.description}
+        {(() => {
+          const key = localMetaDescriptionKey(provider.id);
+          return key ? t(key) : meta.description;
+        })()}
       </span>
 
       <div className="mt-0.5 flex flex-col gap-2.5">

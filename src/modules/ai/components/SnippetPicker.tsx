@@ -45,7 +45,7 @@ export function SnippetPickerContent({
         <div className="max-h-64 overflow-y-auto py-1">
           {commands.length > 0 && (
             <>
-              <SectionHeader label="Pre-built snippets" />
+              <SectionHeader label={t("ui.prebuiltSnippets")} />
               <ul>
                 {commands.map((it) => {
                   cursor += 1;
@@ -92,7 +92,7 @@ export function SnippetPickerContent({
           )}
           {snippets.length > 0 && (
             <>
-              <SectionHeader label="Snippets" />
+              <SectionHeader label={t("ui.snippets")} />
               <ul>
                 {snippets.map((it) => {
                   cursor += 1;
