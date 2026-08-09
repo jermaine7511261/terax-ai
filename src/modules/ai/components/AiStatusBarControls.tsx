@@ -17,6 +17,7 @@ import { STT_PROVIDER_LABELS } from "../config";
 import { ACCEPTED_FILES, useComposer } from "../lib/composer";
 import { useChatStore } from "../store/chatStore";
 import { AgentSwitcher } from "./AgentSwitcher";
+import { ContextUsagePill } from "./ContextUsagePill";
 import { ModelSwitcher } from "./ModelSwitcher";
 
 export function AiOpenButton({ onOpen }: { onOpen: () => void }) {
@@ -49,6 +50,7 @@ export function AiStatusBarControls() {
   return (
     <div className="flex items-center gap-0.5">
       <AgentSwitcher />
+      <ContextUsagePill />
       <ModelSwitcher />
       <input
         ref={fileInputRef}

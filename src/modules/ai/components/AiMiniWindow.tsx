@@ -1,12 +1,4 @@
 // biome-ignore-all lint/a11y/useSemanticElements: 会话项需内嵌操作按钮，只能 span+role 模式
-import {
-  Context,
-  ContextContent,
-  ContextContentBody,
-  ContextContentFooter,
-  ContextContentHeader,
-  ContextTrigger,
-} from "@/components/ai-elements/context";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -20,7 +12,6 @@ import { useI18n, tStatic } from "@/lib/i18n";
 import type { PresenceState } from "@/lib/usePresence";
 import { cn } from "@/lib/utils";
 import { InlineInput } from "@/modules/explorer/InlineInput";
-import { usePreferencesStore } from "@/modules/settings/preferences";
 import { type UIMessage, useChat } from "@ai-sdk/react";
 import {
   Add01Icon,
@@ -36,12 +27,6 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  estimateCost,
-  getEffectiveContextLimit,
-  getModel,
-  type ModelId,
-} from "../config";
 import type { ResizeDir } from "../lib/miniWindowGeometry";
 import type { SessionMeta } from "../lib/sessions";
 import { exportSessionsAsMarkdown, clearAllSessions } from "../lib/sessions";
@@ -250,7 +235,6 @@ function Body({
         isBusy={isBusy}
         onClose={onClose}
         onExpand={onExpand}
-        messages={helpers.messages}
         showHistory={showHistory}
         onToggleHistory={() => setShowHistory((v) => !v)}
         onHeaderPointerDown={onHeaderPointerDown}
@@ -350,7 +334,6 @@ function Header({
   step,
   isBusy,
   onClose,
-  messages,
   showHistory,
   onToggleHistory,
   onHeaderPointerDown,
@@ -362,7 +345,6 @@ function Header({
   isBusy: boolean;
   onClose: () => void;
   onExpand: () => void;
-  messages?: UIMessage[];
   showHistory?: boolean;
   onToggleHistory?: () => void;
   onHeaderPointerDown: (e: React.PointerEvent) => void;
@@ -382,11 +364,6 @@ function Header({
       onDoubleClick={onDoubleClick}
       className="relative flex h-11 shrink-0 cursor-grab items-center justify-between gap-2 border-b border-border/60 px-3 active:cursor-grabbing"
     >
-      <div className="flex min-w-0 items-center gap-1.5">
-        {messages !== undefined ? (
-          <ContextIndicator messages={messages} />
-        ) : null}
-      </div>
       <div className="flex shrink-0 items-center gap-1">
         {isBusy ? (
           <span className="flex min-w-0 items-center gap-1 text-[10px] text-muted-foreground">
@@ -433,136 +410,6 @@ function Header({
         </Button>
       </div>
     </div>
-  );
-}
-
-function estimateTokens(messages: UIMessage[]): number {
-  let chars = 0;
-  for (const m of messages) {
-    for (const p of m.parts) {
-      if (p.type === "text") {
-        chars += (p as { text?: string }).text?.length ?? 0;
-      } else if (p.type === "reasoning") {
-        chars += (p as { text?: string }).text?.length ?? 0;
-      } else if (typeof p.type === "string" && p.type.startsWith("tool-")) {
-        const tp = p as unknown as { input?: unknown; output?: unknown };
-        if (tp.input) chars += JSON.stringify(tp.input).length;
-        if (tp.output) chars += JSON.stringify(tp.output).length;
-      }
-    }
-  }
-  return Math.ceil(chars / 4);
-}
-
-function formatTokens(n: number): string {
-  if (n < 1000) return String(n);
-  if (n < 1_000_000) return `${(n / 1000).toFixed(n < 10_000 ? 1 : 0)}k`;
-  return `${(n / 1_000_000).toFixed(2)}M`;
-}
-
-function ContextIndicator({ messages }: { messages: UIMessage[] }) {
-  const { t } = useI18n();
-  const modelId = useChatStore((s) => s.selectedModelId);
-  const tokens = useChatStore((s) => s.agentMeta.tokens);
-  const lastInput = useChatStore((s) => s.agentMeta.lastInputTokens);
-  const lastCached = useChatStore((s) => s.agentMeta.lastCachedTokens);
-  const estimated = useMemo(() => estimateTokens(messages), [messages]);
-  const used = lastInput > 0 ? lastInput : estimated;
-  const reported = tokens.inputTokens + tokens.outputTokens;
-  const openaiCompatibleContextLimit = usePreferencesStore(
-    (s) => s.openaiCompatibleContextLimit,
-  );
-  const customEndpoints = usePreferencesStore((s) => s.customEndpoints);
-  const max = getEffectiveContextLimit(
-    modelId,
-    customEndpoints,
-    openaiCompatibleContextLimit,
-  );
-  const modelLabel = useMemo(() => {
-    try {
-      return getModel(modelId as ModelId).label;
-    } catch {
-      return modelId;
-    }
-  }, [modelId]);
-  const cost = estimateCost(modelId, tokens);
-  const cacheRate =
-    tokens.inputTokens > 0
-      ? Math.round((tokens.cachedInputTokens / tokens.inputTokens) * 100)
-      : 0;
-
-  return (
-    <Context usedTokens={used} maxTokens={max}>
-      <ContextTrigger className="h-6 gap-1 px-0 text-[10.5px]" />
-      <ContextContent className="w-64 text-[11px]">
-        <ContextContentHeader />
-        <ContextContentBody>
-          <div className="flex items-center justify-between text-muted-foreground">
-            <span>{t("common.model")}</span>
-            <span className="font-mono text-foreground">{modelLabel}</span>
-          </div>
-          <div className="mt-1 flex items-center justify-between text-muted-foreground">
-            <span>{lastInput > 0 ? t("ai.lastRequest") : t("ai.estimatedContext")}</span>
-            <span className="font-mono text-foreground">
-              {formatTokens(used)}
-            </span>
-          </div>
-          {lastCached > 0 && (
-            <div className="flex items-center justify-between text-muted-foreground">
-              <span>{t("ai.cachedPart")}</span>
-              <span className="font-mono text-foreground">
-                {formatTokens(lastCached)}
-              </span>
-            </div>
-          )}
-          {reported > 0 && (
-            <>
-              <div className="mt-1.5 flex items-center justify-between text-muted-foreground">
-                <span>{t("ai.sessionInput")}</span>
-                <span className="font-mono text-foreground">
-                  {formatTokens(tokens.inputTokens)}
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-muted-foreground">
-                <span>{t("ai.sessionOutput")}</span>
-                <span className="font-mono text-foreground">
-                  {formatTokens(tokens.outputTokens)}
-                </span>
-              </div>
-              {tokens.cachedInputTokens > 0 && (
-                <div className="flex items-center justify-between text-muted-foreground">
-                  <span>{t("ai.cacheHit")}</span>
-                  <span className="font-mono text-foreground">
-                    {cacheRate}%
-                  </span>
-                </div>
-              )}
-              {cost != null && (
-                <div className="flex items-center justify-between text-muted-foreground">
-                  <span>{t("ai.sessionCost")}</span>
-                  <span className="font-mono text-foreground">
-                    ${cost.toFixed(cost < 0.01 ? 4 : cost < 1 ? 3 : 2)}
-                  </span>
-                </div>
-              )}
-            </>
-          )}
-          <div className="flex items-center justify-between text-muted-foreground">
-            <span>{t("common.window")}</span>
-            <span className="font-mono text-foreground">
-              {formatTokens(max)}
-            </span>
-          </div>
-        </ContextContentBody>
-        <ContextContentFooter>
-          <span className="text-[10px] italic text-muted-foreground">
-            {lastInput > 0
-              ? t("ai.lastRequestHint")
-              : t("ai.tokenCountApprox")}
-          </span>
-        </ContextContentFooter>
-      </ContextContent>
-    </Context>
   );
 }
 
