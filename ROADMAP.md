@@ -135,8 +135,11 @@ Yamet 是一个快速、轻量的 AI 原生终端（ADE，agentic development en
 - [x] S1 doom-loop 恢复分级（换路径 → 换方法 → 询问）— `docs/yamet-调研文档全量实现盘点-2026-08-10.md`
 - [x] S5 AutoMemory 正则提取 + rules glob 激活 — `docs/yamet-调研文档全量实现盘点-2026-08-10.md`
 - [x] agentskills 转换器（SKILL.md → skill.json）— `docs/yamet-调研文档全量实现盘点-2026-08-10.md`
-- [ ] S2 guardrail 三钩子协议链 / S3 goal judge fail-open+tail-only / S6 skills 能力声明 / S7 FastContext 预算 — `docs/yamet-PraisonAI-深度调研-2026-08-09.md`（按需排期）
-- [ ] IM 微信/QQ 媒体下载补齐（dingtalk MediaItem 范式照抄）— 第八轮 P9
+- [x] S3 goal judge fail-open + tail-only（`graph/engine.rs` judge_input/decide_judge）— `docs/yamet-PraisonAI-深度调研-2026-08-09.md`
+- [x] S6 skills 能力声明 + 预算（requiresTools/requiresEnv/fallbackForTools + skillState/capSkillBody，Rust + 前端）— `docs/yamet-PraisonAI-深度调研-2026-08-09.md`
+- [ ] S2 guardrail 三钩子协议链 — 评估：现有守卫已分散于 `fs/policy.rs`/`ai/lib/security.ts`/SSRF 且全部带测试，「收拢成链」为架构重构非缺陷修复，按需排期
+- [ ] S7 FastContext 检索子代理预算注入 — `docs/yamet-PraisonAI-深度调研-2026-08-09.md`（按需排期）
+- [x] IM 微信/QQ 媒体下载补齐 — 已实现（weixin/qq `extract_media` + `download_media_items`，dingtalk/wecom/official_account 同步）— 第八轮 P9
 
 ## 欢迎贡献
 

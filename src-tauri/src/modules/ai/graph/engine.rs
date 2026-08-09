@@ -249,6 +249,52 @@ pub fn prune_judge_branches(
     cancelled.into_iter().collect()
 }
 
+// ───────────────────────────────────────────────────────────────────────────
+// S3 goal-gated judge (PraisonAI `goal/judge.py`): fail-open + tail-only.
+// ───────────────────────────────────────────────────────────────────────────
+
+/// Judge verdict: whether the goal is met.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum JudgeVerdict {
+    /// Goal met — stop the loop and finish.
+    Done,
+    /// Goal not met — continue the loop.
+    Continue,
+}
+
+/// Build the judge input from `goal + latest output tail` (PraisonAI tail-only:
+/// judge reads only the last N chars of the output, not the full transcript —
+/// cheaper and cache-friendly).
+pub fn judge_input(goal: &str, output: &str, tail_chars: usize) -> String {
+    let tail: String = output.chars().rev().take(tail_chars).collect::<String>().chars().rev().collect();
+    if tail.is_empty() {
+        format!("<goal>\n{goal}\n</goal>")
+    } else {
+        format!("<goal>\n{goal}\n</goal>\n\n<latest_output_tail>\n{tail}\n</latest_output_tail>")
+    }
+}
+
+/// Decide the judge verdict. `parse_ok` is whether the judge model returned a
+/// parseable verdict this round. Fail-open (PraisonAI): a judge error must
+/// NOT block progress — it returns `Continue` so the loop keeps going; but
+/// after `max_failures` consecutive parse failures the loop must pause.
+pub fn decide_judge(
+    parse_ok: bool,
+    model_says_done: bool,
+    consecutive_failures: u32,
+    max_failures: u32,
+) -> (JudgeVerdict, bool) {
+    if parse_ok {
+        let verdict = if model_says_done { JudgeVerdict::Done } else { JudgeVerdict::Continue };
+        // Success resets the failure counter.
+        return (verdict, false);
+    }
+    // Fail-open: a single parse failure continues. Only consecutive failures
+    // beyond the cap pause the run (returns Continue but flags pause).
+    let pause = consecutive_failures >= max_failures;
+    (JudgeVerdict::Continue, pause)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -355,5 +401,55 @@ mod tests {
             .collect();
         assert_eq!(pruned.get("y"), Some(&NodeStatus::Cancelled));
         assert!(!pruned.contains_key("m"));
+    }
+
+    #[test]
+    fn judge_input_takes_only_goal_plus_tail() {
+        let output = "line1\nline2\nline3\nline4\nline5";
+        let input = judge_input("Fix the bug", output, 10);
+        assert!(input.contains("Fix the bug"));
+        assert!(input.contains("<latest_output_tail>"));
+        // tail = last 10 chars of the output ("ne4\nline5"), not the whole.
+        assert!(!input.contains("line1"));
+        assert!(!input.contains("line2"));
+        assert!(input.contains("line5"));
+        // Larger tail covers the whole output.
+        let full = judge_input("Fix the bug", output, 100);
+        assert!(full.contains("line1"));
+        assert!(full.contains("line5"));
+    }
+
+    #[test]
+    fn judge_input_empty_output_omits_tail_block() {
+        let input = judge_input("goal", "", 100);
+        assert!(input.contains("<goal>"));
+        assert!(!input.contains("<latest_output_tail>"));
+    }
+
+    #[test]
+    fn judge_done_on_parseable_success() {
+        let (v, pause) = decide_judge(true, true, 0, 3);
+        assert_eq!(v, JudgeVerdict::Done);
+        assert!(!pause);
+    }
+
+    #[test]
+    fn judge_continue_on_parseable_not_done() {
+        let (v, _) = decide_judge(true, false, 2, 3);
+        assert_eq!(v, JudgeVerdict::Continue);
+    }
+
+    #[test]
+    fn judge_fail_open_continues_on_parse_failure() {
+        let (v, pause) = decide_judge(false, false, 0, 3);
+        assert_eq!(v, JudgeVerdict::Continue); // fail-open: never blocks on one error
+        assert!(!pause);
+    }
+
+    #[test]
+    fn judge_pauses_after_consecutive_parse_failures() {
+        let (v, pause) = decide_judge(false, false, 3, 3);
+        assert_eq!(v, JudgeVerdict::Continue);
+        assert!(pause);
     }
 }

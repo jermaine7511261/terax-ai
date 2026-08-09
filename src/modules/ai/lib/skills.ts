@@ -17,6 +17,12 @@ export type SkillFile = {
   prompt: string;
   handle?: string;
   toolAllowlist?: string[];
+  /** S6: tools this skill requires to function (frontmatter `requires_tools`). */
+  requiresTools?: string[];
+  /** S6: env vars this skill requires (frontmatter `requires_env`). */
+  requiresEnv?: string[];
+  /** S6: when any of these tools is missing, skip injecting this skill. */
+  fallbackForTools?: string[];
   /** P1-5 lifecycle metadata (curator). */
   agent_created?: boolean;
   created_at?: number;
@@ -26,6 +32,39 @@ export type SkillFile = {
    * active list (archive-only, never deleted). */
   archived?: boolean;
 };
+
+/** S6 activation state. */
+export type SkillState = "ACTIVE" | "DEGRADED" | "UNAVAILABLE";
+
+/** S6 prompt budget (PraisonAI SkillPromptBudget). */
+export const SKILL_MAX_CHARS = 4096;
+export const SKILL_MAX_COUNT = 50;
+
+/**
+ * Decide a skill's activation state given available tools/env (mirrors Rust
+ * `skill_state`). A tool in `fallbackForTools` being missing → UNAVAILABLE;
+ * any requirement missing → DEGRADED; else ACTIVE.
+ */
+export function skillState(
+  skill: SkillFile,
+  availableTools: string[],
+  availableEnv: string[],
+): SkillState {
+  const hasTool = (t: string) => availableTools.includes(t);
+  const hasEnv = (e: string) => availableEnv.includes(e);
+  const missingTools = (skill.requiresTools ?? []).filter((t) => !hasTool(t));
+  const missingEnv = (skill.requiresEnv ?? []).filter((e) => !hasEnv(e));
+  const fallbackHit = (skill.fallbackForTools ?? []).some((t) => !hasTool(t));
+  if (fallbackHit) return "UNAVAILABLE";
+  if (missingTools.length > 0 || missingEnv.length > 0) return "DEGRADED";
+  return "ACTIVE";
+}
+
+/** Truncate a skill body to the prompt budget with a marker. */
+export function capSkillBody(body: string, maxChars = SKILL_MAX_CHARS): string {
+  if (body.length <= maxChars) return body;
+  return `${body.slice(0, maxChars)}…[truncated]`;
+}
 
 /** Serialize a snippet as a shareable skill.json payload (bundle export). */
 export function serializeSkill(s: Snippet): string {
@@ -101,17 +140,21 @@ export function convertSkillMd(md: string): SkillFile | null {
   const name = (fm.name || fm.title || "").trim();
   const description = (fm.description || "").trim();
   const handle = (fm.handle || "").trim();
-  const toolAllowlist = (fm.toolallowlist || "")
-    .split(/[\s,]+/)
-    .map((s) => s.trim())
-    .filter(Boolean);
+  const list = (k: string): string[] | undefined => {
+    const raw = (fm[k] ?? "").trim();
+    const items = raw.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean);
+    return items.length > 0 ? items : undefined;
+  };
 
   return {
     name,
     description,
     prompt: body,
     handle: handle ? normalizeHandle(handle) : undefined,
-    toolAllowlist: toolAllowlist.length > 0 ? toolAllowlist : undefined,
+    toolAllowlist: list("toolallowlist"),
+    requiresTools: list("requirestools"),
+    requiresEnv: list("requiresenv"),
+    fallbackForTools: list("fallbackfortools"),
   };
 }
 
@@ -128,14 +171,18 @@ export function parseSkillJson(raw: string): SkillFile | null {
   const name = typeof o.name === "string" ? o.name.trim() : "";
   const prompt = typeof o.prompt === "string" ? o.prompt.trim() : "";
   if (!name || !prompt) return null;
+  const strList = (k: string): string[] | undefined =>
+    Array.isArray(o[k]) ? o[k].filter((x): x is string => typeof x === "string") : undefined;
+
   return {
     name,
     description: typeof o.description === "string" ? o.description : "",
     prompt,
     handle: typeof o.handle === "string" ? normalizeHandle(o.handle) : undefined,
-    toolAllowlist: Array.isArray(o.toolAllowlist)
-      ? o.toolAllowlist.filter((x): x is string => typeof x === "string")
-      : undefined,
+    toolAllowlist: strList("toolAllowlist"),
+    requiresTools: strList("requiresTools"),
+    requiresEnv: strList("requiresEnv"),
+    fallbackForTools: strList("fallbackForTools"),
     agent_created: o.agent_created === true,
     created_at: typeof o.created_at === "number" ? o.created_at : undefined,
     activity_ts: typeof o.activity_ts === "number" ? o.activity_ts : undefined,

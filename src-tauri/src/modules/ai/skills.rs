@@ -15,6 +15,16 @@ pub struct SkillFile {
     pub handle: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_allowlist: Option<Vec<String>>,
+    /// S6: tools this skill requires to function (frontmatter `requires_tools`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub requires_tools: Option<Vec<String>>,
+    /// S6: env vars this skill requires (frontmatter `requires_env`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub requires_env: Option<Vec<String>>,
+    /// S6: `fallback_for_tools` — when one of these tools is missing, the
+    /// skill should not be injected (its body presumes that tool).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fallback_for_tools: Option<Vec<String>>,
     #[serde(default)]
     pub agent_created: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -25,6 +35,70 @@ pub struct SkillFile {
     pub usage_count: u64,
     #[serde(default)]
     pub archived: bool,
+}
+
+/// S6 activation state.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "UPPERCASE")]
+pub enum SkillState {
+    Active,
+    Degraded,
+    Unavailable,
+}
+
+/// S6 prompt budget (PraisonAI `SkillPromptBudget`).
+pub const SKILL_MAX_CHARS: usize = 4096;
+pub const SKILL_MAX_COUNT: usize = 50;
+
+/// Decide a skill's activation state given which tools/env are available.
+/// - All requirements present → Active.
+/// - Some missing but no `fallback_for_tools` hit → Degraded (still inject).
+/// - A tool listed in `fallback_for_tools` is missing → Unavailable (skip
+///   injection — its body presumes that tool).
+pub fn skill_state(skill: &SkillFile, available_tools: &[String], available_env: &[String]) -> SkillState {
+    let has_tool = |t: &str| available_tools.iter().any(|a| a == t);
+    let has_env = |e: &str| available_env.iter().any(|a| a == e);
+
+    let missing_tools: Vec<&str> = skill
+        .requires_tools
+        .as_deref()
+        .unwrap_or(&[])
+        .iter()
+        .map(String::as_str)
+        .filter(|t| !has_tool(t))
+        .collect();
+    let missing_env: Vec<&str> = skill
+        .requires_env
+        .as_deref()
+        .unwrap_or(&[])
+        .iter()
+        .map(String::as_str)
+        .filter(|e| !has_env(e))
+        .collect();
+
+    let fallback_hit = skill
+        .fallback_for_tools
+        .as_deref()
+        .unwrap_or(&[])
+        .iter()
+        .any(|t| !has_tool(t));
+
+    if fallback_hit {
+        return SkillState::Unavailable;
+    }
+    if !missing_tools.is_empty() || !missing_env.is_empty() {
+        return SkillState::Degraded;
+    }
+    SkillState::Active
+}
+
+/// Truncate a skill body to the prompt budget (chars), with a marker.
+pub fn cap_skill_body(body: &str, max_chars: usize) -> String {
+    if body.chars().count() <= max_chars {
+        return body.to_string();
+    }
+    let head: String = body.chars().take(max_chars).collect();
+    format!("{head}…[truncated]")
 }
 
 /// Parse + validate a skill.json payload; returns `None` when malformed
@@ -48,12 +122,25 @@ pub fn parse_skill_json(raw: &str) -> Option<SkillFile> {
                 .map(str::to_string)
                 .collect()
         });
+    let string_list = |k: &str| {
+        o.get(k)
+            .and_then(serde_json::Value::as_array)
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(serde_json::Value::as_str)
+                    .map(str::to_string)
+                    .collect()
+            })
+    };
     Some(SkillFile {
         name,
         description,
         prompt,
         handle: handle.filter(|h| !h.is_empty()),
         tool_allowlist,
+        requires_tools: string_list("requiresTools"),
+        requires_env: string_list("requiresEnv"),
+        fallback_for_tools: string_list("fallbackForTools"),
         agent_created: o.get("agent_created").and_then(serde_json::Value::as_bool).unwrap_or(false),
         created_at: o.get("created_at").and_then(serde_json::Value::as_u64),
         activity_ts: o.get("activity_ts").and_then(serde_json::Value::as_u64),
@@ -255,5 +342,56 @@ mod tests {
         assert!(!skill_name_is_safe("a/b"));
         assert!(!skill_name_is_safe("a\\b"));
         assert!(!skill_name_is_safe(""));
+    }
+
+    #[test]
+    fn parse_requires_and_fallback_fields() {
+        let raw = r#"{"name":"deploy","prompt":"deploy it","requiresTools":["bash_run"],"requiresEnv":["AWS_ACCESS_KEY_ID"],"fallbackForTools":["docker"]}"#;
+        let s = parse_skill_json(raw).unwrap();
+        assert_eq!(s.requires_tools.as_deref(), Some(["bash_run".to_string()].as_slice()));
+        assert_eq!(s.requires_env.as_deref(), Some(["AWS_ACCESS_KEY_ID".to_string()].as_slice()));
+        assert_eq!(s.fallback_for_tools.as_deref(), Some(["docker".to_string()].as_slice()));
+    }
+
+    #[test]
+    fn skill_state_all_requirements_met_is_active() {
+        let s = parse_skill_json(r#"{"name":"d","prompt":"p","requiresTools":["bash_run"]}"#).unwrap();
+        assert_eq!(
+            skill_state(&s, &["bash_run".to_string()], &[]),
+            SkillState::Active
+        );
+    }
+
+    #[test]
+    fn skill_state_missing_requirement_is_degraded() {
+        let s = parse_skill_json(r#"{"name":"d","prompt":"p","requiresEnv":["FOO"]}"#).unwrap();
+        assert_eq!(skill_state(&s, &[], &[]), SkillState::Degraded);
+        let t = parse_skill_json(r#"{"name":"d","prompt":"p","requiresTools":["git_commit"]}"#).unwrap();
+        assert_eq!(skill_state(&t, &["read_file".to_string()], &[]), SkillState::Degraded);
+    }
+
+    #[test]
+    fn skill_state_fallback_tool_missing_is_unavailable() {
+        let s = parse_skill_json(r#"{"name":"d","prompt":"p","fallbackForTools":["docker"]}"#).unwrap();
+        assert_eq!(skill_state(&s, &["read_file".to_string()], &[]), SkillState::Unavailable);
+    }
+
+    #[test]
+    fn skill_state_no_requirements_is_active() {
+        let s = parse_skill_json(r#"{"name":"d","prompt":"p"}"#).unwrap();
+        assert_eq!(skill_state(&s, &[], &[]), SkillState::Active);
+    }
+
+    #[test]
+    fn cap_skill_body_truncates_at_budget() {
+        let short = "short body";
+        assert_eq!(cap_skill_body(short, 100), short);
+        let long = "x".repeat(5000);
+        let capped = cap_skill_body(&long, SKILL_MAX_CHARS);
+        assert_eq!(
+            capped.chars().count(),
+            SKILL_MAX_CHARS + 1 + "[truncated]".chars().count()
+        );
+        assert!(capped.contains("[truncated]"));
     }
 }

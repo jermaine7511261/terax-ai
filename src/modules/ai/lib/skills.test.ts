@@ -14,11 +14,13 @@ const nativeMock = vi.hoisted(() => ({
 vi.mock("./native", () => ({ native: nativeMock }));
 
 import {
+  capSkillBody,
   convertSkillMd,
   importSkillToWorkspace,
   parseSkillJson,
   scanSkillsDir,
   serializeSkill,
+  skillState,
 } from "./skills";
 
 beforeEach(() => {
@@ -207,6 +209,42 @@ Run pnpm check-types and fix the errors.`;
   it("strips surrounding quotes from frontmatter values", () => {
     const md = `---\nname: "quoted name"\n---\nbody`;
     expect(convertSkillMd(md)?.name).toBe("quoted name");
+  });
+});
+
+function mustParseSkill(raw: string): ReturnType<typeof parseSkillJson> {
+  const s = parseSkillJson(raw);
+  expect(s).not.toBeNull();
+  return s;
+}
+
+describe("skillState (S6 activation)", () => {
+  it("returns ACTIVE when all requirements are met", () => {
+    const s = mustParseSkill('{"name":"d","prompt":"p","requiresTools":["bash_run"]}');
+    expect(skillState(s as never, ["bash_run"], [])).toBe("ACTIVE");
+  });
+  it("returns DEGRADED when a requirement is missing", () => {
+    const s = mustParseSkill('{"name":"d","prompt":"p","requiresEnv":["FOO"]}');
+    expect(skillState(s as never, [], [])).toBe("DEGRADED");
+    const t = mustParseSkill('{"name":"d","prompt":"p","requiresTools":["git_commit"]}');
+    expect(skillState(t as never, ["read_file"], [])).toBe("DEGRADED");
+  });
+  it("returns UNAVAILABLE when a fallback tool is missing", () => {
+    const s = mustParseSkill('{"name":"d","prompt":"p","fallbackForTools":["docker"]}');
+    expect(skillState(s as never, ["read_file"], [])).toBe("UNAVAILABLE");
+  });
+  it("returns ACTIVE for a skill with no requirements", () => {
+    const s = mustParseSkill('{"name":"d","prompt":"p"}');
+    expect(skillState(s as never, [], [])).toBe("ACTIVE");
+  });
+});
+
+describe("capSkillBody (S6 prompt budget)", () => {
+  it("keeps short bodies and truncates long ones with a marker", () => {
+    expect(capSkillBody("short")).toBe("short");
+    const capped = capSkillBody("x".repeat(5000));
+    expect(capped).toContain("[truncated]");
+    expect(capped.length).toBeLessThan(5000);
   });
 });
 
