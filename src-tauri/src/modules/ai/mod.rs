@@ -8,6 +8,7 @@ pub mod agents;
 pub mod client;
 pub mod context;
 pub mod graph;
+pub mod guardrails;
 pub mod harness;
 pub mod memory;
 pub mod prompt;

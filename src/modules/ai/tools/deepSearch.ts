@@ -3,6 +3,7 @@ import { z } from "zod";
 import { usePreferencesStore } from "@/modules/settings/preferences";
 import { runSubagent } from "../agents/runSubagent";
 import type { SubagentType } from "../agents/registry";
+import { fastContextPrompt } from "../lib/fastContext";
 import { useChatStore } from "../store/chatStore";
 import {
   newActivityId,
@@ -164,7 +165,7 @@ export function buildDeepSearchTools(
             type: RESEARCH_TYPE,
             prompt: prompt(
               "researcher",
-              `Investigate the following questions with read-only tools (web_search + fetch_url). For each question return up to ${MAX_CLAIMS_PER_QUESTION} atomic factual claims. Return ONLY JSON: {"claims": [{"claim","evidence","source_title","source_locator"}], "uncertainties": ["..."]}.\n\n<questions>\n${JSON.stringify(questions)}\n</questions>`,
+              `Investigate the following questions with read-only tools (web_search + fetch_url). ${fastContextPrompt()} For each question return up to ${MAX_CLAIMS_PER_QUESTION} atomic factual claims. Return ONLY JSON: {"claims": [{"claim","evidence","source_title","source_locator"}], "uncertainties": ["..."]}.\n\n<questions>\n${JSON.stringify(questions)}\n</questions>`,
             ),
             keys: apiKeys,
             modelId: selectedModelId,
