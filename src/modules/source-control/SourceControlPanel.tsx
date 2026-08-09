@@ -1,3 +1,4 @@
+import { tStatic } from "@/lib/i18n";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -1153,7 +1154,7 @@ export const SourceControlPanel = memo(function SourceControlPanel({
                     <span>Ch: {scm.commitMessage.length}</span>
                   ) : (
                     <span className="flex gap-2 items-center">
-                      {commitShortcut} <p>to commit</p>
+                      {commitShortcut} <p>{tStatic("ui.toCommit")}</p>
                     </span>
                   )}
                 </div>

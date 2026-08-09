@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { tStatic } from "@/lib/i18n";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Spinner } from "@/components/ui/spinner";
 import { useI18n } from "@/lib/i18n";
@@ -135,7 +136,7 @@ function RefreshIcon() {
       strokeLinejoin="round"
       aria-hidden
     >
-      <title>Refresh</title>
+      <title>{tStatic("ui.refresh")}</title>
       <path d="M3 12a9 9 0 0 1 15.5-6.2L21 8" />
       <path d="M21 3v5h-5" />
       <path d="M21 12a9 9 0 0 1-15.5 6.2L3 16" />

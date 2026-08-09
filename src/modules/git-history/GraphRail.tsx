@@ -1,4 +1,5 @@
 import { memo, type ReactElement } from "react";
+import { tStatic } from "@/lib/i18n";
 import type { GraphEdge, GraphRow } from "./lib/graph";
 
 export const LANE_WIDTH = 14;
@@ -117,7 +118,7 @@ export const GraphRail = memo(function GraphRail({
       aria-hidden
       className="shrink-0 overflow-visible"
     >
-      <title>Git graph</title>
+      <title>{tStatic("ui.gitGraph")}</title>
       {row.topEdges.map((e) => renderTopEdge(e, midY))}
       {row.bottomEdges.map((e) => renderBottomEdge(e, midY, rowHeight))}
       {/* Commit node */}

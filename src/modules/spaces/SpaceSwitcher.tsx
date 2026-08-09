@@ -1,4 +1,5 @@
 import { Kbd } from "@/components/ui/kbd";
+import { tStatic } from "@/lib/i18n";
 import {
   Popover,
   PopoverContent,
@@ -370,7 +371,7 @@ export function SpaceSwitcher({
             className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
           >
             <HugeiconsIcon icon={PlusSignIcon} size={14} strokeWidth={1.75} />
-            <span className="flex-1">New space</span>
+            <span className="flex-1">{tStatic("ui.newSpace")}</span>
           </button>
         </div>
       </PopoverContent>

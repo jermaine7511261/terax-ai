@@ -1,4 +1,5 @@
 import * as React from "react"
+import { tStatic } from "@/lib/i18n";
 import { Dialog as SheetPrimitive } from "radix-ui"
 
 import { cn } from "@/lib/utils"
@@ -75,7 +76,7 @@ function SheetContent({
               size="icon-sm"
             >
               <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} />
-              <span className="sr-only">Close</span>
+              <span className="sr-only">{tStatic("common.close")}</span>
             </Button>
           </SheetPrimitive.Close>
         )}
