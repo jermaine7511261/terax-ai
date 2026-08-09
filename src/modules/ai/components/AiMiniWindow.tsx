@@ -44,6 +44,7 @@ import {
 import { usePlanStore } from "../store/planStore";
 import { AiChatView } from "./AiChat";
 import { PlanDiffReview } from "./PlanDiffReview";
+import { ResourceStatsIndicator } from "@/modules/statusbar/ResourceStatsIndicator";
 import { ActivityStrip } from "./ActivityStrip";
 import { AiComposerInput } from "./AiComposerInput";
 import { TodoStrip } from "./TodoStrip";
@@ -364,6 +365,9 @@ function Header({
       onDoubleClick={onDoubleClick}
       className="relative flex h-11 shrink-0 cursor-grab items-center justify-between gap-2 border-b border-border/60 px-3 active:cursor-grabbing"
     >
+      <div className="flex min-w-0 items-center">
+        <ResourceStatsIndicator />
+      </div>
       <div className="flex shrink-0 items-center gap-1">
         {isBusy ? (
           <span className="flex min-w-0 items-center gap-1 text-[10px] text-muted-foreground">
