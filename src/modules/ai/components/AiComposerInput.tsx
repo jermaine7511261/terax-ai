@@ -213,6 +213,7 @@ export function AiComposerInput() {
         <PopoverAnchor asChild>
           <div className="flex items-start gap-2">
             <textarea
+              data-ai-composer
               ref={c.textareaRef}
               value={c.value}
               onChange={(e) => c.setValue(e.target.value)}

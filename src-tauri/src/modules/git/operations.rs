@@ -8,11 +8,11 @@ use crate::modules::git::process::{
     read_text_file, run_git,
 };
 use crate::modules::git::types::{
-    DiscardEntry, GitBranchEntry, GitBranchListResult, GitCommitFileChange, GitCommitResult,
-    GitConflict, GitConflictResult, GitDiffContentResult, GitDiffResult, GitLogEntry, GitOutput,
-    GitPanelSnapshot, GitPushResult, GitRepoInfo, GitStashEntry, GitStatusSnapshot,
-    GitSubmoduleStatus, GitSubmoduleStatusResult, TextSource, DEFAULT_TIMEOUT_SECS,
-    NETWORK_TIMEOUT_SECS,
+    BlameLine, DiscardEntry, GitBranchEntry, GitBranchListResult, GitCommitFileChange,
+    GitCommitResult, GitConflict, GitConflictResult, GitDiffContentResult, GitDiffResult,
+    GitLogEntry, GitOutput, GitPanelSnapshot, GitPushResult, GitRepoInfo, GitStashEntry,
+    GitStatusSnapshot, GitSubmoduleStatus, GitSubmoduleStatusResult, TextSource,
+    DEFAULT_TIMEOUT_SECS, NETWORK_TIMEOUT_SECS,
 };
 use crate::modules::git::utils::{
     authorized_repo_root, canonical_dir, resolve_within_repo, split_upstream,
@@ -1604,6 +1604,141 @@ pub fn submodule_update(
     ensure_success(&output, "git submodule update failed")
 }
 
+/// `git blame --line-porcelain` for a file inside the repo (P2-14). The path
+/// is validated against the repo root so the `--` pathspec can't escape.
+pub fn blame(
+    registry: &WorkspaceRegistry,
+    repo_root: &str,
+    path: &str,
+    workspace: &WorkspaceEnv,
+) -> Result<Vec<BlameLine>> {
+    let repo_root = authorized_repo_root(registry, repo_root, workspace)?;
+    ensure_git_available(&repo_root.workspace)?;
+    let abs = resolve_within_repo(&repo_root.local_path, path)?;
+    let rel = abs
+        .strip_prefix(&repo_root.local_path)
+        .unwrap_or(&abs)
+        .to_string_lossy()
+        .replace('\\', "/");
+    let output = run_git(
+        &repo_root.workspace,
+        Some(&repo_root.git_path),
+        ["blame", "--line-porcelain", "-w", "--", rel.as_str()],
+        DEFAULT_TIMEOUT_SECS,
+    )?;
+    ensure_success(&output, "git blame failed")?;
+    let text = String::from_utf8_lossy(&output.stdout);
+    Ok(parse_blame(&text))
+}
+
+/// Parse `git blame --line-porcelain` into per-line records. Each record is:
+/// a header line `<sha> <orig> <final> [<count>]`, key/value metadata lines,
+/// and a tab-prefixed content line. Pure — unit-tested.
+fn parse_blame(porcelain: &str) -> Vec<BlameLine> {
+    let mut out: Vec<BlameLine> = Vec::new();
+    let mut cur: Option<BlameLine> = None;
+    for raw in porcelain.lines() {
+        if let Some(content) = raw.strip_prefix('\t') {
+            if let Some(c) = cur.as_mut() {
+                c.content = content.to_string();
+            }
+            if let Some(c) = cur.take() {
+                out.push(c);
+            }
+            continue;
+        }
+        if raw.is_empty() {
+            continue;
+        }
+        if is_sha_header(raw) {
+            let parts: Vec<&str> = raw.split_whitespace().collect();
+            let line_no = parts
+                .get(2)
+                .and_then(|s| s.parse::<u32>().ok())
+                .unwrap_or(0);
+            cur = Some(BlameLine {
+                line: line_no,
+                sha: parts[0].to_string(),
+                author: String::new(),
+                author_mail: String::new(),
+                time: 0,
+                summary: String::new(),
+                content: String::new(),
+            });
+            continue;
+        }
+        let mut it = raw.splitn(2, ' ');
+        let key = it.next().unwrap_or("");
+        let value = it.next().unwrap_or("");
+        if let Some(c) = cur.as_mut() {
+            match key {
+                "author" => c.author = value.to_string(),
+                "author-mail" => c.author_mail = value.to_string(),
+                "author-time" => c.time = value.parse().unwrap_or(0),
+                "summary" => c.summary = value.to_string(),
+                _ => {}
+            }
+        }
+    }
+    out
+}
+
+fn is_sha_header(line: &str) -> bool {
+    let mut parts = line.split_whitespace();
+    match parts.next() {
+        Some(first) => {
+            first.len() == 40
+                && first.chars().all(|c| c.is_ascii_hexdigit())
+                && parts.next().is_some()
+        }
+        None => false,
+    }
+}
+
+/// Create a non-destructive snapshot of the working tree (P3-13, N3) via
+/// `git stash create` — it writes a commit object WITHOUT touching HEAD, the
+/// branch, or the index. Returns the commit sha, or `None` when the working
+/// tree is clean (nothing to snapshot).
+pub fn checkpoint_snapshot(
+    registry: &WorkspaceRegistry,
+    repo_root: &str,
+    workspace: &WorkspaceEnv,
+) -> Result<Option<String>> {
+    let repo_root = authorized_repo_root(registry, repo_root, workspace)?;
+    ensure_git_available(&repo_root.workspace)?;
+    let lines = git_stdout_lines(
+        &repo_root.workspace,
+        &repo_root.git_path,
+        ["stash", "create"],
+    )?;
+    let sha = lines.first().map(|s| s.trim().to_string()).filter(|s| !s.is_empty());
+    Ok(sha.filter(|s| sha_is_safe(s)))
+}
+
+/// Restore a snapshot commit's tree into the working tree (index + files).
+/// `git checkout <sha> -- .` writes the full tree state recorded in the
+/// snapshot without moving the branch. The sha is validated first.
+pub fn checkpoint_restore(
+    registry: &WorkspaceRegistry,
+    repo_root: &str,
+    sha: &str,
+    workspace: &WorkspaceEnv,
+) -> Result<()> {
+    let repo_root = authorized_repo_root(registry, repo_root, workspace)?;
+    ensure_git_available(&repo_root.workspace)?;
+    if !sha_is_safe(sha) {
+        return Err(GitError::command("git checkpoint", "invalid snapshot sha"));
+    }
+    let output = run_git(
+        &repo_root.workspace,
+        Some(&repo_root.git_path),
+        ["checkout", sha, "--", "."],
+        DEFAULT_TIMEOUT_SECS,
+    )?;
+    ensure_success(&output, "git checkout snapshot failed")?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1631,8 +1766,7 @@ mod tests {
         }
         for c in " /:\\?\"'".chars() {
             assert!(!is_remote_name_char(c));
-        }
-    }
+        }    }
 
     #[test]
     fn parse_shortstat_pulls_three_counts() {
@@ -1681,5 +1815,45 @@ mod tests {
             "fatal: your current branch 'main' does not have any commits yet"
         )));
         assert!(!looks_like_no_head(&mk("fatal: pathspec did not match")));
+    }
+
+    #[test]
+    fn parse_blame_parses_line_porcelain() {
+        let porcelain = "0123456789abcdef0123456789abcdef01234567 1 2 1\n\
+author Alice\n\
+author-mail <alice@example.com>\n\
+author-time 1700000000\n\
+author-tz +0800\n\
+committer Alice\n\
+committer-mail <alice@example.com>\n\
+committer-time 1700000000\n\
+committer-tz +0800\n\
+summary fix the thing\n\
+filename src/main.rs\n\
+\tlet x = 1;\n\
+abcdef0123456789abcdef0123456789abcdef01 3 3 1\n\
+author Bob\n\
+author-mail <bob@example.com>\n\
+author-time 1710000000\n\
+author-tz +0800\n\
+committer Bob\n\
+committer-mail <bob@example.com>\n\
+committer-time 1710000000\n\
+committer-tz +0800\n\
+summary add comment\n\
+filename src/main.rs\n\
+\t// note";
+        let lines = parse_blame(porcelain);
+        assert_eq!(lines.len(), 2);
+        assert_eq!(lines[0].line, 2);
+        assert_eq!(lines[0].sha, "0123456789abcdef0123456789abcdef01234567");
+        assert_eq!(lines[0].author, "Alice");
+        assert_eq!(lines[0].author_mail, "<alice@example.com>");
+        assert_eq!(lines[0].time, 1700000000);
+        assert_eq!(lines[0].summary, "fix the thing");
+        assert_eq!(lines[0].content, "let x = 1;");
+        assert_eq!(lines[1].line, 3);
+        assert_eq!(lines[1].author, "Bob");
+        assert_eq!(lines[1].content, "// note");
     }
 }

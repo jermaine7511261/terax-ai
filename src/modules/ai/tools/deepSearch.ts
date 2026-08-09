@@ -12,7 +12,7 @@ import {
 import type { ToolContext } from "./context";
 
 /**
- * deep_search — Grok's `deep-research` workflow ported to yamet's subagent
+ * deep_search — 's `deep-research` workflow ported to yamet's subagent
  * stack. Four phases (Plan → Research → Verify → Report), driven by read-only
  * subagents that use web_search / fetch_url tools:
  *
@@ -88,7 +88,7 @@ export function buildDeepSearchTools(
   return {
     deep_search: tool({
       description:
-        "Multi-step web research (ported from Grok deep-research). Breaks a query into independent questions, researches each in parallel using web_search + fetch_url, cross-checks every claim against its sources, and writes a cited markdown report. Use for complex questions that need multiple sources and verification, not for a single quick look (use web_search + fetch_url for that).",
+        "Multi-step web research (ported from  deep-research). Breaks a query into independent questions, researches each in parallel using web_search + fetch_url, cross-checks every claim against its sources, and writes a cited markdown report. Use for complex questions that need multiple sources and verification, not for a single quick look (use web_search + fetch_url for that).",
       inputSchema: z.object({
         query: z
           .string()
@@ -152,6 +152,8 @@ export function buildDeepSearchTools(
               .filter((q): q is string => typeof q === "string" && q.trim() !== "")
               .map((q) => q.trim());
             if (qs.length > 0) questions = qs.slice(0, b);
+          } else {
+            coverageNotes.push("planner did not return a parseable question list; falling back to the raw query.");
           }
 
           // ── Phase 2: Research (parallel per question) ─────────────────
@@ -203,6 +205,11 @@ export function buildDeepSearchTools(
             coverageNotes.push(
               "No factual claim had both traceable evidence and a source locator.",
             );
+            if (!researchParsed) {
+              coverageNotes.push(
+                "The researcher's response was not parseable as structured claims (unexpected format, not an empty result).",
+              );
+            }
             return {
               ok: false,
               query,

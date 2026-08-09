@@ -4,7 +4,7 @@
 
 ## 分工
 
-Yamet 是两个进程：Rust 后端（`src-tauri/`）与 webview 前端（`src/`）。
+YaMet 是两个进程：Rust 后端（`src-tauri/`）与 webview 前端（`src/`）。
 
 - **Rust 持有全部 OS 访问**：PTY、文件系统、git、shell 启动、网络、密钥、工作区授权。
 - **webview 绝不直接碰 FS、进程或 shell**。每个宿主操作都经 `invoke()` 调用注册在 `src-tauri/src/lib.rs` 的命令。

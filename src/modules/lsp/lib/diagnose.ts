@@ -1,4 +1,4 @@
-// AI-tool LSP diagnostics bridge (hermes-style post-write semantic lint).
+// AI-tool LSP diagnostics bridge (-style post-write semantic lint).
 //
 // After an AI tool writes/edits a file, we tell the language server the file
 // changed (full-text didSave, or didOpen when it never saw the file), then
@@ -142,7 +142,7 @@ const LCS_MAX_LINES = 1500;
 
 /**
  * Compute a mapping from pre-edit line index to post-edit line index for the
- * lines that survived the edit. Modeled on hermes `range_shift.py`:
+ * lines that survived the edit. Modeled on  `range_shift.py`:
  * insertions shift lines below down; deletions collapse them up. Used to
  * translate the pre-edit diagnostic baseline so that a mid-file insertion
  * does not re-report pre-existing errors below the edit point as "new".

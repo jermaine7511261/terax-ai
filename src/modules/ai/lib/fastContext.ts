@@ -1,5 +1,5 @@
 /**
- * S7 FastContext budget (PraisonAI `context_injector.py`): constrain how much
+ * S7 FastContext budget ( `context_injector.py`): constrain how much
  * code context a retrieval subagent can pull in, so a grep/read burst can't
  * flood the parent context. Pure — no I/O, unit-tested.
  *
@@ -7,7 +7,7 @@
  * matches (tighter caps); when false, prefer coverage.
  */
 
-/** Default budget (PraisonAI: max_files=10, max_lines_per_file=100,
+/** Default budget (: max_files=10, max_lines_per_file=100,
  *  max_tokens=4000). */
 export const FAST_CONTEXT_DEFAULT = {
   maxFiles: 10,

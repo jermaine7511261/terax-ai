@@ -1,5 +1,5 @@
 /**
- * Approval tri-state (P1-3, opencode Reply{once|always|reject} + cascade).
+ * Approval tri-state (P1-3,  Reply{once|always|reject} + cascade).
  * Upgrades the binary approve/deny into: ONCE (approve this one request),
  * ALWAYS (remember the tool/target + cascade-approve its descendants), REJECT
  * (deny, optionally with a message fed back to the model for correction).
@@ -12,7 +12,7 @@ export type ApprovalDecision = "once" | "always" | "reject";
 export type ApprovalOutcome = {
   /** The decision the user made. */
   decision: ApprovalDecision;
-  /** For reject: a message to feed back to the model (hermes nudge / opencode
+  /** For reject: a message to feed back to the model ( nudge / 
    * RejectedError). Empty when none. */
   feedback: string;
 };

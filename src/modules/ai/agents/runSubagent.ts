@@ -1,6 +1,7 @@
 import { generateText, stepCountIs } from "ai";
 import { DEFAULT_MODEL_ID, type CustomEndpoint, type ModelId } from "../config";
 import { buildConfiguredLanguageModel } from "../lib/agent";
+import { capSummary, PROSE_SUMMARY_CAP } from "../lib/summary";
 import type { CustomEndpointKeys, ProviderKeys } from "../lib/keyring";
 import type { ToolContext } from "../tools/context";
 import { buildEditTools } from "../tools/edit";
@@ -11,7 +12,10 @@ import { buildSearchTools } from "../tools/search";
 import { buildShellTools } from "../tools/shell";
 import { CLOSING_RULE, SUBAGENTS, type SubagentType } from "./registry";
 
-const SUBAGENT_MAX_STEPS = 12;
+/** Default step cap for a subagent run. Overridable per-call (`maxSteps`).
+ *  Raised from 12 so research/audit workers can complete; the parent's
+ *  budgets + timeouts still bound the run. */
+const SUBAGENT_MAX_STEPS = 40;
 
 /** Per-request retry (network blips / provider 5xx). Default is 2; subagents
  *  get a bounded retry so a single transient failure doesn't fail the whole
@@ -28,15 +32,15 @@ const SUBAGENT_TOTAL_TIMEOUT_MS = 5 * 60 * 1000;
  *  connection but never sends tokens. */
 const SUBAGENT_STEP_TIMEOUT_MS = 90 * 1000;
 
-/** Hard ceiling on the delegation depth (grok `subagents_max_depth` / hermes
+/** Hard ceiling on the delegation depth ( `subagents_max_depth` / 
  * `max_spawn_depth`). A subagent's workers inherit depth+1; beyond this the
  * delegate_many tool refuses to spawn deeper. */
 export const MAX_SPAWN_DEPTH = 3;
 
-/** Summary budget cap (hermes summary-budget-cap): a subagent's returned
- * summary longer than this is truncated to a head excerpt + a "…" marker so a
- * parent's context can't be blown up by a child's oversized result. */
-export const SUBAGENT_SUMMARY_CAP = 4000;
+/** Prose summary budget cap ( summary-budget-cap), applied via
+ * `capSummary`: prose is cut at a sentence boundary, and structured output
+ * (deep_search researcher/verifier JSON) is never clipped at a prose boundary. */
+export const SUBAGENT_SUMMARY_CAP = PROSE_SUMMARY_CAP;
 
 type Args = {
   type: SubagentType;
@@ -49,19 +53,25 @@ type Args = {
   customEndpointKeys?: CustomEndpointKeys;
   onStep?: (label: string) => void;
   /**
-   * Optional isolated context to inject ahead of the prompt (P1-2 / opencode
+   * Optional isolated context to inject ahead of the prompt (P1-2 / 
    * task_result). The child has NO shared parent history — this is the only
    * context it carries beyond its own system prompt + tools.
    */
   context?: string;
+  /** R28 #15: bound knowledge source content injected ahead of the task. */
+  knowledge?: string;
+  /** R28 #1: step cap override for this subagent (None = the 40 default). */
+  maxSteps?: number;
   /** Delegation depth of this worker (root parent = 0). Guards infinite nesting. */
   depth?: number;
-  /** Parent activity/session id for the UI tree (opencode parentID). */
+  /** Parent activity/session id for the UI tree ( parentID). */
   parentId?: string;
 };
 
 type RunResult = {
   summary: string;
+  /** True when the summary was truncated by the budget cap. */
+  truncated: boolean;
   stepCount: number;
   durationMs: number;
 };
@@ -94,6 +104,8 @@ export async function runSubagent({
   customEndpointKeys,
   onStep,
   context,
+  knowledge,
+  maxSteps,
 }: Args): Promise<RunResult> {
   const def = SUBAGENTS[type];
   if (!def) throw new Error(`unknown subagent type: ${type}`);
@@ -104,10 +116,14 @@ export async function runSubagent({
   // Independent context (P1-2): the child carries only its system prompt,
   // the caller-supplied context (if any), and the task prompt — never the
   // parent's shared message history.
-  const taskPrompt =
+  let taskPrompt =
     context && context.trim().length > 0
       ? `${context.trim()}\n\n${prompt}`
       : prompt;
+  // R28 #15 per-agent knowledge: inject bound knowledge ahead of the task.
+  if (knowledge && knowledge.trim().length > 0) {
+    taskPrompt = `<agent-knowledge>\n${knowledge.trim()}\n</agent-knowledge>\n\n${taskPrompt}`;
+  }
 
   const readOnly: Record<string, unknown> = {
     ...buildFsTools(toolContext),
@@ -145,7 +161,7 @@ export async function runSubagent({
     system,
     prompt: taskPrompt,
     tools: tools as Parameters<typeof generateText>[0]["tools"],
-    stopWhen: stepCountIs(SUBAGENT_MAX_STEPS),
+    stopWhen: stepCountIs(maxSteps ?? SUBAGENT_MAX_STEPS),
     // Bound the run: bounded retries for transient errors + explicit step and
     // total timeouts so a slow/hung model can't fail the parent forever.
     maxRetries: SUBAGENT_MAX_RETRIES,
@@ -184,15 +200,14 @@ export async function runSubagent({
     }
   }
 
-  // Summary budget cap (hermes): truncate the child's returned summary so a
-  // parent's context can't be blown up by an oversized result.
-  const summary =
-    raw.length > SUBAGENT_SUMMARY_CAP
-      ? `${raw.slice(0, SUBAGENT_SUMMARY_CAP)}…[truncated to ${SUBAGENT_SUMMARY_CAP} chars]`
-      : raw;
+  // Summary budget cap (): prose is truncated at a sentence boundary;
+  // structured output (deep_search JSON) is kept intact so downstream parsing
+  // never silently discards a whole research phase.
+  const capped = capSummary(raw, SUBAGENT_SUMMARY_CAP);
 
   return {
-    summary,
+    summary: capped.text,
+    truncated: capped.truncated,
     stepCount,
     durationMs: Date.now() - start,
   };

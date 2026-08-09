@@ -1,5 +1,5 @@
 /**
- * Skill auto-curation (P1-5, hermes curator.py): a background lifecycle state
+ * Skill auto-curation (P1-5,  curator.py): a background lifecycle state
  * machine that MAINTAINS the existing agent-created skill set — pin frequently
  * used skills, archive stale ones, mark duplicates for consolidation — without
  * ever generating new skills or deleting anything (archive-only, pinned exempt).
@@ -33,7 +33,7 @@ export type CuratorConfig = {
   archiveAfterMs: number;
   /** Pin skills used at least this many times recently. */
   pinUsageThreshold: number;
-  /** Only curate agent-created skills (hermes safety rule). */
+  /** Only curate agent-created skills ( safety rule). */
   onlyAgentCreated: boolean;
 };
 
@@ -45,7 +45,7 @@ export const DEFAULT_CURATOR_CONFIG: CuratorConfig = {
 
 /**
  * Decide the lifecycle action for a single skill based on its activity.
- * Safety invariants (hermes curator): pinned skills are NEVER archived or
+ * Safety invariants ( curator): pinned skills are NEVER archived or
  * consolidated; non-agent-created skills are left untouched when
  * `onlyAgentCreated` is on; nothing is ever deleted (archive is the terminal
  * state).
@@ -111,7 +111,7 @@ export function touchSkill(
 /**
  * Whether a background curation pass should run now (inactivity-triggered).
  * Runs at most once per `intervalMs`, and only after at least `idleBeforeMs`
- * of no curation activity (hermes: no cron daemon, triggered by idle).
+ * of no curation activity (: no cron daemon, triggered by idle).
  */
 export function shouldRunCurator(opts: {
   lastRunAt: number;

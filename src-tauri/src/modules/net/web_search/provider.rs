@@ -49,6 +49,10 @@ pub struct SearchRequest {
     pub query: String,
     pub max_results: usize,
     pub categories: Vec<String>,
+    /// Optional ISO date window (`YYYY-MM-DD`) forwarded to providers that
+    /// support it (DDG `df`/`dt`). `None` = no time restriction.
+    pub date_from: Option<String>,
+    pub date_to: Option<String>,
 }
 
 #[async_trait]

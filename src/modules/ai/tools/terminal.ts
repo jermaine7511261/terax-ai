@@ -141,15 +141,23 @@ export function buildTerminalTools(ctx: ToolContext) {
         if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
           return { error: "only http/https URLs are allowed", url };
         }
+        // Never forward embedded credentials into the preview iframe — they
+        // would leak into the UI and are a phishing/secret-exposure vector.
+        if (parsed.username || parsed.password) {
+          return {
+            error: "URL must not contain embedded credentials",
+            url,
+          };
+        }
         const host = parsed.hostname;
-        const isLocal =
+        const isLoopback =
           host === "localhost" ||
-          host === "127.0.0.1" ||
+          host.endsWith(".localhost") ||
           host === "0.0.0.0" ||
           host === "[::1]" ||
           host === "::1" ||
-          host.endsWith(".localhost");
-        if (!isLocal) {
+          /^127(\.\d{1,3}){3}$/.test(host);
+        if (!isLoopback) {
           return {
             error:
               "open_preview is restricted to localhost URLs. Ask the user to paste the external URL into the preview address bar instead.",

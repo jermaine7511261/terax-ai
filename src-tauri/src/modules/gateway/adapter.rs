@@ -57,7 +57,7 @@ impl std::error::Error for GatewayError {}
 /// `tx.send(event)` for every inbound message; the registry routes it.
 pub type EventTx = mpsc::Sender<MessageEvent>;
 
-/// Every domestic IM platform implements this trait. The shape mirrors Hermes'
+/// Every domestic IM platform implements this trait. The shape mirrors '
 /// `BasePlatformAdapter` (base.py): connect/poll inbound, send outbound,
 /// report whether credentials are configured.
 pub trait PlatformAdapter: Send + Sync {

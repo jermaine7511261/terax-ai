@@ -2,7 +2,7 @@
 //! functions mirroring the frontend `lib/loop.ts` contract so the Rust harness
 //! can reproduce the existing loop.test.ts decision matrix.
 
-/// Robust exit (opencode: `finish != tool-calls && no pending tool`): the loop
+/// Robust exit (: `finish != tool-calls && no pending tool`): the loop
 /// should only terminate when the model stopped WITHOUT a pending tool call.
 /// A tool-call handoff must continue; the step cap is always a hard stop.
 pub fn should_exit_loop(opts: ShouldExitLoop) -> bool {
@@ -22,7 +22,7 @@ pub struct ShouldExitLoop {
     pub max_steps: u32,
 }
 
-/// Doom-loop detection (opencode processor.ts): the last `window_size` tool
+/// Doom-loop detection ( processor.ts): the last `window_size` tool
 /// calls sharing the same tool + same serialized args mean the agent is stuck
 /// repeating itself.
 pub fn detect_doom_loop(recent: &[RecentToolCall], window_size: usize) -> bool {

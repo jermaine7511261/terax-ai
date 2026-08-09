@@ -1,5 +1,5 @@
 //! Capability modes (P2): ReadOnly / ReadWrite / Execute / All + intersection
-//! (a child can never exceed its parent). Mirrors grok
+//! (a child can never exceed its parent). Mirrors 
 //! `capability.rs::CapabilityMode` + `overrides.rs::intersect_capability_modes`
 //! and the frontend `kind_allowed`-style tool filtering.
 
@@ -70,13 +70,13 @@ impl CapabilityMode {
     }
 }
 
-/// Filter a tool list by a capability (grok `kind_allowed` matrix).
+/// Filter a tool list by a capability ( `kind_allowed` matrix).
 pub fn filter_tools_by_capability(tools: &[String], mode: CapabilityMode) -> Vec<String> {
     tools.iter().filter(|t| mode.allows(t)).cloned().collect()
 }
 
 /// Apply the parent-child capability intersection and strip `task` when the
-/// depth cap is exceeded (grok `run_shell_child`).
+/// depth cap is exceeded ( `run_shell_child`).
 pub fn resolve_subagent_toolset(
     parent: CapabilityMode,
     requested: CapabilityMode,

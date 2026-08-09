@@ -1,5 +1,6 @@
 #[cfg(windows)]
 pub mod job;
+pub mod stats;
 
 use std::process::Command;
 

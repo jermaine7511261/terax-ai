@@ -1,10 +1,13 @@
+use std::collections::HashMap;
+
 use tauri::{AppHandle, Manager};
 
 use crate::modules::git::operations;
 use crate::modules::git::types::{
-    DiscardEntry, GitBranchListResult, GitCommitFileChange, GitCommitResult,
-    GitConflictResult, GitDiffContentResult, GitDiffResult, GitLogEntry, GitPanelSnapshot,
-    GitPushResult, GitRepoInfo, GitStashEntry, GitStatusSnapshot, GitSubmoduleStatusResult,
+    BlameLine, DiscardEntry, GitBranchListResult, GitCheckpoint, GitCommitFileChange,
+    GitCommitResult, GitConflictResult, GitDiffContentResult, GitDiffResult, GitLogEntry,
+    GitPanelSnapshot, GitPushResult, GitRepoInfo, GitStashEntry, GitStatusSnapshot,
+    GitSubmoduleStatusResult,
 };
 use crate::modules::workspace::{WorkspaceEnv, WorkspaceRegistry};
 
@@ -475,6 +478,149 @@ pub async fn git_merge_abort(
         operations::merge_abort(r, &repo_root, &workspace).map_err(Into::into)
     })
     .await
+}
+
+#[tauri::command]
+pub async fn git_blame(
+    repo_root: String,
+    path: String,
+    workspace: Option<WorkspaceEnv>,
+    app: AppHandle,
+) -> Result<Vec<BlameLine>, String> {
+    let workspace = WorkspaceEnv::from_option(workspace);
+    blocking(app, move |r| {
+        operations::blame(r, &repo_root, &path, &workspace).map_err(Into::into)
+    })
+    .await
+}
+
+// ── P3-13 Git snapshot checkpoints (N3) ───────────────────────────────────
+
+fn checkpoint_store_path(app: &AppHandle) -> Result<std::path::PathBuf, String> {
+    let dir = app
+        .path()
+        .app_local_data_dir()
+        .map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    Ok(dir.join("git-checkpoints.json"))
+}
+
+fn read_checkpoints(path: &std::path::Path) -> HashMap<String, Vec<GitCheckpoint>> {
+    let Ok(bytes) = std::fs::read(path) else {
+        return HashMap::new();
+    };
+    serde_json::from_slice(&bytes).unwrap_or_default()
+}
+
+fn write_checkpoints(
+    path: &std::path::Path,
+    map: &HashMap<String, Vec<GitCheckpoint>>,
+) -> Result<(), String> {
+    let bytes = serde_json::to_vec_pretty(map).map_err(|e| e.to_string())?;
+    let tmp = path.with_extension("json.tmp");
+    std::fs::write(&tmp, bytes).map_err(|e| e.to_string())?;
+    std::fs::rename(&tmp, path).map_err(|e| e.to_string())
+}
+
+/// Snapshot the working tree and record it out-of-band (non-destructive:
+/// `git stash create` does not move HEAD or the branch). Returns the sha, or
+/// `null` when the working tree is clean.
+#[tauri::command]
+pub async fn git_checkpoint_create(
+    repo_root: String,
+    message: Option<String>,
+    workspace: Option<WorkspaceEnv>,
+    app: AppHandle,
+) -> Result<Option<GitCheckpoint>, String> {
+    let workspace = WorkspaceEnv::from_option(workspace);
+    let path = checkpoint_store_path(&app)?;
+    let root = repo_root.clone();
+    let sha = blocking(app, move |r| {
+        operations::checkpoint_snapshot(r, &repo_root, &workspace).map_err(Into::into)
+    })
+    .await?;
+    let Some(sha) = sha else {
+        return Ok(None);
+    };
+    let checkpoint = GitCheckpoint {
+        sha,
+        message: message.unwrap_or_else(|| "yamet checkpoint".to_string()),
+        created_at: now_secs(),
+    };
+    let mut map = read_checkpoints(&path);
+    let list = map.entry(root).or_default();
+    // Cap retained checkpoints per repo (ring buffer) to avoid unbounded growth.
+    list.push(checkpoint.clone());
+    if list.len() > 20 {
+        let overflow = list.len() - 20;
+        list.drain(..overflow);
+    }
+    write_checkpoints(&path, &map)?;
+    Ok(Some(checkpoint))
+}
+
+#[tauri::command]
+pub fn git_checkpoint_list(
+    repo_root: String,
+    app: AppHandle,
+) -> Result<Vec<GitCheckpoint>, String> {
+    let path = checkpoint_store_path(&app)?;
+    Ok(read_checkpoints(&path).remove(&repo_root).unwrap_or_default())
+}
+
+#[tauri::command]
+pub async fn git_checkpoint_restore(
+    repo_root: String,
+    sha: String,
+    workspace: Option<WorkspaceEnv>,
+    app: AppHandle,
+) -> Result<(), String> {
+    let workspace = WorkspaceEnv::from_option(workspace);
+    blocking(app, move |r| {
+        operations::checkpoint_restore(r, &repo_root, &sha, &workspace).map_err(Into::into)
+    })
+    .await
+}
+
+fn now_secs() -> u64 {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn checkpoint_storage_roundtrips_and_caps() {
+        let dir = std::env::temp_dir().join(format!("yamet-git-cp-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("checkpoints.json");
+        let mut map = read_checkpoints(&path);
+        let root = "/repo".to_string();
+        let list = map.entry(root.clone()).or_default();
+        for i in 0..25 {
+            list.push(GitCheckpoint {
+                sha: format!("{i:040x}"),
+                message: format!("cp {i}"),
+                created_at: i as u64,
+            });
+        }
+        if list.len() > 20 {
+            let overflow = list.len() - 20;
+            list.drain(..overflow);
+        }
+        write_checkpoints(&path, &map).unwrap();
+        let reloaded = read_checkpoints(&path);
+        let got = reloaded.get(&root).unwrap();
+        assert_eq!(got.len(), 20);
+        assert_eq!(got[0].sha, format!("{:040x}", 5));
+        assert_eq!(got[19].sha, format!("{:040x}", 24));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }
 
 #[tauri::command]

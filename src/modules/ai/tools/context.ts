@@ -31,13 +31,13 @@ export type ToolContext = {
   spawnAgent: (prompt: string) => { tabId: number; leafId: number } | null;
   /** Read the terminal scrollback tail of a managed agent's leaf. */
   readAgentOutput: (leafId: number) => string | null;
-  readCache: Map<string, { size: number; hash: number }>;
+  readCache: Map<string, { size: number; hash: number; mtime?: number }>;
   /** Active chat session id — used by tools that persist per-session state (todos). */
   getSessionId: () => string | null;
   /** Delegation depth of the current worker (root agent = 0). Used by
    * delegate_many to guard against infinite nesting. */
   getSubagentDepth?: () => number;
-  /** Parent activity id of the current worker (opencode parentID tree). */
+  /** Parent activity id of the current worker ( parentID tree). */
   getParentActivityId?: () => string | undefined;
 };
 

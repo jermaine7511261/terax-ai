@@ -1,8 +1,8 @@
 //! Memory scoring + rerank pure core (P2), mirroring the frontend
-//! `memoryStore.ts` (recallScore/recallTop) and grok `xai-grok-memory/search.rs`
+//! `memoryStore.ts` (recallScore/recallTop) and  `xai--memory/search.rs`
 //! (time decay + MMR + min_score). No I/O — unit-tested.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 const STOPWORDS: &[&str] = &[
     "the", "and", "for", "are", "with", "this", "that", "from", "have", "was", "has", "you",
@@ -76,6 +76,91 @@ pub fn recall_top(
     scored.into_iter().take(limit).map(|(_, _, l)| l.to_string()).collect()
 }
 
+// ──────────────────────────────────────────────────────────────────────────
+// P3-11 TF-IDF ranking: better ordering than the pure lexical `recall_score`.
+// Term frequency (how often a query token appears in a line) × inverse
+// document frequency (how rare the token is across the candidate lines).
+// CJK tokens keep 2-gram overlap. Used for RANKING only; recall_score stays
+// the filter, so recall quality never regresses.
+// ──────────────────────────────────────────────────────────────────────────
+
+fn word_freq(line: &str) -> HashMap<String, usize> {
+    let mut freq: HashMap<String, usize> = HashMap::new();
+    for w in line
+        .to_ascii_lowercase()
+        .split(|c: char| !c.is_ascii_alphanumeric())
+    {
+        if !w.is_empty() {
+            *freq.entry(w.to_string()).or_insert(0) += 1;
+        }
+    }
+    freq
+}
+
+/// Precompute IDF for the query's non-trivial tokens across all candidate
+/// lines. A token present in every line gets IDF 0 (no discriminative value);
+/// rare tokens weigh more. CJK tokens use 2-gram recall as the "contains" test.
+pub fn compute_idf(lines: &[&str], query: &str) -> HashMap<String, f64> {
+    let n = lines.len().max(1) as f64;
+    let mut idf = HashMap::new();
+    for t in query_tokens(query) {
+        let df = lines
+            .iter()
+            .filter(|l| {
+                if is_cjk(&t) {
+                    recall_score(l, &t) > 0.0
+                } else {
+                    l.to_ascii_lowercase().contains(t.as_str())
+                }
+            })
+            .count()
+            .max(1) as f64;
+        idf.insert(t, (n / df).ln());
+    }
+    idf
+}
+
+/// TF-IDF lexical relevance of a line against a query. Latin/alnum tokens use
+/// `tf × (1 + idf)`; CJK tokens keep 2-gram overlap. Normalized by the number
+/// of query tokens so the result stays 0..1 and is comparable across queries.
+pub fn tfidf_score(line: &str, query: &str, idf: &HashMap<String, f64>) -> f64 {
+    let tokens = query_tokens(query);
+    if tokens.is_empty() {
+        return 0.0;
+    }
+    let line_lower = line.to_ascii_lowercase();
+    let freq = word_freq(line);
+    let total_words = freq.values().sum::<usize>().max(1) as f64;
+    let mut score = 0.0;
+    for t in &tokens {
+        if is_cjk(t) {
+            let mut grams = HashSet::new();
+            let chars: Vec<char> = t.chars().collect();
+            for w in chars.windows(2) {
+                grams.insert(w.iter().collect::<String>());
+            }
+            if grams.is_empty() {
+                continue;
+            }
+            let mut hit = 0;
+            for g in &grams {
+                if line_lower.contains(g) {
+                    hit += 1;
+                }
+            }
+            score += hit as f64 / grams.len() as f64;
+        } else {
+            let n = freq.get(t.as_str()).copied().unwrap_or(0);
+            if n > 0 {
+                let tf = n as f64 / total_words;
+                let idf_w = idf.get(t.as_str()).copied().unwrap_or(0.0);
+                score += tf * (1.0 + idf_w);
+            }
+        }
+    }
+    score / tokens.len() as f64
+}
+
 /// MMR (Maximal Marginal Relevance) rerank: greedily pick the next line that
 /// best balances relevance vs. redundancy against already-picked lines. Uses
 /// bigram-overlap similarity as the redundancy proxy. `lambda` blends
@@ -135,7 +220,7 @@ fn bigram_similarity(a: &str, b: &str) -> f64 {
     inter as f64 / ga.union(&gb).count().max(1) as f64
 }
 
-/// Time decay (grok: session half-life, global/workspace permanent). Returns
+/// Time decay (: session half-life, global/workspace permanent). Returns
 /// a 0..1 multiplier that halves after `half_life_secs`.
 pub fn time_decay(age_secs: f64, half_life_secs: f64) -> f64 {
     if half_life_secs <= 0.0 {
@@ -144,8 +229,19 @@ pub fn time_decay(age_secs: f64, half_life_secs: f64) -> f64 {
     (-age_secs / half_life_secs).exp2()
 }
 
+/// Near-duplicate detection (P1-9): two memory lines are considered the same
+/// fact when their lexical similarity is high in EITHER direction. Prevents
+/// repeated auto-settlement of the same fact from bloating the journal, while
+/// still allowing genuinely different memories to coexist.
+pub fn is_near_duplicate(a: &str, b: &str, threshold: f64) -> bool {
+    if a.trim().eq_ignore_ascii_case(b.trim()) {
+        return true;
+    }
+    recall_score(a, b).max(recall_score(b, a)) >= threshold
+}
+
 /// Combine BM25/lexical score with time decay + source weight. `min_score`
-/// filters below the floor (grok `min_score`).
+/// filters below the floor ( `min_score`).
 pub fn final_score(lexical: f64, age_secs: f64, half_life_secs: f64, source_weight: f64) -> f64 {
     lexical * time_decay(age_secs, half_life_secs) * source_weight
 }
@@ -242,5 +338,57 @@ mod tests {
         // Greedy picks most relevant first, then the diverse one.
         assert_eq!(out[0].0, "rust async book guide");
         assert_eq!(out[2].0, "unrelated topic");
+    }
+
+    #[test]
+    fn near_duplicate_exact_content() {
+        assert!(is_near_duplicate("we use pnpm", "we use pnpm", 0.8));
+        assert!(is_near_duplicate("we use pnpm", "  We Use Pnpm  ", 0.8));
+    }
+
+    #[test]
+    fn near_duplicate_overlapping_phrasing() {
+        // One is a subsumed restatement of the other → near-duplicate.
+        assert!(is_near_duplicate(
+            "we use pnpm for package management",
+            "we use pnpm",
+            0.8,
+        ));
+    }
+
+    #[test]
+    fn near_duplicate_distinct_facts_not_flagged() {
+        assert!(!is_near_duplicate("we use pnpm", "the deploy target is staging", 0.8));
+    }
+
+    #[test]
+    fn tfidf_ranks_rare_term_matches_higher() {
+        let lines = [
+            "we use pnpm for package management",
+            "pnpm is our package manager",
+            "the deploy target is staging",
+        ];
+        let idf = compute_idf(&lines, "pnpm");
+        let a = tfidf_score(lines[0], "pnpm", &idf);
+        let b = tfidf_score(lines[1], "pnpm", &idf);
+        let c = tfidf_score(lines[2], "pnpm", &idf);
+        assert!(a > 0.0 && b > 0.0);
+        assert_eq!(c, 0.0);
+        // Higher term frequency scores higher.
+        assert!(b > a, "denser pnpm usage should rank first: {a} vs {b}");
+    }
+
+    #[test]
+    fn tfidf_empty_query_scores_zero() {
+        let idf = compute_idf(&["any line"], "");
+        assert_eq!(tfidf_score("any line", "", &idf), 0.0);
+    }
+
+    #[test]
+    fn compute_idf_penalizes_common_tokens() {
+        let lines = ["pnpm build the app", "pnpm test the app", "deploy the app"];
+        let idf = compute_idf(&lines, "pnpm build");
+        // pnpm appears in 2/3 lines → small idf; build in 1/3 → larger idf.
+        assert!(idf.get("build").unwrap() > idf.get("pnpm").unwrap());
     }
 }

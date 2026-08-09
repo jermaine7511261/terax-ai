@@ -1,6 +1,6 @@
 //! SSRF (Server-Side Request Forgery) protection for `web_fetch`.
 //!
-//! Policy (ported verbatim from Grok grok-build `web_fetch/ssrf.rs`):
+//! Policy (ported verbatim from  -build `web_fetch/ssrf.rs`):
 //! - Non-public addresses (loopback, RFC 1918, link-local, CGNAT, TEST-NET,
 //!   multicast, etc.) are blocked by default.
 //! - Local access is opt-in via `allow_local` (tool params). Even when enabled,

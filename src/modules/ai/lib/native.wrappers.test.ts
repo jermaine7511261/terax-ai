@@ -83,6 +83,7 @@ describe("native shell wrappers", () => {
       command: "echo hi",
       cwd: "/cwd",
       timeoutSecs: 10,
+      env: null,
       workspace: WS,
     });
     await native.shellSessionRun(2, "echo hi");
@@ -91,6 +92,7 @@ describe("native shell wrappers", () => {
       command: "echo hi",
       cwd: null,
       timeoutSecs: null,
+      env: null,
       workspace: WS,
     });
   });

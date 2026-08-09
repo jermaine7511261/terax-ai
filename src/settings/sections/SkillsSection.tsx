@@ -76,7 +76,7 @@ export function SkillsSection() {
   );
   const toggleBuiltin = useSnippetsStore((s) => s.toggleBuiltin);
 
-  // Scheduled tasks (★ H3 Hermes cron)
+  // Scheduled tasks (★ H3 cron)
   const tasks = useSchedulerStore((s) => s.tasks);
   const hydrateScheduler = useSchedulerStore((s) => s.hydrate);
   const upsertTask = useSchedulerStore((s) => s.upsert);
@@ -352,7 +352,7 @@ export function SkillsSection() {
         )}
       </section>
 
-      {/* ---- Scheduled tasks (cron, ★ H3 Hermes) ---- */}
+      {/* ---- Scheduled tasks (cron, ★ H3) ---- */}
       <section className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
           <div className="flex flex-col">

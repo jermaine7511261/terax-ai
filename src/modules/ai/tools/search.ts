@@ -46,7 +46,7 @@ export function buildSearchTools(ctx: ToolContext) {
   return {
     grep: tool({
       description:
-        "Search file contents in the workspace using a regular expression. Honors .gitignore. Returns up to `max_results` (default 30, max 500) `{path, line, text}` hits, with a `truncated` flag when more existed. Long match lines are clipped to 160 chars. Use this for code navigation — do NOT brute-force read_file across the tree. Narrow with `glob` when you can; raise `max_results` only if the first batch truly isn't enough.",
+        "Search file contents in the workspace using a regular expression. Honors .gitignore. Returns up to `max_results` (default 30, max 500) `{path, line, text}` hits, with a `next_offset` when more existed — pass it back as `offset` to page through the rest. Long match lines are clipped to 160 chars. Use this for code navigation — do NOT brute-force read_file across the tree. Narrow with `glob` when you can; raise `max_results` only if the first batch truly isn't enough.",
       inputSchema: z.object({
         pattern: z
           .string()
@@ -67,6 +67,14 @@ export function buildSearchTools(ctx: ToolContext) {
           ),
         case_insensitive: z.boolean().optional(),
         max_results: z.number().int().min(1).max(500).optional(),
+        offset: z
+          .number()
+          .int()
+          .min(0)
+          .optional()
+          .describe(
+            "Page offset into the full match list. Pass the previous response's `next_offset` to continue paginating.",
+          ),
       }),
       execute: async ({
         pattern,
@@ -74,6 +82,7 @@ export function buildSearchTools(ctx: ToolContext) {
         glob,
         case_insensitive,
         max_results,
+        offset,
       }) => {
         const r = resolveRoot(root, ctx);
         if (!r.ok) return { error: r.error };
@@ -84,6 +93,7 @@ export function buildSearchTools(ctx: ToolContext) {
         if (!safety.ok) return { error: safety.reason, root: r.path };
         r.path = safety.canonical;
         const cap = Math.min(max_results ?? 30, 500);
+        const skip = offset ?? 0;
         try {
           const res = await native.grep({
             pattern,
@@ -91,6 +101,7 @@ export function buildSearchTools(ctx: ToolContext) {
             glob,
             caseInsensitive: case_insensitive,
             maxResults: cap,
+            offset: skip,
           });
           const hits = res.hits.filter((h) =>
             isReadableSearchHit(h.path, r.path),
@@ -104,6 +115,7 @@ export function buildSearchTools(ctx: ToolContext) {
               text: clipLine(h.text),
             })),
             truncated: res.truncated,
+            next_offset: res.truncated ? skip + hits.length : null,
             files_scanned: res.files_scanned,
           };
         } catch (e) {

@@ -4,7 +4,7 @@
 //! messages arrive via the app callback (encrypted AES-CBC), outbound replies
 //! go through the application message API.
 //!
-//! Reference: Hermes `plugins/platforms/wecom/` + LangBot `wecom.py`.
+//! Reference:  `plugins/platforms/wecom/` +  `wecom.py`.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};

@@ -1,5 +1,5 @@
 //! Prompt engineering core (P1): sectioned system-prompt assembly, untrusted
-//! tool-result annotation + defang, reminder-tag neutralization (grok
+//! tool-result annotation + defang, reminder-tag neutralization (
 //! `neutralize_reminder_tags`), and recalled-memory echo scrubbing. Pure
 //! functions — no I/O.
 
@@ -9,7 +9,7 @@ pub const UNTRUSTED_OPEN: &str = "<untrusted_tool_result source=\"";
 pub const UNTRUSTED_CLOSE: &str = "</untrusted_tool_result>";
 
 /// Wrap untrusted tool/web output in the isolation marker and defang any
-/// attempt to close it early (hermes `_maybe_wrap_untrusted`). Short outputs
+/// attempt to close it early ( `_maybe_wrap_untrusted`). Short outputs
 /// (under 32 chars) are left bare — they carry no injection surface.
 pub fn wrap_untrusted(source: &str, content: &str) -> String {
     if content.len() < 32 {
@@ -25,7 +25,7 @@ pub fn wrap_untrusted(source: &str, content: &str) -> String {
 
 /// Defang delimiter tokens inside untrusted content so it cannot break out of
 /// the isolation wrapper. Escapes any occurrence of the closing tag (or the
-/// opening tag) with a zero-width space, matching hermes' separator escaping.
+/// opening tag) with a zero-width space, matching ' separator escaping.
 pub fn defang(content: &str) -> String {
     let mut out = String::with_capacity(content.len());
     let mut rest = content;
@@ -48,7 +48,7 @@ pub fn defang(content: &str) -> String {
 
 /// Neutralize `[System note: ...]` / `<system-reminder>` style tags inside
 /// untrusted text (AGENTS.md / web content) so the model cannot be hijacked by
-/// instructions smuggled in as a system message (grok `neutralize_reminder_tags`).
+/// instructions smuggled in as a system message ( `neutralize_reminder_tags`).
 pub fn neutralize_reminder_tags(content: &str) -> String {
     let mut out = String::with_capacity(content.len());
     let mut rest = content;
@@ -87,7 +87,7 @@ pub fn build_recalled_memory(entries: &[&str]) -> Option<String> {
     ))
 }
 
-/// Scrub any echo of the injected memory block out of a model reply (hermes
+/// Scrub any echo of the injected memory block out of a model reply (
 /// `StreamingContextScrubber`). Collapses the seam to a single newline.
 pub fn scrub_memory_echo(text: &str, injected: Option<&str>) -> String {
     let Some(injected) = injected else {

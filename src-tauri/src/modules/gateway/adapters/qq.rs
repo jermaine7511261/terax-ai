@@ -3,7 +3,7 @@
 //! Connects to a local go-cqhttp WebSocket, receives private/group messages,
 //! and sends replies via `send_private_msg` / `send_group_msg`.
 //!
-//! Reference: LangBot `aiocqhttp.py` + Hermes `gateway/platforms/qqbot/`.
+//! Reference:  `aiocqhttp.py` +  `gateway/platforms/qqbot/`.
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};

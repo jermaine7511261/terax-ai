@@ -3,6 +3,7 @@
 //! (`score.rs`) with time decay + MMR + min_score; no embedding required
 //! (decision 3: FTS-only degradation primary; remote embedding optional later).
 
+pub mod fts;
 pub mod score;
 
 use std::collections::HashMap;
@@ -14,11 +15,16 @@ use serde::{Deserialize, Serialize};
 use tauri::Manager;
 use tauri::State;
 
-use self::score::{final_score, mmr_rerank, recall_score, time_decay};
+use self::score::{
+    compute_idf, final_score, is_near_duplicate, mmr_rerank, recall_score, tfidf_score,
+};
 
 const SESSION_HALF_LIFE_SECS: f64 = 3600.0 * 4.0; // session memory decays
 const DEFAULT_SOURCE_WEIGHT: f64 = 1.0;
 const MIN_SCORE: f64 = 0.05;
+/// Similarity above which a new memory is treated as an already-known fact and
+/// not stored again (P1-9 dedup, mirrors  dedup threshold).
+const NEAR_DUP_THRESHOLD: f64 = 0.8;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -111,7 +117,22 @@ pub async fn memory_remember(
         if entries.is_empty() {
             *entries = state.load(&app);
         }
-        // Dedup by id (hermes sync_all dedup).
+        // Exact-duplicate refresh: same id + scope → keep the existing behavior
+        // of re-pushing (bumps created_at, i.e. a "touch").
+        let exact_exists = entries
+            .iter()
+            .any(|e| e.id == entry.id && e.scope == scope);
+        // Near-duplicate skip (P1-9): a restatement of an already-known fact in
+        // the same scope must not bloat the journal with a second copy.
+        if !exact_exists
+            && entries.iter().any(|e| {
+                e.scope == scope
+                    && is_near_duplicate(&e.content, &entry.content, NEAR_DUP_THRESHOLD)
+            })
+        {
+            return Ok(entry);
+        }
+        // Dedup by id ( sync_all dedup).
         entries.retain(|e| e.id != entry.id || e.scope != scope);
         entries.push(entry.clone());
     }
@@ -143,33 +164,30 @@ pub async fn memory_recall(
         *entries = state.load(&app);
     }
     let now = now_secs();
-    let mut scored: Vec<(String, f64)> = entries
+    // Recall filter stays lexical `recall_score` (stable recall floor); the
+    // TF-IDF score is used for RANKING so the best lines surface first (P3-11).
+    let candidates: Vec<&MemoryEntry> = entries
         .iter()
         .filter(|e| filter_scope.map(|s| e.scope == s).unwrap_or(true))
+        .filter(|e| recall_score(&e.content, &query) > MIN_SCORE)
+        .collect();
+    let lines: Vec<&str> = candidates.iter().map(|e| e.content.as_str()).collect();
+    let idf = compute_idf(&lines, &query);
+    let mut scored: Vec<(String, f64)> = candidates
+        .iter()
         .map(|e| {
             let age = (now.saturating_sub(e.created_at)) as f64;
             let half_life = match e.scope {
                 MemoryScope::Session => SESSION_HALF_LIFE_SECS,
                 _ => 0.0, // global/workspace permanent
             };
-            let lex = recall_score(&e.content, &query);
-            let decay = time_decay(age, half_life);
+            let lex = tfidf_score(&e.content, &query, &idf);
             let sc = final_score(lex, age, half_life, DEFAULT_SOURCE_WEIGHT);
-            // Keep the decay factor separate for the reported score so results
-            // reflect freshness too.
-            let _ = decay;
-            (e, sc)
+            (e.content.clone(), sc)
         })
-        .filter(|(_, s)| *s > MIN_SCORE)
-        .map(|(e, s)| (e.content.clone(), s))
         .collect();
     scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
     let reranked = mmr_rerank(&scored, limit, 0.7);
-    let by_id: HashMap<String, &MemoryEntry> = entries
-        .iter()
-        .map(|e| (e.id.clone(), e))
-        .collect();
-    let _ = by_id;
     Ok(reranked
         .into_iter()
         .filter_map(|(content, score)| {
@@ -243,5 +261,40 @@ mod tests {
     fn ids_dedup_same_scope_content() {
         assert_eq!(id(MemoryScope::Global, "hello"), id(MemoryScope::Global, "hello"));
         assert_ne!(id(MemoryScope::Global, "hello"), id(MemoryScope::Workspace, "hello"));
+    }
+
+    #[test]
+    fn near_duplicate_skips_only_same_scope() {
+        let entries = vec![
+            MemoryEntry {
+                id: "e1".into(),
+                content: "we use pnpm for dependencies".into(),
+                scope: MemoryScope::Workspace,
+                created_at: 0,
+                source: None,
+            },
+            MemoryEntry {
+                id: "e2".into(),
+                content: "the deploy target is staging".into(),
+                scope: MemoryScope::Global,
+                created_at: 0,
+                source: None,
+            },
+        ];
+        // Same scope, near-identical phrasing → duplicate.
+        assert!(entries.iter().any(|e| {
+            e.scope == MemoryScope::Workspace
+                && is_near_duplicate(&e.content, "we use pnpm", NEAR_DUP_THRESHOLD)
+        }));
+        // Same phrasing in a DIFFERENT scope is a distinct memory.
+        assert!(!entries.iter().any(|e| {
+            e.scope == MemoryScope::Session
+                && is_near_duplicate(&e.content, "we use pnpm", NEAR_DUP_THRESHOLD)
+        }));
+        // Unrelated content is never a duplicate.
+        assert!(!entries.iter().any(|e| {
+            e.scope == MemoryScope::Workspace
+                && is_near_duplicate(&e.content, "bake a cake", NEAR_DUP_THRESHOLD)
+        }));
     }
 }

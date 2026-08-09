@@ -3,6 +3,7 @@ import { z } from "zod";
 import { usePreferencesStore } from "@/modules/settings/preferences";
 import { runSubagent } from "../agents/runSubagent";
 import { SUBAGENTS, type SubagentType } from "../agents/registry";
+import { suggestSkillFromRun } from "./createSkill";
 import { useChatStore } from "../store/chatStore";
 import { newActivityId, useAgentActivityStore } from "../store/agentActivityStore";
 import type { ToolContext } from "./context";
@@ -51,6 +52,11 @@ Read-only types (explore / code-review / security / general) auto-execute. Writa
           id: actId, kind: "subagent", type, prompt,
           status: "running", step: null, startedAt: Date.now(),
         });
+        // Track the last completed step so a failure/abort carries context the
+        // parent agent can use to diagnose instead of a bare error string.
+        let stepCount = 0;
+        let lastStep: string | null = null;
+        const toolNames = new Set<string>();
         try {
           const r = await runSubagent({
             type,
@@ -61,21 +67,42 @@ Read-only types (explore / code-review / security / general) auto-execute. Writa
             customEndpointKeys,
             toolContext: ctx,
             onStep: (label) => {
+              stepCount += 1;
+              lastStep = label;
+              // Labels arrive as `${type}: ${toolName}` — collect the tool names
+              // so a completed complex run can be distilled into a skill (R29 §3.4.2).
+              const toolName = label.split(": ").slice(1).join(": ");
+              if (toolName && toolName !== type) toolNames.add(toolName.trim());
               patchAgentMeta({ step: label });
               store.updateStep(actId, label);
             },
           });
           store.finish(actId, r.summary, r.stepCount);
+          // R29 §3.4.2: a successful run with >=5 steps yields a reusable skill
+          // suggestion the parent agent can act on (create_skill).
+          const skillSuggestion = suggestSkillFromRun(
+            r.summary,
+            r.stepCount,
+            [...toolNames],
+          );
           return {
             type,
             description,
             summary: r.summary,
             stepCount: r.stepCount,
             durationMs: r.durationMs,
+            ...(skillSuggestion
+              ? {
+                  skillSuggestion: {
+                    ...skillSuggestion,
+                    note: `This run completed ${r.stepCount} steps successfully. Save the procedure as a skill with create_skill.`,
+                  },
+                }
+              : {}),
           };
         } catch (e) {
           store.fail(actId, String(e));
-          return { error: String(e), type };
+          return { error: String(e), type, lastStep, stepCount };
         }
       },
     }),

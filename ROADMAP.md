@@ -1,16 +1,16 @@
 # 路线图
 
-Yamet 的方向、已交付内容、待办事项，以及刻意不做的事。
+YaMet 的方向、已交付内容、待办事项，以及刻意不做的事。
 
 本文随方向演进持续更新。日常开发见 GitHub Issues 与 Projects 看板。
 
-## Yamet 是什么
+## YaMet 是什么
 
-Yamet 是一个快速、轻量的 AI 原生终端（ADE，agentic development environment）。它将原生 PTY 后端与现代 UI 结合：多标签终端、内置代码编辑器、文件浏览器、源码管理，以及一等公民的 AI agent 系统（可用自有 API 密钥或完全本地模型）。磁盘占用低于 10 MB，无遥测，密钥存于系统钥匙串。
+YaMet 是一个快速、轻量的 AI 原生终端（ADE，agentic development environment）。它将原生 PTY 后端与现代 UI 结合：多标签终端、内置代码编辑器、文件浏览器、源码管理，以及一等公民的 AI agent 系统（可用自有 API 密钥或完全本地模型）。磁盘占用低于 10 MB，无遥测，密钥存于系统钥匙串。
 
 产品取向明确：终端优先、AI 作为原生能力（而非侧边栏）、始终轻量、跨平台不打折。
 
-## Yamet 不是什么
+## YaMet 不是什么
 
 - 不是完整 IDE 的替代品。与 VS Code / Cursor / Zed 重叠的重型 IDE 功能不在范围内。
 - 不是浏览器。网页预览仅面向本地开发服务器与轻量文档查看。
@@ -110,7 +110,7 @@ Yamet 是一个快速、轻量的 AI 原生终端（ADE，agentic development en
 - [x] 主题与个性化（UI 强调色；终端/编辑器主题 + 用户自定义快捷键已交付）
 - [x] 编辑器 AI 补全改进（项目感知上下文、更低延迟）
 - [x] 终端拖放（文件作为带引号路径、AI 面板作为上下文）
-- [x] AI agent 元编排（Yamet agent 派发与管理外部编码 agent，如 Claude Code / OpenCode）
+- [x] AI agent 元编排（YaMet agent 派发与管理外部编码 agent，如 Claude Code / OpenCode）
 - [x] 更多斜杠命令与片段（`/review` `/commit` `/test` `/fix` + `#handle` 片段）
 - [x] 审批流改进（会话/项目记住 + 按工具拒绝黑名单；自动批准已交付）
 - [x] 持久化终端会话与布局恢复（标签/面板/spaces 布局 + 重启后恢复每标签 cwd）
@@ -118,12 +118,32 @@ Yamet 是一个快速、轻量的 AI 原生终端（ADE，agentic development en
 - [x] 预览面扩展（图片 / PDF / Markdown 处理）
 - [x] 测试覆盖扩展（PTY 边界、安全函数、AI 工具守卫、IM 网关加密/状态机）
 - [x] IM 网关：各平台接入/二维码打磨、公众号/企微回调隧道指南、onebot 配置助手
+- [ ] Computer-use / 浏览器自动化：接入 terminator（Windows uiautomation）+ computer-use-linux（AT-SPI）MCP server；可选 Playwright bridge；截图+鼠标键盘控制；来源：`docs/yamet-vs-projects-对比-2026-08-11.md` 第 6 节 P0
+- [ ] 多 Provider 容错 / 降级链：在 `native.chat()` 层实现熔断器（30s cooldown）+ 自动 failover；用户可配置 fallback 顺序；对标 daedra 9 后端 fallback、fetchira 免费额度感知路由；来源：`docs/yamet-vs-projects-对比-2026-08-11.md` 第 6 节 P0
+- [ ] 技能生态扩展：内置 10-15 个高频技能（代码审查/测试生成/文档撰写/API 集成/重构建议等）；从 agent 执行轨迹自动提取技能（对标 hermes）；支持 Cursor/Windsurf rules 导入（对标 oh-my-pi）；来源：`docs/yamet-vs-projects-对比-2026-08-11.md` 第 6 节 P0
 
 ### 更远期
 
 - [x] 发布自动化（`scripts/release.mjs` 一键版本递增 + CHANGELOG 固化 + commit + tag；`verify.ps1` CHANGELOG 门禁；第十轮交付）
 - [x] 打包体积优化（round-11 把 total client JS 上限压到 1550KB / eager 359KB；语言包懒加载持续进行）
 - [ ] AI 工具 / 片段作为可安装 bundle（`skills/` 目录约定 + 工具白名单已交付子集；bundle 分享留后续；方向：原生 JSON + 工具白名单，禁止非原生插件运行时）
+- [ ] 多模型融合（Model Jury）：同一问题 N 个 provider 并行回答 + judge 综合；基于图引擎分支/合并封装 `fusion` 模式；对标 thClaws OpenRouter Fusion（8 模型陪审团）；来源：`docs/yamet-vs-projects-对比-2026-08-11.md` 第 6 节 P1
+- [ ] 记忆深度：YAMET.md 自动过期/摘要机制（防无限增长）；用户偏好建模（从对话中提取并持久化）；跨会话 FTS5 全文检索（与现有向量搜索互补）；对标 hermes FTS5 + Honcho 用户建模；来源：`docs/yamet-vs-projects-对比-2026-08-11.md` 第 6 节 P1
+- [ ] 媒体生成（图片/视频）：text→image / image→video，多提供商（Gemini/OpenAI/Qwen/Veo）；作为可选技能或 MCP server 接入；对标 thClaws Media Studio；来源：`docs/yamet-vs-projects-对比-2026-08-11.md` 第 6 节 P2
+- [ ] LSP 诊断增强：扩展 LSP 覆盖面（悬停/跳转定义/代码操作）；可选 DAP 调试器深度集成（已在第十一轮交付基础版，此处为覆盖面扩展）；对标 oh-my-pi LSP 覆盖每次操作；来源：`docs/yamet-vs-projects-对比-2026-08-11.md` 第 6 节 P2
+
+### 调研采纳待办（08-11 对比报告，来源: `docs/yamet-vs-projects-对比-2026-08-11.md`）
+
+对比报告的采纳追踪，与上方规划交叉引用。每轮消化 1–2 项。
+
+- [x] 勘误：web 搜索（DuckDuckGo 内置 + fetch_url）与 Office 文档（office_oxide 读 + docx-rs/calamine 写 + edit + PDF 全管线）已在 v0.1.28 实现——初版报告的"三大缺口"判断过时
+- [ ] P0-1 Computer-use：接入 terminator（Windows）+ computer-use-linux（Linux）MCP server → 见「下一批」
+- [ ] P0-2 Provider 容错：熔断器 + 自动降级链 → 见「下一批」
+- [ ] P0-3 技能生态：内置技能 + 自动沉淀 + Cursor rules 导入 → 见「下一批」
+- [ ] P1-1 多模型融合：图引擎封装 fusion 模式 → 见「更远期」
+- [ ] P1-2 记忆深度：FTS5 + 用户建模 + 自动过期 → 见「更远期」
+- [ ] P2-1 媒体生成：MCP 接入 → 见「更远期」
+- [ ] P2-2 LSP 覆盖扩展 → 见「更远期」
 
 ### 调研采纳待办（08-10 盘点，来源见各文档）
 
@@ -156,9 +176,9 @@ Yamet 是一个快速、轻量的 AI 原生终端（ADE，agentic development en
 
 ## 范围外
 
-以下类别不会内置到 Yamet。此类功能请求将被关闭。
+以下类别不会内置到 YaMet。此类功能请求将被关闭。
 
-- **Notebook 与文档工作区。** 任何让 Yamet 变成文档宿主而非终端的东西。
+- **Notebook 与文档工作区。** 任何让 YaMet 变成文档宿主而非终端的东西。
 - **包管理器与工具链 UI。** 直接在终端里用 `npm`、`pip`、`cargo` 等即可。
 - **IDE 规模的扩展市场。** 未来可能做窄范围的 AI 工具/片段 bundle。任意 UI 或行为扩展不会做。
 - **第三方订阅会话桥接。** 对第三方客户端而言，转发云端订阅认证（厂商管理的登录会话）在技术上不可行。

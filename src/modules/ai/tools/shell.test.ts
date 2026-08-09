@@ -95,8 +95,44 @@ describe("bash_run", () => {
       "pwd",
       "/workspace",
       30,
+      undefined,
     );
     expect(result).toMatchObject({ command: "pwd", stdout: "out", exit_code: 0 });
+  });
+
+  it("forwards allowlisted env and rejects injection keys", async () => {
+    nativeMock.shellSessionRun.mockResolvedValue({
+      stdout: "x",
+      stderr: "",
+      exit_code: 0,
+      timed_out: false,
+      truncated: false,
+      cwd_after: "/workspace",
+    });
+    const ok = await runTool(makeContext(), "bash_run", {
+      command: "echo hi",
+      env: { NODE_ENV: "production" },
+    });
+    expect(ok).toMatchObject({ command: "echo hi" });
+    expect(nativeMock.shellSessionRun).toHaveBeenCalledWith(
+      42,
+      "echo hi",
+      "/workspace",
+      undefined,
+      { NODE_ENV: "production" },
+    );
+    const bad = await runTool(makeContext(), "bash_run", {
+      command: "echo hi",
+      env: { LD_PRELOAD: "/tmp/x.so" },
+    });
+    expect(bad.error).toMatch(/Refused/i);
+    expect(nativeMock.shellSessionRun).not.toHaveBeenCalledWith(
+      42,
+      "echo hi",
+      "/workspace",
+      undefined,
+      { LD_PRELOAD: "/tmp/x.so" },
+    );
   });
 
   it("reuses the same session shell across calls for the same session", async () => {

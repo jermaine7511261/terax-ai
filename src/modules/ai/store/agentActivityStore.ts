@@ -20,7 +20,7 @@ export type AgentActivity = {
    * to indent/nest concurrent workers (P0-2).
    */
   depth?: number;
-  /** Parent activity id (opencode parentID tree). */
+  /** Parent activity id ( parentID tree). */
   parentId?: string;
   /** Group key shared by a parallel `delegate_many` fan-out, so its workers
    * render as one visually-grouped cluster. */

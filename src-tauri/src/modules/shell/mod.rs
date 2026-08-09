@@ -8,7 +8,7 @@ use std::io::Read;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicU32, Ordering};
-use std::sync::{mpsc, Arc, RwLock};
+use std::sync::{mpsc, Arc, Mutex, RwLock};
 use std::thread;
 use std::time::Duration;
 
@@ -24,9 +24,107 @@ use session::{SessionRunOutput, ShellSession};
 
 const DEFAULT_TIMEOUT_SECS: u64 = 30;
 const MAX_TIMEOUT_SECS: u64 = 300;
+/// Kill a process that produces no output for this long, even when the total
+/// timeout is longer (a silent hang is almost never a working command).
+const IDLE_TIMEOUT: Duration = Duration::from_secs(60);
 const MAX_OUTPUT_BYTES: usize = 256 * 1024;
 /// Cap on concurrent shell launches (run/session/background share this).
 const MAX_CONCURRENT_SHELLS: usize = 8;
+
+/// Keys an AI-provided env map may set. Preloading a library/interpreter flag
+/// would let the model hijack the spawned process, so everything outside this
+/// allowlist (and anything on the hard deny list) is refused.
+const ENV_KEY_ALLOWLIST: &[&str] = &[
+    "LANG",
+    "LC_ALL",
+    "LC_CTYPE",
+    "LC_MESSAGES",
+    "LC_TIME",
+    "LC_NUMERIC",
+    "LC_COLLATE",
+    "LC_MONETARY",
+    "LC_PAPER",
+    "LC_NAME",
+    "LC_ADDRESS",
+    "LC_TELEPHONE",
+    "LC_MEASUREMENT",
+    "LC_IDENTIFICATION",
+    "TERM",
+    "COLORTERM",
+    "HOME",
+    "TZ",
+    "CLICOLOR",
+    "FORCE_COLOR",
+    "NO_COLOR",
+    "GIT_TERMINAL_PROMPT",
+    "GIT_ASKPASS",
+    "CI",
+    "NODE_ENV",
+    "NODE_NO_WARNINGS",
+];
+
+/// Hard-deny regardless of allowlist membership — loader/interpreter injection.
+const ENV_KEY_DENYLIST: &[&str] = &[
+    "LD_PRELOAD",
+    "LD_LIBRARY_PATH",
+    "LD_DEBUG",
+    "DYLD_INSERT_LIBRARIES",
+    "DYLD_LIBRARY_PATH",
+    "DYLD_FORCE_FLAT_NAMESPACE",
+    "NODE_OPTIONS",
+    "NODE_PATH",
+    "PYTHONPATH",
+    "PYTHONHOME",
+    "RUBYLIB",
+    "GEM_HOME",
+    "PERL5LIB",
+    "JAVA_TOOL_OPTIONS",
+    "_JAVA_OPTIONS",
+    "JAVA_OPTS",
+    "CLASSPATH",
+    "BASH_ENV",
+    "ENV",
+    "PROMPT_COMMAND",
+    "PATH",
+    "PYTHONSTARTUP",
+];
+
+fn is_env_identifier(k: &str) -> bool {
+    let mut chars = k.chars();
+    match chars.next() {
+        Some(c) if c.is_ascii_alphabetic() || c == '_' => {}
+        _ => return false,
+    }
+    chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
+}
+
+/// Validate + filter an AI-supplied env map before it reaches a spawned
+/// process. Mirrors `checkEnvKeys` on the frontend (defense in depth — both
+/// layers must agree). Returns the filtered list or a refusal reason.
+pub fn filter_extra_env(
+    env: Option<&[(String, String)]>,
+) -> Result<Vec<(String, String)>, String> {
+    let Some(env) = env else {
+        return Ok(Vec::new());
+    };
+    let mut out = Vec::new();
+    for (key, value) in env {
+        let upper = key.trim().to_ascii_uppercase();
+        if !is_env_identifier(&upper) {
+            return Err(format!("environment variable name {key:?} is not a valid identifier"));
+        }
+        if ENV_KEY_DENYLIST.contains(&upper.as_str()) {
+            return Err(format!(
+                "environment variable {key:?} is not allowed (could hijack the process)"
+            ));
+        }
+        if !ENV_KEY_ALLOWLIST.contains(&upper.as_str()) {
+            return Err(format!("environment variable {key:?} is not in the allowlist"));
+        }
+        out.push((key.trim().to_owned(), value.clone()));
+    }
+    Ok(out)
+}
 
 #[derive(Serialize)]
 pub struct CommandOutput {
@@ -48,12 +146,14 @@ pub async fn shell_run_command(
     cwd: Option<String>,
     timeout_secs: Option<u64>,
     workspace: Option<WorkspaceEnv>,
+    env: Option<Vec<(String, String)>>,
     registry: tauri::State<'_, WorkspaceRegistry>,
 ) -> Result<CommandOutput, String> {
     let trimmed = command.trim().to_string();
     if trimmed.is_empty() {
         return Err("empty command".into());
     }
+    let env = filter_extra_env(env.as_deref())?;
 
     let _permit = state.semaphore.clone().acquire_owned()
         .await
@@ -77,19 +177,31 @@ pub async fn shell_run_command(
     // runtime stays unblocked.
     let (tx, rx) = mpsc::channel::<Result<CommandOutput, String>>();
     thread::spawn(move || {
-        let _ = tx.send(run_blocking(trimmed, cwd_path, workspace, dur));
+        let _ = tx.send(run_blocking(trimmed, cwd_path, workspace, dur, env));
     });
 
     rx.recv().map_err(|e| e.to_string())?
 }
 
+#[cfg(all(test, unix))]
 pub(crate) fn run_blocking_inner(
     command: String,
     cwd: Option<String>,
     workspace: WorkspaceEnv,
     dur: Duration,
 ) -> Result<CommandOutput, String> {
-    run_blocking(command, cwd, workspace, dur)
+    run_blocking(command, cwd, workspace, dur, Vec::new())
+}
+
+/// Session-shell variant that also carries a validated per-call env overlay.
+pub(crate) fn run_blocking_inner_with_env(
+    command: String,
+    cwd: Option<String>,
+    workspace: WorkspaceEnv,
+    dur: Duration,
+    env: Vec<(String, String)>,
+) -> Result<CommandOutput, String> {
+    run_blocking(command, cwd, workspace, dur, env)
 }
 
 fn run_blocking(
@@ -97,8 +209,9 @@ fn run_blocking(
     cwd: Option<String>,
     workspace: WorkspaceEnv,
     dur: Duration,
+    env: Vec<(String, String)>,
 ) -> Result<CommandOutput, String> {
-    let mut cmd = build_oneshot_command(&command, &workspace, cwd.as_deref())?;
+    let mut cmd = build_oneshot_command(&command, &workspace, cwd.as_deref(), &env)?;
     if let (WorkspaceEnv::Local, Some(dir)) = (&workspace, cwd) {
         cmd.current_dir(dir);
     }
@@ -138,8 +251,15 @@ fn run_blocking(
     #[cfg(windows)]
     let job = crate::modules::proc::job::ProcessJob::create_for(child.id());
 
-    let stdout_handle = thread::spawn(move || drain(&mut stdout_pipe));
-    let stderr_handle = thread::spawn(move || drain(&mut stderr_pipe));
+    // Track the last time either pipe produced a byte so the wait loop can
+    // enforce an *idle* timeout in addition to the total wall-clock cap: a
+    // process that hangs silently (no output) for IDLE_TIMEOUT is killed even
+    // when the user asked for a long total timeout.
+    let last_output = Arc::new(Mutex::new(std::time::Instant::now()));
+    let stdout_last = Arc::clone(&last_output);
+    let stderr_last = Arc::clone(&last_output);
+    let stdout_handle = thread::spawn(move || drain(&mut stdout_pipe, &stdout_last));
+    let stderr_handle = thread::spawn(move || drain(&mut stderr_pipe, &stderr_last));
 
     let (tx, rx) = mpsc::channel();
     let waiter = Arc::clone(&child);
@@ -147,32 +267,44 @@ fn run_blocking(
         let _ = tx.send(waiter.wait());
     });
 
-    let (exit_code, timed_out) = match rx.recv_timeout(dur) {
-        Ok(Ok(status)) => (status.code(), false),
-        Ok(Err(e)) => return Err(e.to_string()),
-        Err(mpsc::RecvTimeoutError::Timeout) => {
-            // Kill the whole process tree, not just the shell itself.
-            #[cfg(unix)]
-            unsafe {
-                let _ = libc::kill(-(child.id() as libc::pid_t), libc::SIGKILL);
-            }
-            #[cfg(windows)]
-            {
-                // The job was created at spawn time and held; terminate it to
-                // take down the whole tree. If job creation failed (e.g. the
-                // child was already inside a non-nestable job), fall back to
-                // killing just the direct process.
-                if let Ok(job) = &job {
-                    let _ = job.terminate();
-                }
-                let _ = child.kill();
+    let started = std::time::Instant::now();
+    let kill_tree = || {
+        #[cfg(unix)]
+        unsafe {
+            let _ = libc::kill(-(child.id() as libc::pid_t), libc::SIGKILL);
+        }
+        #[cfg(windows)]
+        {
+            // The job was created at spawn time and held; terminate it to
+            // take down the whole tree. If job creation failed (e.g. the
+            // child was already inside a non-nestable job), fall back to
+            // killing just the direct process.
+            if let Ok(job) = &job {
+                let _ = job.terminate();
             }
             let _ = child.kill();
-            let _ = child.wait();
-            (None, true)
         }
-        Err(mpsc::RecvTimeoutError::Disconnected) => {
-            return Err("shell wait thread disconnected".into());
+        let _ = child.kill();
+        let _ = child.wait();
+    };
+
+    let (exit_code, timed_out) = loop {
+        match rx.recv_timeout(Duration::from_millis(200)) {
+            Ok(Ok(status)) => break (status.code(), false),
+            Ok(Err(e)) => return Err(e.to_string()),
+            Err(mpsc::RecvTimeoutError::Timeout) => {
+                let idle = last_output
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .elapsed();
+                if idle >= IDLE_TIMEOUT || started.elapsed() >= dur {
+                    kill_tree();
+                    break (None, true);
+                }
+            }
+            Err(mpsc::RecvTimeoutError::Disconnected) => {
+                return Err("shell wait thread disconnected".into());
+            }
         }
     };
 
@@ -240,6 +372,7 @@ pub fn shell_session_open(
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn shell_session_run(
     state: tauri::State<'_, ShellState>,
     registry: tauri::State<'_, WorkspaceRegistry>,
@@ -248,7 +381,9 @@ pub async fn shell_session_run(
     cwd: Option<String>,
     timeout_secs: Option<u64>,
     workspace: Option<WorkspaceEnv>,
+    env: Option<Vec<(String, String)>>,
 ) -> Result<SessionRunOutput, String> {
+    let env = filter_extra_env(env.as_deref())?;
     let session = state
         .sessions
         .read().unwrap_or_else(|e| e.into_inner())
@@ -267,7 +402,7 @@ pub async fn shell_session_run(
     );
     let (tx, rx) = mpsc::channel();
     thread::spawn(move || {
-        let _ = tx.send(session.run(command, cwd, workspace, dur));
+        let _ = tx.send(session.run(command, cwd, workspace, dur, env));
     });
     rx.recv().map_err(|e| e.to_string())?
 }
@@ -352,7 +487,7 @@ pub fn shell_bg_list(state: tauri::State<ShellState>) -> Result<Vec<BackgroundPr
     out.sort_by_key(|i| i.handle);
     Ok(out)
 }
-/// Detect which external agent CLIs (claude/codex/opencode/gemini/pi/grok) are
+/// Detect which external agent CLIs (claude/codex//gemini/pi/) are
 /// installed and their versions, for the external-agent orchestration feature.
 #[tauri::command]
 pub fn agent_probe() -> Vec<external_agent::ExternalAgentInfo> {
@@ -363,6 +498,7 @@ pub(crate) fn build_oneshot_command(
     command: &str,
     #[cfg_attr(not(windows), allow(unused_variables))] workspace: &WorkspaceEnv,
     #[cfg_attr(not(windows), allow(unused_variables))] cwd: Option<&str>,
+    env: &[(String, String)],
 ) -> Result<Command, String> {
     #[cfg(windows)]
     if let WorkspaceEnv::Wsl { distro } = workspace {
@@ -389,6 +525,7 @@ pub(crate) fn build_oneshot_command(
                 }
             }
         }
+        cmd.envs(env.iter().cloned());
         Ok(cmd)
     }
     #[cfg(windows)]
@@ -405,11 +542,12 @@ pub(crate) fn build_oneshot_command(
         } else {
             cmd.arg("-NoProfile").arg("-Command").arg(command);
         }
+        cmd.envs(env.iter().cloned());
         Ok(cmd)
     }
 }
 
-fn drain<R: Read>(reader: &mut R) -> (Vec<u8>, bool) {
+fn drain<R: Read>(reader: &mut R, last_output: &Mutex<std::time::Instant>) -> (Vec<u8>, bool) {
     let mut out = Vec::new();
     let mut buf = [0u8; 8192];
     let mut truncated = false;
@@ -417,6 +555,10 @@ fn drain<R: Read>(reader: &mut R) -> (Vec<u8>, bool) {
         match reader.read(&mut buf) {
             Ok(0) => break,
             Ok(n) => {
+                // Any byte counts as progress for the idle-timeout watchdog.
+                *last_output
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner()) = std::time::Instant::now();
                 if out.len() >= MAX_OUTPUT_BYTES {
                     truncated = true;
                     continue;
@@ -480,10 +622,31 @@ mod tests {
 
     #[test]
     fn build_oneshot_command_uses_sh_minus_c_on_unix() {
-        let cmd = build_oneshot_command("echo hi", &WorkspaceEnv::Local, None).unwrap();
+        let cmd = build_oneshot_command("echo hi", &WorkspaceEnv::Local, None, &[]).unwrap();
         assert_eq!(cmd.get_program(), "/bin/sh");
         let args: Vec<_> = cmd.get_args().collect();
         assert_eq!(args, vec!["-c", "echo hi"]);
+    }
+
+    #[test]
+    fn filter_extra_env_allows_only_allowlisted_keys() {
+        assert_eq!(
+            filter_extra_env(Some(&[("NODE_ENV".into(), "production".into())])).unwrap(),
+            vec![("NODE_ENV".to_string(), "production".to_string())]
+        );
+        // Lowercase keys are normalized.
+        assert!(filter_extra_env(Some(&[("node_env".into(), "x".into())])).is_ok());
+        // Loader-injection keys are refused.
+        assert!(filter_extra_env(Some(&[("LD_PRELOAD".into(), "lib.so".into())])).is_err());
+        assert!(filter_extra_env(Some(&[("NODE_OPTIONS".into(), "--inspect".into())])).is_err());
+        assert!(filter_extra_env(Some(&[("PATH".into(), "/tmp".into())])).is_err());
+        // Unlisted keys are refused.
+        assert!(filter_extra_env(Some(&[("MY_ARBITRARY_KEY".into(), "x".into())])).is_err());
+        // Invalid identifiers are refused.
+        assert!(filter_extra_env(Some(&[("1BAD".into(), "x".into())])).is_err());
+        // None / empty -> Ok(empty).
+        assert_eq!(filter_extra_env(None).unwrap(), Vec::<(String, String)>::new());
+        assert_eq!(filter_extra_env(Some(&[])).unwrap(), Vec::<(String, String)>::new());
     }
 
     #[test]

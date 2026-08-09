@@ -3,7 +3,7 @@ import type { ModelMessage, UIMessage } from "ai";
 const KEEP_TAIL = 24;
 const ELISION_TEXT = "[elided to save context — see prior tool call in history]";
 
-/** P2-1 head/tail protection (hermes context_compressor): never elide the
+/** P2-1 head/tail protection ( context_compressor): never elide the
  * first N / last N messages. */
 export const PROTECT_FIRST_N = 3;
 const PROTECT_LAST_N = 6;
@@ -233,7 +233,7 @@ export function compactModelMessagesDetailed(
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// P2-1 four-quadrant interface (hermes context_engine): decouple the "should I
+// P2-1 four-quadrant interface ( context_engine): decouple the "should I
 // compress", "select what to compress", "record a turn", and "prune only tool
 // results" concerns so the caller can invoke them independently.
 // ═══════════════════════════════════════════════════════════════════════
@@ -271,7 +271,7 @@ export function selectContext(
 }
 
 /**
- * 3/4 onTurnComplete (debounce gate, hermes context_compressor L2296): track
+ * 3/4 onTurnComplete (debounce gate,  context_compressor L2296): track
  * how much the last compression saved; if two consecutive compressions saved
  * under `minSavedPct` (10%), stop compressing to avoid churn. Returns true
  * when a compression is still worthwhile, false to skip.

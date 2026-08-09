@@ -174,6 +174,31 @@ for (const name of ["mcp", "tmux", "vscode"]) {
   }
 }
 
+// ---- 5. security.ts ↔ policy.rs secret-basename contract ----
+// The AI path has TWO independent deny lists that must match: the frontend
+// `SECRET_BASENAME_PATTERNS` (security.ts) and the Rust `policy.rs` copy.
+// A pattern added on one side and forgotten on the other silently weakens the
+// gate, so assert set equality here (not just "exists").
+{
+  const tsFile = readFileSync(join(root, "src", "modules", "ai", "lib", "security.ts"), "utf8");
+  const rsFile = readFileSync(join(root, "src-tauri", "src", "modules", "fs", "policy.rs"), "utf8");
+
+  const tsBlock = /const SECRET_BASENAME_PATTERNS: RegExp\[\] = \[([\s\S]*?)\];/.exec(tsFile)?.[1] ?? "";
+  const tsPats = [...tsBlock.matchAll(/^\s*\/(.+?)\/i,?\s*(?:\/\/.*)?$/gm)].map((m) => m[1]).sort();
+
+  const rsBlock = /const SECRET_BASENAME_PATTERNS: &\[&str\] = &\[([\s\S]*?)\];/.exec(rsFile)?.[1] ?? "";
+  const rsPats = [...rsBlock.matchAll(/^\s*r"([^"]+)",\s*$/gm)].map((m) => m[1]).sort();
+
+  if (tsPats.length === 0 || rsPats.length === 0) {
+    fail("security.ts / policy.rs 敏感文件清单解析失败");
+  } else if (JSON.stringify(tsPats) !== JSON.stringify(rsPats)) {
+    const onlyTs = tsPats.filter((p) => !rsPats.includes(p));
+    const onlyRs = rsPats.filter((p) => !tsPats.includes(p));
+    if (onlyTs.length) fail(`security.ts 有 policy.rs 缺失的敏感模式: ${onlyTs.join(", ")}`);
+    if (onlyRs.length) fail(`policy.rs 有 security.ts 缺失的敏感模式: ${onlyRs.join(", ")}`);
+  }
+}
+
 if (failed) {
   console.error("check-drift: 门禁未通过，请修复后再提交（docs/yamet-需求迭代-第十二轮-测试覆盖与漂移更新-2026-08-05.md §4.4）");
   process.exit(1);

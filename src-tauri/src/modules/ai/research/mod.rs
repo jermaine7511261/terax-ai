@@ -8,7 +8,7 @@ pub mod budget;
 pub mod report;
 pub mod verify;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, RwLock};
 
@@ -22,6 +22,47 @@ const DEFAULT_BREADTH: usize = 4;
 const MAX_BREADTH: usize = 6;
 const DEFAULT_DR_BUDGET: u64 = 8; // parallel worker slots
 const RESERVED_PER_WORKER: u64 = 1;
+/// Hard bounds for claim batches advanced into a session (B14 integrity): a
+/// misbehaving/malicious caller must not be able to store unbounded or
+/// inconsistent claim sets.
+const MAX_CANDIDATE_CLAIMS: usize = 48;
+const MAX_VERIFIED_CLAIMS: usize = 24;
+
+/// Validate a claim batch before it is stored. When `require_candidate_ids` is
+/// set, every claim id must be present in `candidate_ids` (no orphan verified
+/// claims). Returns the set of ids for the caller to pass along.
+fn validate_claim_batch(
+    claims: &[Claim],
+    limit: usize,
+    candidate_ids: &HashSet<String>,
+    require_candidate_ids: bool,
+) -> Result<HashSet<String>, String> {
+    if claims.len() > limit {
+        return Err(format!("claim batch exceeds limit of {limit}"));
+    }
+    let mut ids = HashSet::with_capacity(claims.len());
+    for c in claims {
+        if c.id.trim().is_empty() {
+            return Err("claim has an empty id".into());
+        }
+        if !ids.insert(c.id.clone()) {
+            return Err(format!("duplicate claim id: {}", c.id));
+        }
+        if c.claim.trim().is_empty() {
+            return Err(format!("claim {} has empty text", c.id));
+        }
+        if c.source_locator.trim().is_empty() {
+            return Err(format!("claim {} has no source locator", c.id));
+        }
+        if require_candidate_ids && !candidate_ids.contains(&c.id) {
+            return Err(format!(
+                "verified claim {} is not among the candidates",
+                c.id
+            ));
+        }
+    }
+    Ok(ids)
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -67,6 +108,8 @@ pub struct DeepSearchSession {
     pub budget: RwLock<ResearchBudget>,
     pub candidates: RwLock<Vec<Claim>>,
     pub verified: RwLock<Vec<Claim>>,
+    /// Candidate ids advanced into the session, for verified⊆candidates checks.
+    pub candidate_ids: RwLock<HashSet<String>>,
     pub coverage_notes: RwLock<Vec<String>>,
     pub report: RwLock<Option<String>>,
 }
@@ -112,6 +155,7 @@ pub async fn deep_search_start(
         budget: RwLock::new(ResearchBudget::new(params.budget.unwrap_or(DEFAULT_DR_BUDGET))),
         candidates: RwLock::new(Vec::new()),
         verified: RwLock::new(Vec::new()),
+        candidate_ids: RwLock::new(HashSet::new()),
         coverage_notes: RwLock::new(Vec::new()),
         report: RwLock::new(None),
     });
@@ -185,13 +229,24 @@ pub async fn deep_search_advance(
         *phase = next;
     }
     if let Some(cands) = candidates {
+        let ids = validate_claim_batch(&cands, MAX_CANDIDATE_CLAIMS, &HashSet::new(), false)?;
         *s.candidates.write().unwrap_or_else(|e| e.into_inner()) = cands;
+        *s.candidate_ids.write().unwrap_or_else(|e| e.into_inner()) = ids;
     }
     if let Some(notes) = coverage_notes {
         *s.coverage_notes.write().unwrap_or_else(|e| e.into_inner()) = notes;
     }
     if let Some(v) = verified {
         {
+            // The verified set must be a subset of the candidates advanced this
+            // session — reject orphan/foreign claims instead of trusting the
+            // caller wholesale (B14).
+            let cand_ids = s
+                .candidate_ids
+                .read()
+                .unwrap_or_else(|e| e.into_inner())
+                .clone();
+            validate_claim_batch(&v, MAX_VERIFIED_CLAIMS, &cand_ids, true)?;
             let mut b = s.budget.write().unwrap_or_else(|e| e.into_inner());
             // Refund unused reservations now that the worker fan-out is done.
             for _ in 0..s.breadth {
@@ -251,6 +306,7 @@ mod tests {
             budget: RwLock::new(ResearchBudget::new(DEFAULT_DR_BUDGET)),
             candidates: RwLock::new(Vec::new()),
             verified: RwLock::new(Vec::new()),
+            candidate_ids: RwLock::new(HashSet::new()),
             coverage_notes: RwLock::new(Vec::new()),
             report: RwLock::new(None),
         })
@@ -300,5 +356,40 @@ mod tests {
     fn ids_increment() {
         let st = DeepSearchState::default();
         assert_eq!(st.next_id.fetch_add(1, Ordering::Relaxed), 1);
+    }
+
+    #[test]
+    fn validate_rejects_orphan_verified_claim() {
+        let cands = vec![claim("c1"), claim("c2")];
+        let cand_ids = validate_claim_batch(&cands, MAX_CANDIDATE_CLAIMS, &HashSet::new(), false)
+            .unwrap();
+        let orphan = vec![claim("c9")];
+        assert!(validate_claim_batch(&orphan, MAX_VERIFIED_CLAIMS, &cand_ids, true).is_err());
+    }
+
+    #[test]
+    fn validate_rejects_duplicate_ids_and_empty_fields() {
+        let dup = vec![
+            Claim {
+                id: "c1".into(),
+                ..claim("c1")
+            },
+            Claim {
+                id: "c1".into(),
+                ..claim("c1")
+            },
+        ];
+        assert!(validate_claim_batch(&dup, MAX_CANDIDATE_CLAIMS, &HashSet::new(), false).is_err());
+        let empty = vec![Claim {
+            claim: "".into(),
+            ..claim("c1")
+        }];
+        assert!(validate_claim_batch(&empty, MAX_CANDIDATE_CLAIMS, &HashSet::new(), false).is_err());
+    }
+
+    #[test]
+    fn validate_bounds_count() {
+        let too_many: Vec<Claim> = (0..(MAX_VERIFIED_CLAIMS + 1)).map(|i| claim(&format!("c{i}"))).collect();
+        assert!(validate_claim_batch(&too_many, MAX_VERIFIED_CLAIMS, &HashSet::new(), false).is_err());
     }
 }

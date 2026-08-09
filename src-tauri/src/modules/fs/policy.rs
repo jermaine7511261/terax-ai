@@ -17,7 +17,9 @@ use std::path::Path;
 /// Sensitive-file basename patterns, matched against the file's basename.
 const SECRET_BASENAME_PATTERNS: &[&str] = &[
     // `.env`, `.env.<suffix>`, and Windows trailing-dot/space / ADS variants.
-    r"^\.env(\.(.+))?(?:[.\s:]|$)",
+    // NOTE: keep in sync with `SECRET_BASENAME_PATTERNS` in
+    // `src/modules/ai/lib/security.ts` (enforced by scripts/check-doc-drift.mjs).
+    r"^\.env(\..+)?(?:[.\s:]|$)",
     r"^.*\.pem(?:[.\s:]|$)",
     r"^.*\.key(?:[.\s:]|$)",
     r"^.*\.p12(?:[.\s:]|$)",

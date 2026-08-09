@@ -6,4 +6,5 @@ export type SidebarViewId =
   | "remote"
   | "mcp"
   | "gateway"
-  | "git-history";
+  | "git-history"
+  | "agents";

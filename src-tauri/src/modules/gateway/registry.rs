@@ -1,5 +1,5 @@
 //! Gateway registry: owns the platform adapters, dispatches inbound events to
-//! the agent handler, and fans out outbound sends. Mirrors Hermes
+//! the agent handler, and fans out outbound sends. Mirrors 
 //! `gateway/platform_registry.py` + the `GatewayRunner` event loop.
 
 use std::collections::{HashMap, HashSet};

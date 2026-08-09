@@ -1,6 +1,6 @@
 # DAP（Debug Adapter Protocol）原生集成
 
-Yamet 把 DAP（Debug Adapter Protocol）实现为**内置的原生调试能力**（非插件式）。调试适配器由 Rust 侧启动或连接，前端通过真实的 DAP client 驱动。宿主/传输/UI 层全原生；适配器二进制（debugpy / node / lldb-dap / gdb / dlv）是协议固有的外部程序，不违背原生铁律。
+YaMet 把 DAP（Debug Adapter Protocol）实现为**内置的原生调试能力**（非插件式）。调试适配器由 Rust 侧启动或连接，前端通过真实的 DAP client 驱动。宿主/传输/UI 层全原生；适配器二进制（debugpy / node / lldb-dap / gdb / dlv）是协议固有的外部程序，不违背原生铁律。
 
 ## 架构
 

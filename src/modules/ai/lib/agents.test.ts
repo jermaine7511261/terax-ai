@@ -64,7 +64,7 @@ describe("mergeAgentOverrides (P1-0 agent schema)", () => {
     expect(merged[1].builtIn).toBe(false);
   });
 
-  it("overrides a builtin of the same name (opencode same-name override)", () => {
+  it("overrides a builtin of the same name ( same-name override)", () => {
     const merged = mergeAgentOverrides(builtins, [
       { name: "Coder", instructions: "new instructions", mode: "all" },
     ]);

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   compatModelIdForEndpoint,
   endpointIdFromCompatModel,
+  getEffectiveContextLimit,
   getModelContextLimit,
   isCompatModelId,
   migrateLegacyCompatEndpoint,
@@ -87,6 +88,34 @@ describe("getModelContextLimit", () => {
     ["codestral-latest", 256_000],
   ] as const)("uses the published context limit for %s", (modelId, limit) => {
     expect(getModelContextLimit(modelId)).toBe(limit);
+  });
+});
+
+describe("getEffectiveContextLimit", () => {
+  it("uses the endpoint contextLimit for compat models (settings sync)", () => {
+    const mid = compatModelIdForEndpoint(endpoint.id);
+    expect(getEffectiveContextLimit(mid, [endpoint])).toBe(64_000);
+    // The legacy flat override must NOT win over the per-endpoint limit.
+    expect(
+      getEffectiveContextLimit(mid, [endpoint], 1_000_000),
+    ).toBe(64_000);
+  });
+
+  it("defaults to 128k when the compat endpoint is unknown", () => {
+    const mid = compatModelIdForEndpoint("missing");
+    expect(getEffectiveContextLimit(mid, [endpoint])).toBe(128_000);
+  });
+
+  it("falls through to the static table for known models", () => {
+    expect(
+      getEffectiveContextLimit("deepseek-v4-flash", [endpoint]),
+    ).toBe(1_000_000);
+  });
+
+  it("uses the legacy override for the legacy single custom endpoint", () => {
+    expect(
+      getEffectiveContextLimit("openai-compatible-custom", [], 256_000),
+    ).toBe(256_000);
   });
 });
 

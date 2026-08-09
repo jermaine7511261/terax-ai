@@ -4,7 +4,7 @@
  * Handles the full message loop for inbound gateway messages:
  *   message arrives → inject into chat → LLM responds → send reply back
  *
- * Mirrors Hermes' `_handle_message()` → `_run_agent()` → `send_message()`
+ * Mirrors ' `_handle_message()` → `_run_agent()` → `send_message()`
  * pipeline: receive inbound, run through the agent, route the response
  * back to the originating platform.
  */

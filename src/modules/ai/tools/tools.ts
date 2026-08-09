@@ -1,13 +1,19 @@
 import { buildManagedAgentTools } from "./agent";
+import { buildComputerTools } from "./computer";
 import { buildCreateSkillTools } from "./createSkill";
 import { buildDelegateManyTools } from "./delegateMany";
 import { buildDeepSearchTools } from "./deepSearch";
 import { buildEditTools } from "./edit";
 import { buildExternalAgentTools } from "./externalAgent";
 import { buildFsTools } from "./fs";
+import { buildFusionTools } from "./fusion";
 import { buildGitTools } from "./git";
 import { buildGraphTools } from "./graph";
+import { buildHandoffTools } from "./handoff";
+import { buildImportRulesTools } from "./importRules";
+import { buildLspTools } from "./lsp";
 import { buildMcpTools } from "./mcp";
+import { buildMediaTools } from "./media";
 import { buildMemoryTools } from "./memory";
 import { buildNetTools } from "./net";
 import { buildSearchMemoriesTools } from "./searchMemories";
@@ -60,6 +66,15 @@ export function buildTools(ctx: import("./context").ToolContext) {
     ...buildManagedAgentTools(ctx),
     ...buildCreateSkillTools(ctx),
     ...buildGraphTools(ctx),
+    ...buildHandoffTools(ctx),
+    ...buildMediaTools(ctx),
+    ...buildLspTools(ctx),
+    // §3.1.2 computer-use tools
+    ...buildComputerTools(ctx),
+    // §3.3 multi-model fusion
+    ...buildFusionTools(ctx),
+    // §3.4.3 rules import
+    ...buildImportRulesTools(ctx),
     // Dynamic MCP tools (read from the live mcpStore; all needsApproval).
     ...buildMcpTools(),
   } as const;

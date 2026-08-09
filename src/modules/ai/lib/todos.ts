@@ -83,3 +83,59 @@ export function getReadyItems(todos: Todo[]): Todo[] {
     );
   });
 }
+
+export type TodoPatch = {
+  id: string;
+  status?: TodoStatus;
+  title?: string;
+  description?: string;
+};
+
+/**
+ * Incremental patch mode (P1-8): merge patches keyed by id onto the existing
+ * list. Unknown ids create a new todo so the agent can add steps mid-flight
+ * without resending the whole list. Order of existing todos is preserved;
+ * new todos are appended.
+ */
+export function applyTodoPatches(
+  existing: Todo[],
+  patches: TodoPatch[],
+): Todo[] {
+  const byId = new Map(existing.map((t) => [t.id, { ...t }]));
+  const order = existing.map((t) => t.id);
+  for (const p of patches) {
+    const cur = byId.get(p.id);
+    if (cur) {
+      if (p.status !== undefined) cur.status = p.status;
+      if (p.title !== undefined) cur.title = p.title;
+      if (p.description !== undefined) cur.description = p.description;
+    } else {
+      byId.set(p.id, {
+        id: p.id,
+        title: p.title ?? p.id,
+        status: p.status ?? "pending",
+        description: p.description,
+      });
+      order.push(p.id);
+    }
+  }
+  return order
+    .map((id) => byId.get(id))
+    .filter((t): t is Todo => t !== undefined);
+}
+
+/**
+ * Auto-advance (P1-8): when no todo is `in_progress` but ready pending items
+ * exist, promote the first ready one. Keeps the "exactly one in_progress"
+ * invariant across incremental updates without the agent manually flipping
+ * statuses every step.
+ */
+export function autoAdvanceReady(todos: Todo[]): Todo[] {
+  if (todos.some((t) => t.status === "in_progress")) return todos;
+  const ready = getReadyItems(todos);
+  if (ready.length === 0) return todos;
+  const first = ready[0];
+  return todos.map((t) =>
+    t.id === first.id ? { ...t, status: "in_progress" } : t,
+  );
+}

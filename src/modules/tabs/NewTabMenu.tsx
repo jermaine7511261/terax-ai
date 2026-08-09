@@ -79,6 +79,7 @@ export function NewTabMenu({
           <DropdownMenu open={menuOpen} onOpenChange={onMenuOpenChange}>
             <DropdownMenuTrigger asChild>
               <Button
+                data-new-tab
                 variant="ghost"
                 size="icon"
                 className="size-7 shrink-0 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"

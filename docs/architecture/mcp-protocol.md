@@ -1,6 +1,6 @@
 # MCP（Model Context Protocol）原生集成
 
-Yamet 把 MCP（Model Context Protocol）实现为**内置的原生能力**（非插件式）。MCP 服务器经两种 Rust 原生传输连接，其工具直接暴露给 AI agent。宿主/传输/UI 层全原生，不依赖外部 `mcp` crate 或 Node/Python 常驻桥接。
+YaMet 把 MCP（Model Context Protocol）实现为**内置的原生能力**（非插件式）。MCP 服务器经两种 Rust 原生传输连接，其工具直接暴露给 AI agent。宿主/传输/UI 层全原生，不依赖外部 `mcp` crate 或 Node/Python 常驻桥接。
 
 ## 架构
 

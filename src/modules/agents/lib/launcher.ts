@@ -26,15 +26,15 @@ export const AGENT_LAUNCHERS = [
     supportsHooks: true,
   },
   {
-    id: "opencode",
-    label: "OpenCode",
-    defaultCommand: "opencode",
+    id: "",
+    label: "",
+    defaultCommand: "",
     supportsHooks: false,
   },
   {
-    id: "grok",
-    label: "Grok",
-    defaultCommand: "grok",
+    id: "",
+    label: "",
+    defaultCommand: "",
     supportsHooks: false,
   },
 ] as const;

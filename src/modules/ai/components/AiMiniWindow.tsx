@@ -38,8 +38,8 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   estimateCost,
+  getEffectiveContextLimit,
   getModel,
-  getModelContextLimit,
   type ModelId,
 } from "../config";
 import type { ResizeDir } from "../lib/miniWindowGeometry";
@@ -472,7 +472,12 @@ function ContextIndicator({ messages }: { messages: UIMessage[] }) {
   const openaiCompatibleContextLimit = usePreferencesStore(
     (s) => s.openaiCompatibleContextLimit,
   );
-  const max = getModelContextLimit(modelId, openaiCompatibleContextLimit);
+  const customEndpoints = usePreferencesStore((s) => s.customEndpoints);
+  const max = getEffectiveContextLimit(
+    modelId,
+    customEndpoints,
+    openaiCompatibleContextLimit,
+  );
   const modelLabel = useMemo(() => {
     try {
       return getModel(modelId as ModelId).label;

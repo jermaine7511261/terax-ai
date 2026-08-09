@@ -1,7 +1,7 @@
 /**
  * Loop engineering helpers (P1-1, L2). Pure functions for the think-act-observe
- * cycle: phase tracking, robust exit detection (opencode), and doom-loop
- * detection (opencode processor.ts). No platform deps — unit-tested.
+ * cycle: phase tracking, robust exit detection (), and doom-loop
+ * detection ( processor.ts). No platform deps — unit-tested.
  */
 
 export type LoopPhase = "thinking" | "calling" | "observing" | "done";
@@ -22,7 +22,7 @@ export function phaseForStep(step: {
 }
 
 /**
- * Robust exit (opencode: `finish !== tool-calls && no pending tool`): a loop
+ * Robust exit (: `finish !== tool-calls && no pending tool`): a loop
  * should only terminate when the model stopped WITHOUT a pending tool call.
  * If the finish reason is a tool-call handoff, the run must continue.
  */
@@ -43,7 +43,7 @@ export function shouldExitLoop(opts: {
 }
 
 /**
- * Robust-exit stop condition (opencode robust loop exit): a real
+ * Robust-exit stop condition ( robust loop exit): a real
  * `stopWhen` predicate for the AI SDK built on {@link shouldExitLoop}. It
  * composes with `stepCountIs(maxSteps)` so the loop both caps steps AND stops
  * as soon as the model has no pending tool call to observe — instead of
@@ -71,7 +71,7 @@ export function robustExitStopCondition(maxSteps: number) {
 }
 
 /**
- * Doom-loop detection (opencode processor.ts: last 3 tool parts with the same
+ * Doom-loop detection ( processor.ts: last 3 tool parts with the same
  * tool + same args → the agent is stuck repeating itself). Returns true when
  * a detection should trigger (ask the user / terminate).
  */
@@ -98,7 +98,7 @@ export function pushToolCall(
 }
 
 /**
- * Doom-loop recovery (S1, PraisonAI): escalation ladder — detecting a loop is
+ * Doom-loop recovery (S1, ): escalation ladder — detecting a loop is
  * only half the fix; the agent must change path. Produces a steering message
  * that escalates with consecutive detections:
  *   1. Change tool/path.

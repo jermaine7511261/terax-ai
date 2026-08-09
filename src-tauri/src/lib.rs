@@ -1,7 +1,7 @@
 pub mod modules;
 pub use modules::cli;
 
-use modules::{agent, ai, computer, dap, fs, gateway, git, history, lsp, mcp, mcp_server, net, pty, pty_helper, scheduler, secrets, shell, ssh, window, workspace};
+use modules::{agent, ai, computer, dap, fs, gateway, git, history, lsp, mcp, mcp_server, net, proc, pty, pty_helper, scheduler, secrets, shell, ssh, window, workspace};
 use std::path::PathBuf;
 use std::sync::Mutex;
 use tauri::{Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder};
@@ -14,7 +14,7 @@ use tauri_plugin_window_state::StateFlags;
 struct LaunchDir(Mutex<Option<String>>);
 
 /// Standalone MCP server entry (`yamet __mcp_server`): serves read-only
-/// workspace tools to external agents over stdio JSON-RPC (★ L1 LangBot).
+/// workspace tools to external agents over stdio JSON-RPC (★ L1).
 pub fn mcp_server_run(cwd: &str) {
     mcp_server::run_server(std::path::Path::new(cwd))
 }
@@ -318,7 +318,7 @@ pub fn run() {
                     }
                 });
             }
-            // Cron scheduler (★ H3 Hermes): own an Arc (shared with the tick
+            // Cron scheduler (★ H3): own an Arc (shared with the tick
             // thread), register it as managed state, load persisted tasks,
             // then tick every 30s emitting `yamet:scheduler-fire` so the
             // frontend can spawn agent runs (notification / session targets).
@@ -345,6 +345,7 @@ pub fn run() {
         })
         .manage(pty::PtyState::default())
         .manage(shell::ShellState::default())
+        .manage(proc::stats::ResourceStatsState::default())
         .manage(secrets::SecretsState::default())
         .manage(fs::watch::FsWatchState::default())
         .manage(history::HistoryState::default())
@@ -359,6 +360,7 @@ pub fn run() {
         .manage(ai::harness::AiSessionState::default())
         .manage(ai::memory::MemoryState::default())
         .manage(ai::research::DeepSearchState::default())
+        .manage(ai::agents::platform::AgentPlatformState::default())
         .manage(computer::ComputerUseState::default())
         .manage({
             let registry = workspace::WorkspaceRegistry::default();
@@ -456,6 +458,10 @@ pub fn run() {
             git::commands::git_commit_files,
             git::commands::git_commit_file_diff,
             git::commands::git_remote_url,
+            git::commands::git_blame,
+            git::commands::git_checkpoint_create,
+            git::commands::git_checkpoint_list,
+            git::commands::git_checkpoint_restore,
             git::commands::git_list_branches,
             git::commands::git_checkout_branch,
             git::commands::git_create_branch,
@@ -475,6 +481,7 @@ pub fn run() {
             git::commands::git_submodule_status,
             git::commands::git_submodule_update,
             shell::shell_run_command,
+            proc::stats::resource_stats,
             shell::shell_session_open,
             shell::shell_session_run,
             shell::shell_session_close,
@@ -533,6 +540,27 @@ pub fn run() {
             ai::research::deep_search_abort,
             ai::research::deep_search_advance,
             ai::research::deep_search_reserve,
+            ai::agents::platform::agent_registry_list,
+            ai::agents::platform::agent_registry_get,
+            ai::agents::platform::agent_registry_delegatable,
+            ai::agents::platform::agent_registry_primary,
+            ai::agents::platform::agent_registry_register,
+            ai::agents::platform::agent_registry_remove,
+            ai::agents::platform::agent_instance_create,
+            ai::agents::platform::agent_instance_get,
+            ai::agents::platform::agent_instance_transition,
+            ai::agents::platform::agent_instance_record_step,
+            ai::agents::platform::agent_instance_finalize,
+            ai::agents::platform::agent_history,
+            ai::agents::platform::agent_within_budget,
+            ai::agents::platform::agent_checkpoint_save,
+            ai::agents::platform::agent_checkpoint_restore,
+            ai::agents::platform::agent_template_list,
+            ai::agents::platform::agent_template_clone,
+            ai::agents::platform::agent_skill_fork,
+            ai::agents::platform::agent_steer_add,
+            ai::agents::platform::agent_steer_list,
+            ai::agents::platform::agent_steer_drain,
             // --- computer use ---
             computer::computer_session_open,
             computer::computer_session_close,
@@ -540,6 +568,19 @@ pub fn run() {
             computer::computer_revoke,
             computer::computer_capture,
             computer::computer_action,
+            // §3.1.2 computer-use simple commands
+            computer::commands::computer_screenshot,
+            computer::commands::computer_click,
+            computer::commands::computer_type,
+            computer::commands::computer_read_accessibility_tree,
+            // §3.5.2 FTS search
+            ai::memory::fts::memory_fts_search,
+            // §3.5.3 user preferences
+            ai::preferences::preferences_extract,
+            ai::preferences::preferences_get,
+            // §3.6.2 image generation
+            ai::media::generate_image,
+            ai::resilience::resilience_status,
             history::history_suggest,
             history::history_commands,
             history::history_record,

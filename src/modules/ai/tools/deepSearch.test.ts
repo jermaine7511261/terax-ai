@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("@/modules/settings/preferences", () => ({
   usePreferencesStore: {
     getState: () => ({ customEndpoints: [] }),
+    subscribe: () => () => undefined,
   },
 }));
 
@@ -35,6 +36,7 @@ type SubagentResult = {
   summary: string;
   stepCount: number;
   durationMs: number;
+  truncated: boolean;
 };
 
 function makeRunner(
@@ -46,13 +48,13 @@ function makeRunner(
     runSubagent: vi.fn(async (args: { prompt: string }) => {
       const p = args.prompt;
       if (p.includes("research-planner")) {
-        return { summary: planSummary, stepCount: 1, durationMs: 1 } as SubagentResult;
+        return { summary: planSummary, stepCount: 1, durationMs: 1, truncated: false } as SubagentResult;
       }
       if (p.includes("evidence-verifier")) {
-        return { summary: verifySummary, stepCount: 1, durationMs: 1 } as SubagentResult;
+        return { summary: verifySummary, stepCount: 1, durationMs: 1, truncated: false } as SubagentResult;
       }
       // researcher
-      return { summary: researchSummary, stepCount: 1, durationMs: 1 } as SubagentResult;
+      return { summary: researchSummary, stepCount: 1, durationMs: 1, truncated: false } as SubagentResult;
     }),
   };
 }

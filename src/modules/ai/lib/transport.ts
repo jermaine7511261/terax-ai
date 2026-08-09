@@ -313,7 +313,7 @@ export function createContextAwareTransport(deps: Deps) {
     const live = deps.getLive();
     // P1-4 recall-based injection: instead of blindly splicing the full
     // YAMET.md + full session memory, recall only the relevant lines for the
-    // latest user query and wrap them in an isolation marker (hermes
+    // latest user query and wrap them in an isolation marker (
     // select_context + build_memory_context_block).
     const staticMemory = await readYametMd(live.workspaceRoot);
     const sessionMemory = getSessionMemory(deps.toolContext.getSessionId());

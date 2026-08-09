@@ -172,6 +172,22 @@ describe("native workspace/fs wrappers", () => {
       glob: null,
       caseInsensitive: null,
       maxResults: null,
+      offset: null,
+      source: "ai",
+      workspace: "default",
+    });
+  });
+
+  it("grep forwards an explicit offset for pagination", async () => {
+    mockInvoke.mockResolvedValue({ hits: [], truncated: false, files_scanned: 0 });
+    await native.grep({ pattern: "x", root: "/r", maxResults: 30, offset: 60 });
+    expect(mockInvoke).toHaveBeenCalledWith("fs_grep", {
+      pattern: "x",
+      root: "/r",
+      glob: null,
+      caseInsensitive: null,
+      maxResults: 30,
+      offset: 60,
       source: "ai",
       workspace: "default",
     });

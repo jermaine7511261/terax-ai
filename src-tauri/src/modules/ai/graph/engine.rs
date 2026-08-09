@@ -250,7 +250,7 @@ pub fn prune_judge_branches(
 }
 
 // ───────────────────────────────────────────────────────────────────────────
-// S3 goal-gated judge (PraisonAI `goal/judge.py`): fail-open + tail-only.
+// S3 goal-gated judge ( `goal/judge.py`): fail-open + tail-only.
 // ───────────────────────────────────────────────────────────────────────────
 
 /// Judge verdict: whether the goal is met.
@@ -262,7 +262,7 @@ pub enum JudgeVerdict {
     Continue,
 }
 
-/// Build the judge input from `goal + latest output tail` (PraisonAI tail-only:
+/// Build the judge input from `goal + latest output tail` ( tail-only:
 /// judge reads only the last N chars of the output, not the full transcript —
 /// cheaper and cache-friendly).
 pub fn judge_input(goal: &str, output: &str, tail_chars: usize) -> String {
@@ -275,7 +275,7 @@ pub fn judge_input(goal: &str, output: &str, tail_chars: usize) -> String {
 }
 
 /// Decide the judge verdict. `parse_ok` is whether the judge model returned a
-/// parseable verdict this round. Fail-open (PraisonAI): a judge error must
+/// parseable verdict this round. Fail-open (): a judge error must
 /// NOT block progress — it returns `Continue` so the loop keeps going; but
 /// after `max_failures` consecutive parse failures the loop must pause.
 pub fn decide_judge(

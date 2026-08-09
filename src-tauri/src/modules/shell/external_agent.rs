@@ -7,10 +7,10 @@ use serde::Serialize;
 const AGENT_DEFS: &[(&str, &str)] = &[
     ("claude", "--version"),
     ("codex", "--version"),
-    ("opencode", "--version"),
+    ("", "--version"),
     ("gemini", "--version"),
     ("pi", "--version"),
-    ("grok", "--version"),
+    ("", "--version"),
 ];
 
 #[derive(Serialize)]
@@ -32,10 +32,10 @@ pub fn probe_external_agents() -> Vec<ExternalAgentInfo> {
             let label = match *id {
                 "claude" => "Claude Code".to_string(),
                 "codex" => "Codex".to_string(),
-                "opencode" => "OpenCode".to_string(),
+                "" => "".to_string(),
                 "gemini" => "Gemini CLI".to_string(),
                 "pi" => "Pi".to_string(),
-                "grok" => "Grok".to_string(),
+                "" => "".to_string(),
                 _ => (*id).to_string(),
             };
             match which::which(id).ok() {

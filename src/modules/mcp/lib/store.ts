@@ -11,6 +11,47 @@ import {
   type McpServerInfo,
 } from "./api";
 
+// §3.1.1 / §3.6.1 MCP preset configurations (one-click install)
+export interface McpPreset {
+  id: string;
+  name: string;
+  transport: "stdio" | "sse";
+  command: string;
+  args: string[];
+  enabled: boolean;
+  description: string;
+}
+
+export const MCP_PRESETS: McpPreset[] = [
+  {
+    id: "terminator",
+    name: "Terminator (Windows Computer-Use)",
+    transport: "stdio",
+    command: "terminator-mcp",
+    args: [],
+    enabled: false,
+    description: "Windows desktop computer-use: screenshots, mouse/keyboard control, element locating",
+  },
+  {
+    id: "computer-use-linux",
+    name: "Computer-Use Linux (AT-SPI)",
+    transport: "stdio",
+    command: "computer-use-linux",
+    args: ["--transport", "stdio"],
+    enabled: false,
+    description: "Linux desktop computer-use: AT-SPI accessibility tree, semantic selectors",
+  },
+  {
+    id: "fetchira",
+    name: "Fetchira (Search + Image Gen)",
+    transport: "stdio",
+    command: "fetchira",
+    args: ["mcp"],
+    enabled: false,
+    description: "Search / deep research / image generation / browser automation",
+  },
+];
+
 type McpStatusEvent = {
   serverId: string;
   status: McpServerInfo["status"];
@@ -21,8 +62,10 @@ type McpStore = {
   servers: McpServerInfo[];
   loaded: boolean;
   busy: Record<string, boolean>;
+  presets: McpPreset[];
   refresh: () => Promise<void>;
   add: (config: McpServerConfig) => Promise<void>;
+  addPreset: (preset: McpPreset) => Promise<void>;
   remove: (id: string) => Promise<void>;
   connect: (id: string, root?: string | null) => Promise<void>;
   disconnect: (id: string) => Promise<void>;
@@ -34,6 +77,7 @@ export const useMcpStore = create<McpStore>((set, get) => ({
   servers: [],
   loaded: false,
   busy: {},
+  presets: MCP_PRESETS,
 
   refresh: async () => {
     const servers = await mcpServerList();
@@ -43,6 +87,16 @@ export const useMcpStore = create<McpStore>((set, get) => ({
   add: async (config) => {
     await mcpServerAdd(config);
     await get().refresh();
+  },
+
+  addPreset: async (preset) => {
+    await get().add({
+      id: preset.id,
+      name: preset.name,
+      transport: preset.transport,
+      command: preset.command,
+      args: preset.args,
+    } as unknown as McpServerConfig);
   },
 
   remove: async (id) => {

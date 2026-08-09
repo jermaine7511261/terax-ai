@@ -1,7 +1,7 @@
 //! Debug Adapter Protocol (DAP) adapter registry.
 //!
 //! Maps a file (by extension + ancestor root markers) to a concrete debug
-//! adapter binary. Modeled on oh-my-pi `dap/config.ts` and Theia's
+//! adapter binary. Modeled on  `dap/config.ts` and Theia's
 //! `DebugAdapterContribution`. Adapters are a small static registry (not
 //! hardcoded per-file glue); new runtimes add one `DapAdapterDef`.
 

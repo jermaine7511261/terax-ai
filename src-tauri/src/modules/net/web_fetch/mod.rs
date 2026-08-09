@@ -1,5 +1,5 @@
 //! `web_fetch` — client-side URL fetching with HTML-to-markdown conversion
-//! and SSRF protection. Ported from Grok grok-build `web_fetch` tool.
+//! and SSRF protection. Ported from  -build `web_fetch` tool.
 //!
 //! Fetches a URL via `reqwest`, converts HTML to markdown via `htmd`,
 //! enforces SSRF + domain allowlist, and returns content to the model.

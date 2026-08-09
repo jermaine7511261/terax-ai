@@ -43,7 +43,7 @@ export function AgentSwitcher() {
   void customAgents; // keeps the store subscription alive
 
   // P1-0: the primary picker only offers non-hidden, non-subagent-only agents
-  // (opencode mode/hidden semantics). The active agent stays selectable even
+  // ( mode/hidden semantics). The active agent stays selectable even
   // if it's subagent-only, so the trigger always has a valid current value.
   const active = list.find((a) => a.id === activeId) ?? list[0];
   const visible = selectablePrimaryAgents(list);

@@ -22,10 +22,10 @@ function errText(e: unknown): string {
 
 const TYPE_KEYS = Object.keys(SUBAGENTS) as [SubagentType, ...SubagentType[]];
 
-/** Parallel worker cap (hermes/grok concurrency limit). */
+/** Parallel worker cap (/ concurrency limit). */
 export const MAX_PARALLEL_WORKERS = 4;
 
-/** Per-worker step budget for delegate_many (hermes 父/子 budget缩小版). */
+/** Per-worker step budget for delegate_many ( 父/子 budget缩小版). */
 const WORKER_STEP_BUDGET = 8;
 
 export type DelegateWorkerResult = {
@@ -36,6 +36,11 @@ export type DelegateWorkerResult = {
   error?: string;
   stepCount: number;
   durationMs: number;
+  /** True when the worker was force-killed by the outer timeout and the
+   *  summary only reflects progress made up to that point. */
+  partial?: boolean;
+  /** Last completed step label, for diagnosis on failure. */
+  lastStep?: string | null;
 };
 
 export type DelegateManyResult = {
@@ -109,7 +114,7 @@ Parallelism is capped at ${MAX_PARALLEL_WORKERS} workers; deeper nesting (beyond
 
         // P2-2 parentID session tree: this fan-out is materialized as a real
         // sub-session under the current main session, so the worker tree is
-        // visible/selectable in the session bar (opencode parentID semantics).
+        // visible/selectable in the session bar ( parentID semantics).
         const currentSessionId = chatStore.activeSessionId;
         const subSessionId = currentSessionId
           ? chatStore.createSubSession(
@@ -136,7 +141,7 @@ Parallelism is capped at ${MAX_PARALLEL_WORKERS} workers; deeper nesting (beyond
           };
         }
 
-        // Per-fan-out budget (hermes 子预算): refund on failure.
+        // Per-fan-out budget ( 子预算): refund on failure.
         const budget = createBudget({ max: WORKER_STEP_BUDGET });
         setActiveBudget(budget);
 
@@ -199,7 +204,7 @@ type WorkerCtx = {
   parentId?: string;
 };
 
-/** Per-worker wall-clock cap (hermes worker timeout): a stuck subagent must
+/** Per-worker wall-clock cap ( worker timeout): a stuck subagent must
  *  not hang the whole fan-out wave. Generous vs. SUBAGENT_TOTAL_TIMEOUT_MS
  *  plus tool round-trips. */
 const WORKER_TIMEOUT_MS = 7 * 60 * 1000;
@@ -208,10 +213,15 @@ async function runWorker(
   t: { type: SubagentType; prompt: string; context?: string },
   wc: WorkerCtx,
 ): Promise<DelegateWorkerResult> {
+  // Accumulate completed-step labels so a timeout/failure surfaces the work
+  // the worker actually did instead of an opaque error (partial-result
+  // transparency: 7 minutes of progress is not discarded).
+  const progress: string[] = [];
+  const inner = runWorkerInner(t, wc, progress);
   // Outer timeout: even if runSubagent's internal timeouts are misconfigured
   // or a tool never resolves, the wave always completes.
   return Promise.race([
-    runWorkerInner(t, wc),
+    inner,
     new Promise<DelegateWorkerResult>((resolve) => {
       setTimeout(
         () =>
@@ -219,10 +229,15 @@ async function runWorker(
             type: t.type,
             prompt: t.prompt,
             ok: false,
-            summary: "",
+            summary:
+              progress.length > 0
+                ? `partial progress (${progress.length} steps): ${progress.join(" → ")}`
+                : "no steps completed before timeout",
             error: "worker timed out",
-            stepCount: 0,
+            stepCount: progress.length,
             durationMs: 0,
+            partial: true,
+            lastStep: progress[progress.length - 1] ?? null,
           }),
         WORKER_TIMEOUT_MS,
       );
@@ -233,6 +248,7 @@ async function runWorker(
 async function runWorkerInner(
   t: { type: SubagentType; prompt: string; context?: string },
   wc: WorkerCtx,
+  progress: string[],
 ): Promise<DelegateWorkerResult> {
   if (!tryConsumeStep()) {
     // Do NOT refund here: consume() failed, so the budget wasn't taken. A
@@ -273,7 +289,10 @@ async function runWorkerInner(
       toolContext: wc.ctx,
       depth: wc.depth + 1,
       parentId: actId,
-      onStep: (label) => wc.store.updateStep(actId, label),
+      onStep: (label) => {
+        progress.push(label);
+        wc.store.updateStep(actId, label);
+      },
     });
     wc.store.finish(actId, r.summary, r.stepCount);
     return {
@@ -293,8 +312,9 @@ async function runWorkerInner(
       ok: false,
       summary: "",
       error: errText(e),
-      stepCount: 0,
+      stepCount: progress.length,
       durationMs: 0,
+      lastStep: progress[progress.length - 1] ?? null,
     };
   }
 }

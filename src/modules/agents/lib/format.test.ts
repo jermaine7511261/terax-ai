@@ -6,7 +6,7 @@ describe("displayAgent", () => {
     expect(displayAgent("claude")).toBe("Claude Code");
     expect(displayAgent("codex")).toBe("Codex");
     expect(displayAgent("gemini")).toBe("Gemini");
-    expect(displayAgent("opencode")).toBe("OpenCode");
+    expect(displayAgent("")).toBe("");
   });
 
   it("is case-insensitive for known agents", () => {

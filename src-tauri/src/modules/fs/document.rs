@@ -18,7 +18,7 @@ use crate::modules::fs::file::ReadResult;
 
 /// Cap on the decompressed size of any single XML entry (zip-bomb guard).
 const MAX_XML_ENTRY_BYTES: u64 = 64 * 1024 * 1024;
-/// Cap on a single PDF's bytes (mirrors Grok).
+/// Cap on a single PDF's bytes (mirrors ).
 const MAX_PDF_BYTES: usize = 50 * 1024 * 1024;
 /// Cap on any single Office document (zip) input.
 const MAX_OFFICE_BYTES: usize = 50 * 1024 * 1024;
@@ -132,7 +132,7 @@ fn extract_legacy_text(bytes: &[u8], dtype: DocType) -> Option<String> {
 // ───────────────────────────────────────────────────────────────────────────
 
 /// Extract plain text from PPTX bytes: slide texts with `--- Slide N ---`
-/// headers and `Speaker Notes:` sections. Ported from Grok.
+/// headers and `Speaker Notes:` sections. Ported from .
 pub fn extract_pptx_text(bytes: &[u8]) -> Option<String> {
     let mut archive = zip::ZipArchive::new(Cursor::new(bytes)).ok()?;
 
@@ -230,7 +230,7 @@ fn extract_drawingml_text(xml: &str) -> Result<String, String> {
 }
 
 // ───────────────────────────────────────────────────────────────────────────
-// PDF (ported from Grok pdf.rs — text extraction only, no rendering)
+// PDF (ported from  pdf.rs — text extraction only, no rendering)
 // ───────────────────────────────────────────────────────────────────────────
 
 /// Extract text from a PDF using pdf_oxide.

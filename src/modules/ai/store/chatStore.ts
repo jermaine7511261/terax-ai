@@ -64,7 +64,7 @@ export type AgentMeta = {
   hitStepCap: boolean;
   /** Loop phase (P1-1): think-act-observe visibility. */
   phase: "thinking" | "calling" | "observing" | "done" | null;
-  /** Doom-loop detected (opencode): same tool+args repeated. */
+  /** Doom-loop detected (): same tool+args repeated. */
   doomLoopDetected: boolean;
   /** S1 doom-loop recovery advice (escalating severity + steering message). */
   doomRecovery: {
@@ -509,15 +509,15 @@ export const useChatStore = create<StoreState>((set, get) => ({
       updatedAt: now,
       parentId,
     };
+    // Materialize the sub-session in the tree WITHOUT hijacking the active
+    // conversation: a mid-run fan-out (delegate_many) creates this while the
+    // parent is still streaming, so switching activeSessionId here yanks the
+    // user out of the session they are watching into an empty child. The child
+    // stays visible/selectable in the session bar and scopes the workers'
+    // todos/memory via `getSessionId` regardless of which session is active.
     const next = [meta, ...get().sessions];
-    set({
-      sessions: next,
-      activeSessionId: id,
-      agentMeta: IDLE_META,
-      sessionApprovalArmed: false,
-    });
+    set({ sessions: next });
     void saveSessionsList(next);
-    void saveActiveId(id);
     return id;
   },
 

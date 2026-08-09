@@ -7,7 +7,7 @@ function settleId(): string {
 }
 
 /**
- * Auto-settle (P1-4, hermes `on_turn_complete`): at the end of a turn that
+ * Auto-settle (P1-4,  `on_turn_complete`): at the end of a turn that
  * actually did work (tool calls / edits), distill the final assistant summary
  * into a reusable project-memory note tagged `source:"auto"`, WITHOUT the agent
  * having to call update_project_memory explicitly.

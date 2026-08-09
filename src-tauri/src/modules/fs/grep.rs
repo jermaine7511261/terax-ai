@@ -73,6 +73,7 @@ fn search_tree(
     matcher: &RegexMatcher,
     globs: &Option<GlobSet>,
     cap: usize,
+    skip: usize,
     cancel: &(dyn Fn() -> bool + Sync),
 ) -> GrepResponse {
     let walker = WalkBuilder::new(root_path)
@@ -88,6 +89,10 @@ fn search_tree(
     let hits: Arc<Mutex<Vec<GrepHit>>> = Arc::new(Mutex::new(Vec::new()));
     let scanned = Arc::new(AtomicUsize::new(0));
     let truncated = Arc::new(AtomicBool::new(false));
+    // Global match counter so a page offset skips deterministically regardless
+    // of which worker thread finds a given match (walk order is stable for a
+    // given tree).
+    let skipped = Arc::new(AtomicUsize::new(0));
 
     walker.run(|| {
         let matcher = matcher.clone();
@@ -95,6 +100,7 @@ fn search_tree(
         let hits = hits.clone();
         let scanned = scanned.clone();
         let truncated = truncated.clone();
+        let skipped = skipped.clone();
         let root_path = root_path.to_path_buf();
         let root_display = root_display.to_string();
         let workspace = workspace.clone();
@@ -140,6 +146,12 @@ fn search_tree(
                 path,
                 UTF8(|line_num, text| {
                     let line_text = text.trim_end_matches('\n').to_string();
+                    // Page offset: skip the first `skip` global matches so a
+                    // caller can resume from a previous `next_offset`.
+                    let seen = skipped.fetch_add(1, Ordering::Relaxed);
+                    if seen < skip {
+                        return Ok(true);
+                    }
                     let mut guard = hits.lock().unwrap_or_else(|e| e.into_inner());
                     if guard.len() >= cap {
                         truncated.store(true, Ordering::Relaxed);
@@ -178,6 +190,7 @@ pub async fn fs_grep(
     glob: Option<Vec<String>>,
     case_insensitive: Option<bool>,
     max_results: Option<usize>,
+    offset: Option<usize>,
     workspace: Option<WorkspaceEnv>,
     source: Option<String>,
     app: tauri::AppHandle,
@@ -190,6 +203,7 @@ pub async fn fs_grep(
             glob,
             case_insensitive,
             max_results,
+            offset,
             workspace,
             source,
             Some(&registry),
@@ -208,6 +222,7 @@ pub fn fs_grep_impl(
     glob: Option<Vec<String>>,
     case_insensitive: Option<bool>,
     max_results: Option<usize>,
+    offset: Option<usize>,
     workspace: Option<WorkspaceEnv>,
     source: Option<String>,
     registry: Option<&crate::modules::workspace::WorkspaceRegistry>,
@@ -229,6 +244,7 @@ pub fn fs_grep_impl(
     let cap = max_results
         .unwrap_or(DEFAULT_MAX_RESULTS)
         .clamp(1, HARD_MAX_RESULTS);
+    let skip = offset.unwrap_or(0);
 
     let matcher = RegexMatcherBuilder::new()
         .case_insensitive(case_insensitive.unwrap_or(false))
@@ -245,6 +261,7 @@ pub fn fs_grep_impl(
         &matcher,
         &globs,
         cap,
+        skip,
         &|| false,
     ))
 }
@@ -289,6 +306,7 @@ pub async fn fs_grep_interactive(
             &matcher,
             &None,
             cap,
+            0,
             &cancel,
         ))
     })
@@ -431,11 +449,11 @@ mod tests {
         let ws = WorkspaceEnv::from_option(None);
         let root_display = dir.path().to_string_lossy().to_string();
 
-        let live = search_tree(dir.path(), &root_display, &ws, &matcher, &None, 100, &|| false);
+        let live = search_tree(dir.path(), &root_display, &ws, &matcher, &None, 100, 0, &|| false);
         assert_eq!(live.hits.len(), 1, "uncancelled search finds the match");
 
         let stopped =
-            search_tree(dir.path(), &root_display, &ws, &matcher, &None, 100, &|| true);
+            search_tree(dir.path(), &root_display, &ws, &matcher, &None, 100, 0, &|| true);
         assert!(stopped.hits.is_empty(), "cancelled search yields nothing");
     }
 }

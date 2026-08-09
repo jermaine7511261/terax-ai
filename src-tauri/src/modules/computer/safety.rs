@@ -89,7 +89,7 @@ pub fn budget_exceeded(actions_used: u32, max: u32) -> bool {
     actions_used >= max
 }
 
-/// Vision routing (hermes `should_route_capture_to_aux_vision`, fail-closed):
+/// Vision routing ( `should_route_capture_to_aux_vision`, fail-closed):
 /// when the main model has no vision, an aux vision call is REQUIRED; when the
 /// main model is vision-capable it may describe directly. Returns whether to
 /// route to the aux vision pipeline.

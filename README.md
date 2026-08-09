@@ -1,6 +1,6 @@
 <div align="center">
-  <img src="public/logo.png" width="144" height="144" alt="Yamet" />
-  <h1>Yamet</h1>
+  <img src="public/logo.png" width="144" height="144" alt="YaMet" />
+  <h1>YaMet</h1>
 
   <p><strong>轻量级、终端优先的 AI 原生开发工作台。</strong></p>
 
@@ -11,7 +11,7 @@
 
 ---
 
-Yamet 是一个开源、轻量的终端（ADE，agentic development environment），基于 Tauri 2 + Rust 与 React 19 构建。原生 PTY 后端配合 WebGL 渲染器，内置可接自有密钥或完全本地模型的 agentic AI 侧面板，以及代码编辑器、文件浏览器、带 git 图的源码管理、网页预览面板。磁盘占用约 7-8 MB。无遥测、无账号。
+YaMet 是一个开源、轻量的终端（ADE，agentic development environment），基于 Tauri 2 + Rust 与 React 19 构建。原生 PTY 后端配合 WebGL 渲染器，内置可接自有密钥或完全本地模型的 agentic AI 侧面板，以及代码编辑器、文件浏览器、带 git 图的源码管理、网页预览面板。磁盘占用约 7-8 MB。无遥测、无账号。
 
 ## 截图
 
@@ -84,13 +84,13 @@ Yamet 是一个开源、轻量的终端（ADE，agentic development environment�
 
 ## 安装
 
-从源码构建（见下文），或从已发布的 [Releases](https://github.com/your-org/yamet/releases/latest) 页下载最新安装包。Yamet 会从该处自动更新。
+从源码构建（见下文），或从已发布的 [Releases](https://github.com/your-org/yamet/releases/latest) 页下载最新安装包。YaMet 会从该处自动更新。
 
 > **发布链路说明**：自动更新依赖 `src-tauri/tauri.conf.json` 的 updater 端点 `https://api.github.com/repos/{owner}/{repo}/releases/latest`，其中的 `{owner}/{repo}` 由 GitHub Actions 发布时解析为实际仓库。fork 本项目并在 `.github/workflows/release.yml` 触发发布前，请把此处（以及下方 Nix/AUR 引用中的 `your-org`）替换为你的真实仓库名；否则自动更新端点无效。
 
 ### Windows 说明
 
-- 首次启动时 Windows 会显示"已保护你的电脑"，因为 Yamet 尚未代码签名。点击**更多信息**后选择**仍要运行**。
+- 首次启动时 Windows 会显示"已保护你的电脑"，因为 YaMet 尚未代码签名。点击**更多信息**后选择**仍要运行**。
 - 默认 shell 检测顺序：`pwsh.exe`（PowerShell 7+）→ `powershell.exe`（Windows PowerShell 5.1）→ `cmd.exe`。
 - WSL 是一等公民的工作区环境，而非包装后的子进程。
 
@@ -103,7 +103,7 @@ Yamet 是一个开源、轻量的终端（ADE，agentic development environment�
 ## 配置 AI
 
 1. 打开**设置 → 模型**。
-2. 选择提供商并粘贴 API 密钥。本地推理则将 Yamet 指向你的 LM Studio / MLX / Ollama 端点。
+2. 选择提供商并粘贴 API 密钥。本地推理则将 YaMet 指向你的 LM Studio / MLX / Ollama 端点。
 3. 密钥经 `keyring` 写入操作系统钥匙串，永不着盘或进 localStorage。
 
 ## 排障
@@ -151,4 +151,4 @@ Windows 构建使用 [SignPath.io](https://signpath.io) 提供的免费代码签
 
 ## 许可证
 
-Yamet 采用 MIT 许可证。协议全文见 [LICENSE](LICENSE)。
+YaMet 采用 MIT 许可证。协议全文见 [LICENSE](LICENSE)。

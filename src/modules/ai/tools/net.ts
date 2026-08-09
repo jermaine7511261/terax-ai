@@ -4,7 +4,7 @@ import { native } from "../lib/native";
 import type { ToolContext } from "./context";
 
 /**
- * Network tools (ported from Grok grok-build web_fetch / web_search).
+ * Network tools (ported from  -build web_fetch / web_search).
  *
  * - `fetch_url`: read a single URL, convert HTML→markdown, enforce SSRF +
  *   domain allowlist on the Rust side. Read-only; no write path.
@@ -68,7 +68,7 @@ export function buildNetTools(_ctx: ToolContext) {
 
     web_search: tool({
       description:
-        "Search the web (free, no API key) and return up to `max_results` results as `{title, url, snippet}`. Uses DuckDuckGo. Use this when you don't know the URL and need to discover pages, then call fetch_url to read the most relevant result. Returns an empty `results` array when nothing is found.",
+        "Search the web (free, no API key) and return up to `max_results` results as `{title, url, snippet}`. Uses DuckDuckGo. Use this when you don't know the URL and need to discover pages, then call fetch_url to read the most relevant result. Returns an empty `results` array when nothing is found. Optionally restrict to an ISO date window with `date_from`/`date_to` (e.g. '2026-08-01') for time-sensitive questions.",
       inputSchema: z.object({
         query: z.string().describe("Search query, e.g. 'rust async book'"),
         max_results: z
@@ -78,8 +78,20 @@ export function buildNetTools(_ctx: ToolContext) {
           .max(10)
           .optional()
           .describe("Maximum results to return (default 5, max 10)."),
+        date_from: z
+          .string()
+          .optional()
+          .describe(
+            "Optional ISO date (YYYY-MM-DD); only results published on/after this date.",
+          ),
+        date_to: z
+          .string()
+          .optional()
+          .describe(
+            "Optional ISO date (YYYY-MM-DD); only results published on/before this date.",
+          ),
       }),
-      execute: async ({ query, max_results }) => {
+      execute: async ({ query, max_results, date_from, date_to }) => {
         if (!query?.trim()) {
           return { error: "query is required" };
         }
@@ -88,6 +100,8 @@ export function buildNetTools(_ctx: ToolContext) {
           const res = await native.webSearch({
             query,
             maxResults: max_results ?? 5,
+            dateFrom: date_from ?? null,
+            dateTo: date_to ?? null,
           });
           if (!res.ok) {
             return { error: res.error ?? "search failed" };

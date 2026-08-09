@@ -449,5 +449,142 @@ export function checkShellCommand(cmd: string): SafetyResult {
         "Refused: piping a network download directly into a shell is blocked. Download first, inspect, then run.",
     };
   }
+  // Reverse shells / interactive backdoors — always malicious. `/dev/tcp/`
+  // (and `/dev/udp/`) is a bash network virtual device used almost exclusively
+  // for reverse shells, so its presence alone is flagged.
+  if (
+    /\/dev\/(tcp|udp)\//.test(c) ||
+    (/\b(nc|ncat|socat)\b/.test(c) &&
+      /-e\s+\S*\/(ba|z|k|d|fi|c)?sh\b/.test(c))
+  ) {
+    return { ok: false, reason: "Refused: reverse-shell pattern detected." };
+  }
+  // Arbitrary-code execution primitives (Python/Node embedded in the command):
+  // os.system / os.popen / subprocess.* / shutil.rmtree / eval() / exec().
+  if (
+    /\b(os\.system|os\.popen|subprocess\.(run|Popen|call|check_call|check_output)|shutil\.rmtree)\s*\(/i.test(
+      c,
+    ) ||
+    /\b(eval|exec)\s*\(/i.test(c)
+  ) {
+    return {
+      ok: false,
+      reason:
+        "Refused: arbitrary-code execution pattern (os.system/eval/exec/rmtree) detected.",
+    };
+  }
+  // Process-tree escape: nohup/setsid detach the child from the process group
+  // the timeout-kill relies on — the intended path is bash_background.
+  if (/\b(nohup|setsid|disown)\b/.test(c)) {
+    return {
+      ok: false,
+      reason:
+        "Refused: process-detachment (nohup/setsid) is not allowed here — use bash_background for long-running processes.",
+    };
+  }
   return { ok: true };
+}
+
+export type EnvCheckResult = { ok: true } | { ok: false; reason: string };
+
+/**
+ * Keys an AI-provided env map may set. Preloading a library/interpreter flag
+ * (`LD_PRELOAD`, `DYLD_INSERT_LIBRARIES`, `NODE_OPTIONS`, `PYTHONPATH`, …)
+ * would let the model hijack the spawned process, so anything outside this
+ * allowlist — or on the hard deny list — is refused outright.
+ */
+export const ENV_KEY_ALLOWLIST: ReadonlySet<string> = new Set([
+  // Locale / TTY — harmless and occasionally needed.
+  "LANG",
+  "LC_ALL",
+  "LC_CTYPE",
+  "LC_MESSAGES",
+  "LC_TIME",
+  "LC_NUMERIC",
+  "LC_COLLATE",
+  "LC_MONETARY",
+  "LC_PAPER",
+  "LC_NAME",
+  "LC_ADDRESS",
+  "LC_TELEPHONE",
+  "LC_MEASUREMENT",
+  "LC_IDENTIFICATION",
+  "TERM",
+  "COLORTERM",
+  "HOME",
+  "TZ",
+  "CLICOLOR",
+  "FORCE_COLOR",
+  "NO_COLOR",
+  "GIT_TERMINAL_PROMPT",
+  "GIT_ASKPASS",
+  "CI",
+  "NODE_ENV",
+  "NODE_NO_WARNINGS",
+]);
+
+/** Hard-deny regardless of any allowlist ordering (defense in depth). */
+export const ENV_KEY_DENYLIST: ReadonlySet<string> = new Set([
+  "LD_PRELOAD",
+  "LD_LIBRARY_PATH",
+  "LD_DEBUG",
+  "DYLD_INSERT_LIBRARIES",
+  "DYLD_LIBRARY_PATH",
+  "DYLD_FORCE_FLAT_NAMESPACE",
+  "NODE_OPTIONS",
+  "NODE_PATH",
+  "PYTHONPATH",
+  "PYTHONHOME",
+  "RUBYLIB",
+  "GEM_HOME",
+  "PERL5LIB",
+  "JAVA_TOOL_OPTIONS",
+  "_JAVA_OPTIONS",
+  "JAVA_OPTS",
+  "CLASSPATH",
+  "BASH_ENV",
+  "ENV",
+  "PROMPT_COMMAND",
+  "PATH",
+  "PYTHONSTARTUP",
+]);
+
+/**
+ * Validate an AI-supplied environment map before it reaches a spawned
+ * process. Returns the filtered allowlisted map on success.
+ */
+export function checkEnvKeys(
+  env: Record<string, string> | undefined,
+): EnvCheckResult & { env?: Record<string, string> } {
+  if (!env || Object.keys(env).length === 0) {
+    return { ok: true, env: undefined };
+  }
+  const filtered: Record<string, string> = {};
+  for (const [key, value] of Object.entries(env)) {
+    const k = key.trim();
+    if (k.length === 0) {
+      return { ok: false, reason: "Refused: empty environment variable name." };
+    }
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(k)) {
+      return {
+        ok: false,
+        reason: `Refused: environment variable name "${k}" is not a valid identifier.`,
+      };
+    }
+    const upper = k.toUpperCase();
+    if (ENV_KEY_DENYLIST.has(upper)) {
+      return {
+        ok: false,
+        reason: `Refused: environment variable "${k}" is not allowed (could hijack the process).`,
+      };
+    }
+    if (!ENV_KEY_ALLOWLIST.has(upper)) {
+      return {
+        ok: false,
+        reason: `Refused: environment variable "${k}" is not in the allowlist.`,
+      };
+    }
+    filtered[k] = value;
+  }
+  return { ok: true, env: filtered };
 }

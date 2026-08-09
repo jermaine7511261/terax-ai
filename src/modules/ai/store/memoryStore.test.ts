@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  computeIdf,
   formatSessionMemory,
   getSessionMemory,
   recallScore,
   recallTop,
+  tfidfScore,
 } from "./memoryStore";
 
 function entry(content: string, id: string) {
@@ -96,5 +98,19 @@ describe("recallTop (P1-4 ranked recall)", () => {
   it("returns empty lines / query safely", () => {
     expect(recallTop([], "anything")).toEqual([]);
     expect(recallTop(lines, "")).toEqual([]);
+  });
+
+  it("TF-IDF ranks a denser match above a substring-only hit (P3-11)", () => {
+    const dense = "pnpm pnpm build the app";
+    const sparse = "we mention pnpm once";
+    const idf = computeIdf([dense, sparse], "pnpm");
+    expect(tfidfScore(dense, "pnpm", idf)).toBeGreaterThan(
+      tfidfScore(sparse, "pnpm", idf),
+    );
+  });
+
+  it("TF-IDF penalizes tokens common across lines (P3-11)", () => {
+    const idf = computeIdf(["pnpm build the app", "pnpm test the app"], "pnpm build");
+    expect((idf.get("build") ?? 0)).toBeGreaterThan(idf.get("pnpm") ?? 0);
   });
 });

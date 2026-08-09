@@ -2,28 +2,79 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ToolContext } from "./context";
 
-// todo.ts imports { newTodoId, validateTodos } from ../lib/todos (which pulls
-// in @tauri-apps/plugin-store) and the zustand todo store. Mock both so the
-// tool loads cleanly under vitest/node and persistence + id generation are
-// controlled by spies.
-const todosLib = vi.hoisted(() => ({
-  newTodoId: vi.fn(() => "t-generated"),
-  validateTodos: vi.fn(() => null),
-  loadTodos: vi.fn(),
-  saveTodos: vi.fn(),
-  deleteTodos: vi.fn(),
-}));
+// todo.ts imports from ../lib/todos (which pulls in @tauri-apps/plugin-store)
+// and the zustand todo store. Mock both so the tool loads cleanly under
+// vitest/node; pure helpers get real implementations, persistence + id
+// generation are controlled by spies.
+const todosLib = vi.hoisted(() => {
+  const getReadyItems = (todos) => {
+    const completed = new Set(
+      todos.filter((t) => t.status === "completed").map((t) => t.id),
+    );
+    const existing = new Set(todos.map((t) => t.id));
+    return todos.filter(
+      (t) =>
+        t.status === "pending" &&
+        (t.dependencies ?? []).every(
+          (id) => completed.has(id) || !existing.has(id),
+        ),
+    );
+  };
+  return {
+    newTodoId: vi.fn(() => "t-generated"),
+    validateTodos: vi.fn(() => null),
+    loadTodos: vi.fn(),
+    saveTodos: vi.fn(),
+    deleteTodos: vi.fn(),
+    getTodos: vi.fn(() => []),
+    getReadyItems,
+    applyTodoPatches: (existing, patches) => {
+      const byId = new Map(existing.map((t) => [t.id, { ...t }]));
+      const order = existing.map((t) => t.id);
+      for (const p of patches) {
+        const cur = byId.get(p.id);
+        if (cur) {
+          if (p.status !== undefined) cur.status = p.status;
+          if (p.title !== undefined) cur.title = p.title;
+          if (p.description !== undefined) cur.description = p.description;
+        } else {
+          byId.set(p.id, {
+            id: p.id,
+            title: p.title ?? p.id,
+            status: p.status ?? "pending",
+            description: p.description,
+          });
+          order.push(p.id);
+        }
+      }
+      return order
+        .map((id) => byId.get(id))
+        .filter((t) => t !== undefined);
+    },
+    autoAdvanceReady: (todos) => {
+      if (todos.some((t) => t.status === "in_progress")) return todos;
+      const ready = getReadyItems(todos);
+      if (ready.length === 0) return todos;
+      const first = ready[0];
+      return todos.map((t) =>
+        t.id === first.id ? { ...t, status: "in_progress" } : t,
+      );
+    },
+  };
+});
 
 vi.mock("../lib/todos", () => todosLib);
 
 const todoStore = vi.hoisted(() => ({
   setTodos: vi.fn(),
+  getTodos: vi.fn(() => []),
   bySession: {},
   hydrated: new Set(),
 }));
 
 vi.mock("../store/todoStore", () => ({
   useTodosStore: { getState: () => todoStore },
+  getTodos: (...args) => todoStore.getTodos(...args),
 }));
 
 import { newTodoId, validateTodos } from "../lib/todos";
@@ -125,10 +176,10 @@ describe("todo_write execute", () => {
   it("reuses provided ids instead of generating new ones", async () => {
     const tool = buildTodoTools(makeContext()).todo_write;
     await tool.execute({
-      todos: [{ id: "keep-1", title: "a", status: "pending" }],
+      todos: [{ id: "keep-1", title: "a", status: "completed" }],
     });
     expect(todoStore.setTodos).toHaveBeenCalledWith("sess", [
-      { id: "keep-1", title: "a", description: undefined, status: "pending" },
+      { id: "keep-1", title: "a", description: undefined, status: "completed" },
     ]);
     expect(todosLib.newTodoId).not.toHaveBeenCalled();
   });
@@ -163,9 +214,50 @@ describe("todo_write execute", () => {
 
   it("calls validateTodos with the normalized list", async () => {
     const tool = buildTodoTools(makeContext()).todo_write;
-    await tool.execute({ todos: [{ title: "a", status: "pending" }] });
+    await tool.execute({ todos: [{ title: "a", status: "completed" }] });
     expect(validateTodos).toHaveBeenCalledWith([
-      { id: "t-generated", title: "a", description: undefined, status: "pending" },
+      { id: "t-generated", title: "a", description: undefined, status: "completed" },
     ]);
+  });
+
+  it("auto-advances the first ready item when nothing is in_progress", async () => {
+    const tool = buildTodoTools(makeContext()).todo_write;
+    const result = await tool.execute({
+      todos: [
+        { id: "a", title: "first", status: "pending" },
+        { id: "b", title: "second", status: "pending" },
+      ],
+    });
+    expect(result.inProgress).toBe("first");
+    expect(todoStore.setTodos).toHaveBeenCalledWith("sess", [
+      { id: "a", title: "first", description: undefined, status: "in_progress" },
+      { id: "b", title: "second", description: undefined, status: "pending" },
+    ]);
+  });
+
+  it("patches by id without replacing the list", async () => {
+    todoStore.getTodos.mockReturnValue([
+      { id: "a", title: "first", status: "in_progress" },
+      { id: "b", title: "second", status: "pending" },
+    ]);
+    const tool = buildTodoTools(makeContext()).todo_write;
+    const result = await tool.execute({
+      updates: [{ id: "a", status: "completed" }],
+    });
+    expect(result.ok).toBe(true);
+    // a completed + auto-advance promotes b.
+    expect(todoStore.setTodos).toHaveBeenCalledWith("sess", [
+      { id: "a", title: "first", description: undefined, status: "completed" },
+      { id: "b", title: "second", description: undefined, status: "in_progress" },
+    ]);
+  });
+
+  it("rejects a call with neither todos nor updates", async () => {
+    const tool = buildTodoTools(makeContext()).todo_write;
+    expect(schema.safeParse({}).success).toBe(false);
+    const result = await tool.execute({});
+    expect(result).toEqual({
+      error: "pass either `todos` (full list) or `updates` (patch)",
+    });
   });
 });

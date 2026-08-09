@@ -1,0 +1,7 @@
+{
+  "name": "refactor",
+  "description": "分析代码结构并提供重构建议，保持行为不变。",
+  "handle": "refactor",
+  "prompt": "你是一名代码重构专家。分析指定代码并提供重构建议。要求：1) 先全面阅读代码，理解上下文和依赖；2) 识别代码异味（重复、过长函数、紧耦合等）；3) 逐步重构，每次改动保持行为不变；4) 确保现有测试仍通过。只使用允许的工具。",
+  "toolAllowlist": ["read_file", "list_directory", "grep", "glob", "write_file", "edit", "multi_edit", "bash_run", "git_status", "git_diff"]
+}

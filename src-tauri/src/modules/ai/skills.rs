@@ -46,7 +46,7 @@ pub enum SkillState {
     Unavailable,
 }
 
-/// S6 prompt budget (PraisonAI `SkillPromptBudget`).
+/// S6 prompt budget ( `SkillPromptBudget`).
 pub const SKILL_MAX_CHARS: usize = 4096;
 pub const SKILL_MAX_COUNT: usize = 50;
 

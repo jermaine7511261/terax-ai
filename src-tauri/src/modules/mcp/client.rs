@@ -2,7 +2,7 @@
 //!
 //! Two transports:
 //!  - **stdio**: a child process speaking newline-delimited JSON-RPC 2.0 on
-//!    stdin/stdout (the Claude Code / LangBot standard shape). The child is
+//!    stdin/stdout (the Claude Code /  standard shape). The child is
 //!    spawned hidden (no console window), joined to a Windows Job Object so
 //!    dropping the client kills the whole process tree, and restarted on
 //!    demand up to `MAX_RECONNECTS` times with backoff.

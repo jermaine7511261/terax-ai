@@ -277,7 +277,7 @@ describe("agent meta", () => {
 // ═══════════════════════════════════════════════════════════════════════
 describe("hasKeyForModel", () => {
   it("returns true for a compat model regardless of keys", () => {
-    expect(hasKeyForModel("compat-opencode-go")).toBe(true);
+    expect(hasKeyForModel("compat--go")).toBe(true);
   });
 
   it("returns true for a key-requiring model when its key is set", () => {
@@ -315,14 +315,14 @@ describe("getActiveProviderKey", () => {
 
   it("returns the custom endpoint key for a compat model", () => {
     useChatStore.setState({
-      selectedModelId: "compat-opencode-go",
-      customEndpointKeys: { "opencode-go": "sk-compat" },
+      selectedModelId: "compat--go",
+      customEndpointKeys: { "-go": "sk-compat" },
     });
     expect(getActiveProviderKey()).toBe("sk-compat");
   });
 
   it("returns null for a compat model with no custom endpoint key", () => {
-    useChatStore.setState({ selectedModelId: "compat-opencode-go" });
+    useChatStore.setState({ selectedModelId: "compat--go" });
     expect(getActiveProviderKey()).toBeNull();
   });
 });
@@ -361,6 +361,7 @@ describe("chat cache", () => {
 describe("sub-session parentID tree", () => {
   it("createSubSession creates a child with parentId and independent id", () => {
     const parentId = useChatStore.getState().newSession();
+    const activeBefore = useChatStore.getState().activeSessionId;
     const childId = useChatStore.getState().createSubSession(parentId);
     const child = useChatStore
       .getState()
@@ -368,7 +369,10 @@ describe("sub-session parentID tree", () => {
     expect(child).toBeDefined();
     expect(child?.parentId).toBe(parentId);
     expect(child?.title).toBe("Sub task");
-    expect(useChatStore.getState().activeSessionId).toBe(childId);
+    // Must NOT hijack the active conversation: a mid-run sub-session (e.g.
+    // delegate_many fan-out) has to stay selectable in the session bar without
+    // yanking the main window away from the running session.
+    expect(useChatStore.getState().activeSessionId).toBe(activeBefore);
   });
 
   it("resolveRootSessionId walks the chain to the top root", () => {

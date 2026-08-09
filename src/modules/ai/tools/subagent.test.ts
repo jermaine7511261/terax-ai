@@ -181,6 +181,11 @@ describe("buildSubagentTools execute", () => {
 
     const result = await tool.execute({ type: "executor", prompt: "run" });
 
-    expect(result).toEqual({ error: "Error: boom", type: "executor" });
+    expect(result).toEqual({
+      error: "Error: boom",
+      type: "executor",
+      lastStep: null,
+      stepCount: 0,
+    });
   });
 });

@@ -132,6 +132,9 @@ export type Preferences = {
   editorTheme: EditorThemePref;
   editorFontSize: number;
   customInstructions: string;
+  /** R29 §3.2.2: ordered provider fallback chain (provider ids). Empty =
+   *  no explicit chain (runtime default order). */
+  providerFallbackChain: string[];
   autostart: boolean;
   restoreWindowState: boolean;
   autocompleteEnabled: boolean;
@@ -231,6 +234,7 @@ const KEY_DEFAULT_MODEL = "defaultModelId";
 const KEY_EDITOR_THEME = "editorTheme";
 const KEY_EDITOR_FONT_SIZE = "editorFontSize";
 const KEY_CUSTOM_INSTRUCTIONS = "customInstructions";
+const KEY_PROVIDER_FALLBACK_CHAIN = "providerFallbackChain";
 const KEY_AUTOSTART = "autostart";
 const KEY_RESTORE_WINDOW = "restoreWindowState";
 export type AutocompleteTrigger = "auto" | "manual";
@@ -338,6 +342,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   editorTheme: EDITOR_THEME_AUTO,
   editorFontSize: EDITOR_FONT_SIZE_DEFAULT,
   customInstructions: "",
+  providerFallbackChain: [],
   autostart: false,
   restoreWindowState: true,
   autocompleteEnabled: false,
@@ -465,6 +470,9 @@ export async function loadPreferences(): Promise<Preferences> {
     customInstructions:
       get<string>(KEY_CUSTOM_INSTRUCTIONS) ??
       DEFAULT_PREFERENCES.customInstructions,
+    providerFallbackChain:
+      get<string[]>(KEY_PROVIDER_FALLBACK_CHAIN) ??
+      DEFAULT_PREFERENCES.providerFallbackChain,
     autostart: get<boolean>(KEY_AUTOSTART) ?? DEFAULT_PREFERENCES.autostart,
     restoreWindowState:
       get<boolean>(KEY_RESTORE_WINDOW) ??
@@ -715,6 +723,10 @@ export async function setEditorFontSize(value: number): Promise<void> {
 
 export async function setCustomInstructions(value: string): Promise<void> {
   await writePref(KEY_CUSTOM_INSTRUCTIONS, value);
+}
+
+export async function setProviderFallbackChain(value: string[]): Promise<void> {
+  await writePref(KEY_PROVIDER_FALLBACK_CHAIN, value);
 }
 
 export async function setAutostart(value: boolean): Promise<void> {
@@ -974,6 +986,7 @@ export async function onPreferencesChange(
     [KEY_EDITOR_THEME]: "editorTheme",
     [KEY_EDITOR_FONT_SIZE]: "editorFontSize",
     [KEY_CUSTOM_INSTRUCTIONS]: "customInstructions",
+    [KEY_PROVIDER_FALLBACK_CHAIN]: "providerFallbackChain",
     [KEY_AUTOSTART]: "autostart",
     [KEY_RESTORE_WINDOW]: "restoreWindowState",
     [KEY_AUTOCOMPLETE_ENABLED]: "autocompleteEnabled",

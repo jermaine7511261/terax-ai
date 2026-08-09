@@ -52,6 +52,7 @@ import {
 } from "@/modules/ai/lib/keyring";
 import { useChatStore } from "@/modules/ai/store/chatStore";
 import { usePreferencesStore } from "@/modules/settings/preferences";
+import { ProviderFallbackChain } from "./ProviderFallbackChain";
 import {
   type AutocompleteTrigger,
   emitKeysChanged,
@@ -337,6 +338,8 @@ export function ModelsSection() {
         keys={keys}
         customEndpoints={customEndpoints}
       />
+
+      <ProviderFallbackChain />
 
       <VoiceBlock />
 

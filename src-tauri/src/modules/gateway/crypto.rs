@@ -3,7 +3,7 @@
 //! - AES-128-ECB (WeChat iLink CDN media)
 //! - HMAC-SHA256 / SHA-1 signature verification (callback auth)
 //!
-//! Mirrors Hermes `wecom_crypto.py` and `weixin.py` helpers.
+//! Mirrors  `wecom_crypto.py` and `weixin.py` helpers.
 
 use aes::cipher::{
     block_padding::Pkcs7, BlockDecrypt, BlockDecryptMut, BlockEncrypt, BlockEncryptMut, KeyInit,

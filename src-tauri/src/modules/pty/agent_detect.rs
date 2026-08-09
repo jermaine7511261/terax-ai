@@ -5,7 +5,7 @@ const ST_FINAL: u8 = b'\\';
 
 const OSC_MAX: usize = 2048;
 
-const DEFAULT_AGENTS: &[&str] = &["claude", "codex", "gemini", "pi", "opencode", "grok"];
+const DEFAULT_AGENTS: &[&str] = &["claude", "codex", "gemini", "pi", "", ""];
 
 // OSC 777 marker our agent hooks emit. Legacy 3-field `notify;Yamet;<event>`
 // (Claude) or 4-field `notify;Yamet;<agent>;<event>` (Codex/Gemini/Pi).
@@ -293,8 +293,8 @@ mod tests {
     }
 
     #[test]
-    fn arms_on_opencode_and_grok_commands() {
-        for agent in ["opencode", "grok"] {
+    fn arms_on__and__commands() {
+        for agent in ["", ""] {
             let mut d = AgentDetector::new();
             assert_eq!(
                 run(&mut d, &osc(&format!("133;C;{agent}"))),

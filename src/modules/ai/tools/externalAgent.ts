@@ -8,18 +8,18 @@ import type { ToolContext } from "./context";
 export type ExternalAgentId =
   | "claude"
   | "codex"
-  | "opencode"
+  | ""
   | "gemini"
   | "pi"
-  | "grok";
+  | "";
 
 const AGENT_LABELS: Record<ExternalAgentId, string> = {
   claude: "Claude Code",
   codex: "Codex",
-  opencode: "OpenCode",
+  : "",
   gemini: "Gemini CLI",
   pi: "Pi",
-  grok: "Grok",
+  : "",
 };
 
 /**
@@ -28,8 +28,8 @@ const AGENT_LABELS: Record<ExternalAgentId, string> = {
  * - Claude Code: `claude -p <prompt> --output-format text` — print mode skips
  *   the trust/permission dialogs, returns the result and exits.
  * - Codex: `codex exec <prompt>`.
- * - OpenCode: `opencode run <prompt>`.
- * - gemini/pi/grok: print via `-p` / `-q` as appropriate.
+ * - : ` run <prompt>`.
+ * - gemini/pi/: print via `-p` / `-q` as appropriate.
  *
  * The prompt is single-quoted so shell metacharacters inside it can't inject a
  * second command. The whole line is validated by checkShellCommand too.
@@ -48,8 +48,8 @@ export function buildExternalAgentCommand(
     case "codex":
       base = `codex exec ${quoted}`;
       break;
-    case "opencode":
-      base = `opencode run ${quoted}`;
+    case "":
+      base = ` run ${quoted}`;
       break;
     case "gemini":
       base = `gemini -p ${quoted}`;
@@ -57,8 +57,8 @@ export function buildExternalAgentCommand(
     case "pi":
       base = `pi -p ${quoted}`;
       break;
-    case "grok":
-      base = `grok -p ${quoted}`;
+    case "":
+      base = ` -p ${quoted}`;
       break;
   }
   return cwd ? `cd ${quoteShellArg(cwd)} && ${base}` : base;
@@ -96,10 +96,10 @@ export function buildExternalAgentTools(ctx: ToolContext) {
   return {
     run_external_agent: tool({
       description:
-        "Delegate a self-contained coding task to an external agent CLI (Claude Code, Codex, OpenCode, Gemini, Pi, or Grok). The CLI runs in non-interactive print mode in the given cwd; output is captured and returned when it exits. Use for large autonomous tasks (big refactors, multi-file features) better suited to a dedicated agent. Asks for approval. Prefer this over bash_run for long autonomous work; the subagent result comes back complete.",
+        "Delegate a self-contained coding task to an external agent CLI (Claude Code, Codex, , Gemini, Pi, or ). The CLI runs in non-interactive print mode in the given cwd; output is captured and returned when it exits. Use for large autonomous tasks (big refactors, multi-file features) better suited to a dedicated agent. Asks for approval. Prefer this over bash_run for long autonomous work; the subagent result comes back complete.",
       inputSchema: z.object({
         agent: z
-          .enum(["claude", "codex", "opencode", "gemini", "pi", "grok"])
+          .enum(["claude", "codex", "", "gemini", "pi", ""])
           .describe("The external agent CLI to run."),
         prompt: z
           .string()

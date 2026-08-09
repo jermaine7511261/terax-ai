@@ -2,7 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    // Standalone MCP server mode: `yamet __mcp_server` (★ L1 LangBot). Runs
+    // Standalone MCP server mode: `yamet __mcp_server` (★ L1). Runs
     // before the Tauri runtime so external agents (Claude Code etc.) can
     // spawn us as a stdio MCP server; `YAMET_MCP_CWD` overrides the workspace.
     let args: Vec<String> = std::env::args().collect();

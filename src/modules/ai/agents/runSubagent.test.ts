@@ -8,7 +8,7 @@ import { buildSearchTools } from "../tools/search";
 import { SUBAGENTS } from "./registry";
 import { DEFAULT_MODEL_ID } from "../config";
 import type { ToolContext } from "../tools/context";
-import { runSubagent, DEFAULT_SUBAGENT_MODEL } from "./runSubagent";
+import { runSubagent, DEFAULT_SUBAGENT_MODEL, SUBAGENT_SUMMARY_CAP } from "./runSubagent";
 
 // Mocks isolate the LLM call and the tool builders so we can assert on the
 // wiring (tool filtering / approval stripping / options passed to generateText).
@@ -195,7 +195,14 @@ describe("runSubagent options building", () => {
     expect(opts.system).toContain(SUBAGENTS["code-review"].systemPrompt);
     expect(opts.system).toContain("plain-text summary");
     expect(opts.prompt).toBe("review diff");
-    expect(opts.stopWhen).toEqual({ kind: "stepCount", max: 12 });
+    expect(opts.stopWhen).toEqual({ kind: "stepCount", max: 40 });
+  });
+
+  it("honors a per-call maxSteps override (R28 #1)", async () => {
+    await runSubagent(
+      baseArgs({ type: "general", maxSteps: 120 }),
+    );
+    expect(lastGenOpts().stopWhen).toEqual({ kind: "stepCount", max: 120 });
   });
 
   it("passes bounded retries and timeouts to generateText", async () => {
@@ -243,6 +250,33 @@ describe("runSubagent result shaping", () => {
     expect(result.summary).toBe("hello world");
     expect(result.stepCount).toBe(3);
     expect(result.durationMs).toBeGreaterThanOrEqual(0);
+  });
+
+  it("keeps structured JSON summaries intact even beyond the prose cap", async () => {
+    // deep_search researcher returns JSON that routinely exceeds 4KB; it must
+    // NOT be clipped or the downstream parser silently drops the whole phase.
+    const json =
+      '{"claims":[{"claim":"a","evidence":"b","source_title":"c","source_locator":"d"},' +
+      "{},".repeat(8000) +
+      "]}";
+    expect(json.length).toBeGreaterThan(SUBAGENT_SUMMARY_CAP);
+    vi.mocked(generateText).mockResolvedValue({ text: json, steps: [] } as never);
+
+    const result = await runSubagent(baseArgs({ type: "general" }));
+
+    expect(result.summary).toBe(json);
+    expect(result.truncated).toBe(false);
+  });
+
+  it("flags and boundary-cuts a long prose summary", async () => {
+    const prose = ("A complete finding with details. ").repeat(1000);
+    vi.mocked(generateText).mockResolvedValue({ text: prose, steps: [] } as never);
+
+    const result = await runSubagent(baseArgs({ type: "general" }));
+
+    expect(result.truncated).toBe(true);
+    expect(result.summary).toMatch(/…\[truncated\]$/);
+    expect(result.summary.length).toBeLessThanOrEqual(SUBAGENT_SUMMARY_CAP + 20);
   });
 
   it("falls back to '(no output)' when the model returns no text", async () => {

@@ -1,4 +1,4 @@
-//! Runtime-configurable parameters for the `web_fetch` tool (ported from Grok).
+//! Runtime-configurable parameters for the `web_fetch` tool (ported from ).
 
 use std::time::Duration;
 
@@ -73,7 +73,7 @@ impl WebFetchParams {
     }
 }
 
-/// Default allowlist for web_fetch (ported from Grok DEFAULT_ALLOWED_DOMAINS).
+/// Default allowlist for web_fetch (ported from  DEFAULT_ALLOWED_DOMAINS).
 /// GET-only preapproved developer-documentation domains.
 pub static DEFAULT_ALLOWED_DOMAINS: &[&str] = &[
     // xAI
@@ -150,4 +150,60 @@ pub static DEFAULT_ALLOWED_DOMAINS: &[&str] = &[
     // Other
     "git-scm.com",
     "nginx.org",
+    // Community Q&A (Stack Exchange network)
+    "stackoverflow.com",
+    "serverfault.com",
+    "superuser.com",
+    "askubuntu.com",
+    "stackexchange.com",
+    // Reddit
+    "reddit.com",
+    // Wikipedia (English + root; language subdomains share the same host shape)
+    "wikipedia.org",
+    "en.wikipedia.org",
+    "en.m.wikipedia.org",
+    // Academic / preprints
+    "arxiv.org",
+    "dl.acm.org",
+    "ieeexplore.ieee.org",
+    "scholar.google.com",
+    // Standards / RFCs
+    "datatracker.ietf.org",
+    "www.rfc-editor.org",
+    "rfc-editor.org",
+    "www.w3.org",
+    "w3.org",
+    "html.spec.whatwg.org",
+    "ecma-international.org",
+    // GitHub (issues / PRs / discussions / releases / gist / raw)
+    "github.com",
+    "gist.github.com",
+    "raw.githubusercontent.com",
+    "docs.github.com",
+    "github.blog",
+    // Blogs / articles
+    "medium.com",
+    "dev.to",
+    "freecodecamp.org",
+    "hackernoon.com",
+    "alexelcu.com",
+    // Package registries
+    "www.npmjs.com",
+    "registry.npmjs.org",
+    "crates.io",
+    "lib.rs",
+    "pypi.org",
+    "pub.dev",
+    "mvnrepository.com",
+    // Cloud docs commonly referenced
+    "cloud.google.com",
+    "cloud.ibm.com",
+    "docs.databricks.com",
+    "docs.snowflake.com",
+    "dev.mysql.com",
+    // Misc dev references
+    "gitlab.com",
+    "bitbucket.org",
+    "www.jetbrains.com",
+    "kotlinlang.org",
 ];

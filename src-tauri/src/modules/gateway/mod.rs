@@ -1,6 +1,6 @@
 //! Gateway core for the domestic IM platform adapters.
 //!
-//! Design mirrors Hermes' `gateway/platforms/base.py`:
+//! Design mirrors ' `gateway/platforms/base.py`:
 //! - a `PlatformAdapter` trait every platform implements,
 //! - a normalized `MessageEvent` model + session key routing,
 //! - a platform registry with lazy (feature-gated) loading.

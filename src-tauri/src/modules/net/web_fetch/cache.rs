@@ -1,5 +1,5 @@
 //! In-memory cache for self-contained text fetches with TTL expiry and eviction.
-//! Ported from Grok grok-build `web_fetch/cache.rs`.
+//! Ported from  -build `web_fetch/cache.rs`.
 
 use std::collections::HashMap;
 use std::time::{Duration, Instant};

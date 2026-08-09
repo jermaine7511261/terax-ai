@@ -39,9 +39,9 @@ pending buffer 上限 4 MiB；溢出时丢弃整段并替换为 SGR-reset 提示
 - bash 用 `bashrc.bash`
 - fish 用 `init.fish`，安装到 `~/.config/fish/conf.d/yamet.fish`
 
-zsh 以 `ZDOTDIR` 指向临时目录启动，先 source 我们的脚本再 source 用户真实配置。bash 用 `--rcfile` 包一层 wrapper，在 Yamet 的脚本之后 source 用户的 `~/.bashrc`。fish 用 `conf.d`，不替换任何用户文件。
+zsh 以 `ZDOTDIR` 指向临时目录启动，先 source 我们的脚本再 source 用户真实配置。bash 用 `--rcfile` 包一层 wrapper，在 YaMet 的脚本之后 source 用户的 `~/.bashrc`。fish 用 `conf.d`，不替换任何用户文件。
 
-所有集成 shell 都发出 **OSC 7**（cwd）与 **OSC 133 A/B/C/D**（提示符边界与退出码），让 Yamet 无需解析用户提示符即可跟踪 cwd 与命令边界。
+所有集成 shell 都发出 **OSC 7**（cwd）与 **OSC 133 A/B/C/D**（提示符边界与退出码），让 YaMet 无需解析用户提示符即可跟踪 cwd 与命令边界。
 
 ### Windows
 
@@ -61,7 +61,7 @@ profile 在 `$PROFILE` 运行后包装用户现有 `prompt` 函数，发出 OSC 
 
 ### Fish 4.0+
 
-Fish 4.0 自带 OSC 133 提示符标记。为避免重复，Yamet 设 `fish_features=no-mark-prompt`，并在 `config.fish` 运行后经 `-C` 重放自己的提示符。
+Fish 4.0 自带 OSC 133 提示符标记。为避免重复，YaMet 设 `fish_features=no-mark-prompt`，并在 `config.fish` 运行后经 `-C` 重放自己的提示符。
 
 ## Windows 上的并发与进程生命周期
 
@@ -71,7 +71,7 @@ Fish 4.0 自带 OSC 133 提示符标记。为避免重复，Yamet 设 `fish_feat
 
 ### 作业对象
 
-每个 ConPTY 子进程挂到带 `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` 的 Windows 作业对象（`job.rs:34`）。作业句柄释放时（干净关闭、panic、甚至 Yamet 进程被 SIGKILL），内核杀掉 shell 的所有后代。没有它，`TerminateProcess` 只杀直接子进程，pwsh 里启动的 `npm run dev` 会变孤儿。
+每个 ConPTY 子进程挂到带 `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` 的 Windows 作业对象（`job.rs:34`）。作业句柄释放时（干净关闭、panic、甚至 YaMet 进程被 SIGKILL），内核杀掉 shell 的所有后代。没有它，`TerminateProcess` 只杀直接子进程，pwsh 里启动的 `npm run dev` 会变孤儿。
 
 macOS 与 Linux 上，`Drop for Session` 调 `killer.kill()`。dev 下 `cargo run` 被 `Ctrl-C` 仍可能留孤儿，因为析构不一定执行；仅限开发可接受。
 

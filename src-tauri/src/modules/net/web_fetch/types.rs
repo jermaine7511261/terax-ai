@@ -1,7 +1,7 @@
-//! yamet web_fetch — ported from Grok grok-build `web_fetch` tool.
+//! yamet web_fetch — ported from  -build `web_fetch` tool.
 //!
 //! Fetches a URL with SSRF protection, domain allowlist, HTTPS upgrade,
-//! HTML→markdown conversion, caching, and content-type dispatch. The Grok
+//! HTML→markdown conversion, caching, and content-type dispatch. The 
 //! implementation has been adapted to yamet's types (plain structs + String
 //! errors instead of xai_tool_runtime::ToolError, no session-file system).
 
@@ -11,7 +11,7 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 
 // ───────────────────────────────────────────────────────────────────────────
-// Output (mirrors Grok WebFetchOutput, but plain + serde)
+// Output (mirrors  WebFetchOutput, but plain + serde)
 // ───────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -49,7 +49,7 @@ pub enum WebFetchOutput {
 }
 
 impl WebFetchOutput {
-    /// Render to a prompt-friendly string (mirrors Grok to_prompt_format).
+    /// Render to a prompt-friendly string (mirrors  to_prompt_format).
     pub fn to_prompt_format(&self) -> String {
         match self {
             Self::Content(c) => c.content.clone(),
@@ -76,7 +76,7 @@ impl WebFetchOutput {
 // Error
 // ───────────────────────────────────────────────────────────────────────────
 
-/// Mirrors Grok's `WebFetchError` (16 variants) mapped to a flat enum.
+/// Mirrors 's `WebFetchError` (16 variants) mapped to a flat enum.
 #[derive(Debug, Clone)]
 pub enum WebFetchError {
     UnsupportedScheme { scheme: String },
@@ -118,7 +118,7 @@ impl fmt::Display for WebFetchError {
             Self::InvalidUrl(e) => write!(f, "invalid URL: {e}"),
             Self::UrlTooLong { max } => write!(f, "URL exceeds {max} characters"),
             Self::SsrfBlocked { host, ip } => {
-                // Grok's smart hint: for github hosts with `gh` available, suggest gh CLI.
+                // 's smart hint: for github hosts with `gh` available, suggest gh CLI.
                 let mut msg = format!("blocked by SSRF policy: {host} resolves to private/local address {ip}");
                 if host.to_lowercase().contains("github") {
                     msg.push_str(

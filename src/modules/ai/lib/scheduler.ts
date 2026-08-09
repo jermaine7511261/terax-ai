@@ -1,7 +1,7 @@
 import { invoke } from "@/platform";
 
 /**
- * Cron scheduler frontend (★ H3 Hermes). Mirrors
+ * Cron scheduler frontend (★ H3). Mirrors
  * `src-tauri/src/modules/scheduler/mod.rs`: tasks carry a natural-language
  * prompt + a 5-field cron expression; the backend ticks every 30s and emits
  * `yamet:scheduler-fire` for the frontend to spawn the agent.

@@ -1,4 +1,4 @@
-//! Session key routing, mirroring Hermes `session.py`.
+//! Session key routing, mirroring  `session.py`.
 //! Key format: `agent:main:{platform}:{chat_type}:{chat_id}`.
 //!
 //! The router keeps recent active sessions in memory and persists the

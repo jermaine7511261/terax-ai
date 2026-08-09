@@ -10,7 +10,7 @@ import {
   type CustomEndpoint,
   DEFAULT_MODEL_ID,
   endpointIdFromCompatModel,
-  getModelContextLimit,
+  getEffectiveContextLimit,
   isCompatModelId,
   LLAMA_CPP_DEFAULT_BASE_URL,
   MAX_AGENT_STEPS,
@@ -331,7 +331,7 @@ function buildStableSystem(
     projectMemory && projectMemory.trim().length > 0
       ? `\n\n## PROJECT — YAMET.md\n${projectMemory.trim()}`
       : "";
-  // ★ H2 Hermes: periodic nudge — settle reusable findings into project
+  // ★ H2: periodic nudge — settle reusable findings into project
   // memory at task end so future sessions can recall them.
   const nudgeBlock = `\n\n## MEMORY NUDGE — when you finish a task and discovered reusable facts (decisions, conventions, gotchas), persist them via update_project_memory (source "auto" is only for the UI settle flow; use the default).`;
   return `${base}${memoryBlock}${nudgeBlock}${personaBlock}${customBlock}`;
@@ -358,7 +358,12 @@ export type RunAgentOptions = {
   keys: ProviderKeys;
   modelId?: string;
   customInstructions?: string;
-  agentPersona?: { name: string; instructions: string } | null;
+  agentPersona?: {
+    name: string;
+    instructions: string;
+    /** R28 #1: per-agent step cap (None = the global default). */
+    maxSteps?: number;
+  } | null;
   toolContext: ToolContext;
   onStep?: (step: string | null) => void;
   onUsage?: (delta: AgentUsageDelta) => void;
@@ -373,7 +378,7 @@ export type RunAgentOptions = {
   /** Loop phase visibility (P1-1): thinking/calling/observing/done. */
   onPhase?: (phase: "thinking" | "calling" | "observing" | "done") => void;
   /**
-   * Doom-loop detected (opencode): same tool+args repeated N times. Carries
+   * Doom-loop detected (): same tool+args repeated N times. Carries
    * the escalating recovery advice (S1) so the caller can steer the model.
    */
   onDoomLoop?: (info: {
@@ -401,10 +406,20 @@ export type RunAgentOptions = {
   abortSignal?: AbortSignal;
   /** Reasoning-effort thinking budget: "off" | "low" | "medium" | "high". */
   thinkingLength?: ThinkingLength;
+  /** R28 #1: explicit step cap override (None = persona's, then global default). */
+  maxSteps?: number;
 };
 
 export async function runAgentStream(opts: RunAgentOptions) {
   const modelId = opts.modelId ?? DEFAULT_MODEL_ID;
+  // Effective step cap: explicit override > selected agent's max_steps >
+  // the global default. No longer a hardcoded constant (R28 #1).
+  const maxSteps = Math.max(
+    1,
+    opts.maxSteps ??
+      opts.agentPersona?.maxSteps ??
+      MAX_AGENT_STEPS,
+  );
   const model = await buildConfiguredLanguageModel(modelId, opts.keys, {
     llamaCppBaseURL: opts.llamaCppBaseURL,
     llamaCppModelId: opts.llamaCppModelId,
@@ -432,14 +447,14 @@ export async function runAgentStream(opts: RunAgentOptions) {
     reasoning: keepsReasoning ? "none" : "before-last-message",
     emptyMessages: "remove",
   });
-  const compatCtxOverride = isCompatModelId(modelId)
-    ? endpoints.find((e) => e.id === endpointIdFromCompatModel(modelId))
-        ?.contextLimit
-    : opts.openaiCompatibleContextLimit;
-  const contextLimit = getModelContextLimit(modelId, compatCtxOverride);
+  const contextLimit = getEffectiveContextLimit(
+    modelId,
+    endpoints,
+    opts.openaiCompatibleContextLimit,
+  );
   // P2-1 four-quadrant: decouple "should I compress" from "what to compress"
   // with a debounce gate so churny near-threshold sessions don't re-compact
-  // every turn (hermes context_engine + context_compressor).
+  // every turn ( context_engine + context_compressor).
   const approxTokens = approxBytesModelMessages(prunedHistory) / 4;
   let compact: { messages: typeof prunedHistory; compacted: boolean; droppedCount: number };
   if (shouldCompress({ approxTokens, contextLimit }) && compressionDebouncer.shouldCompress()) {
@@ -497,7 +512,7 @@ export async function runAgentStream(opts: RunAgentOptions) {
     // stop condition here raced the tool-result fold-in and could end the stream
     // with an assistant tool-call that had no following tool message — which the
     // provider rejects on the next turn. `stepCountIs` alone is the safe cap.
-    stopWhen: stepCountIs(MAX_AGENT_STEPS),
+    stopWhen: stepCountIs(maxSteps),
     abortSignal: opts.abortSignal,
     providerOptions,
     onStepFinish: (step) => {
@@ -559,13 +574,13 @@ export async function runAgentStream(opts: RunAgentOptions) {
         (result as { finishReason?: string } | undefined)?.finishReason ?? "";
       // P1-4 marker isolation: scrub any echo of the injected memory block out
       // of the model's final reply, so the recalled-memory text can't be
-      // mistaken for user input on the next turn (hermes StreamingContextScrubber).
+      // mistaken for user input on the next turn ( StreamingContextScrubber).
       const rawText = (result as { text?: string }).text ?? "";
       const finalText = opts.projectMemory
         ? scrubMemoryEcho(rawText, opts.projectMemory)
         : rawText;
       opts.onFinishMeta?.({
-        hitStepCap: stepsSeen >= MAX_AGENT_STEPS,
+        hitStepCap: stepsSeen >= maxSteps,
         finishReason,
         // P1-4 auto-settle: the stream's final text is only available here, on
         // the transport's onFinish — the Chat store updates its messages AFTER

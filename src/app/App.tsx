@@ -35,6 +35,9 @@ const McpSidebarPanel = lazy(() =>
 const GatewaySidebarPanel = lazy(() =>
   import("@/modules/gateway").then((m) => ({ default: m.GatewaySidebarPanel })),
 );
+const AgentPanel = lazy(() =>
+  import("@/modules/ai/components/AgentPanel").then((m) => ({ default: m.AgentPanel })),
+);
 import {
   type AgentLaunchRequest,
   AgentNotificationsBridge,
@@ -1459,6 +1462,10 @@ export default function App() {
                     ) : sidebarView === "gateway" ? (
                       <Suspense fallback={null}>
                         <GatewaySidebarPanel />
+                      </Suspense>
+                    ) : sidebarView === "agents" ? (
+                      <Suspense fallback={null}>
+                        <AgentPanel />
                       </Suspense>
                     ) : (
                       <SourceControlPanel

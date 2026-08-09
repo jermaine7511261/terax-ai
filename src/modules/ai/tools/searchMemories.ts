@@ -8,7 +8,7 @@ import { getSessionMemory } from "../store/memoryStore";
 import type { ToolContext } from "./context";
 
 /**
- * Cross-session semantic recall (★ H1 Hermes: "search its own past
+ * Cross-session semantic recall (★ H1: "search its own past
  * conversations"). `search_memories(query)` matches recent chat sessions and
  * project memory entries, returning ranked snippets injected into context.
  *
@@ -117,13 +117,17 @@ export function buildSearchMemoriesTools(ctx: ToolContext) {
   return {
     search_memories: tool({
       description:
-        "Search past chat sessions and project memory for a query (cross-session recall, ★ H1 Hermes). Returns up to 8 ranked snippets with session titles and timestamps. Read-only, auto-executes — use it to recall how something was done before or to find a past decision.",
+        "Search past chat sessions and project memory for a query (cross-session recall, ★ H1). Returns up to 8 ranked snippets with session titles and timestamps. Read-only, auto-executes — use it to recall how something was done before or to find a past decision.",
       inputSchema: z.object({
         query: z
           .string()
           .describe("Search query — a phrase or keywords, e.g. 'how do we deploy'."),
+        mode: z
+          .enum(["vector", "fts", "hybrid"])
+          .optional()
+          .describe("搜索模式：vector（语义/关键词）、fts（全文 BM25）、hybrid（混合，默认）"),
       }),
-      execute: async ({ query }) => {
+      execute: async ({ query, mode }) => {
         const q = query.trim();
         if (!q) return { error: "empty query", results: [] };
 
@@ -185,7 +189,71 @@ export function buildSearchMemoriesTools(ctx: ToolContext) {
           // Session store unavailable — memory entries still searched.
         }
 
-        const results = searchEntries(entries, q);
+
+        // §3.5.2 FTS mode: use Rust BM25 full-text search when requested.
+        const searchMode = mode ?? "hybrid";
+        let results: SearchResult[];
+
+        if (searchMode === "fts") {
+          // Pure FTS: build corpus from entries and call Rust BM25.
+          const corpus = entries.map((e, i) => ({
+            id: String(i),
+            text: e.text,
+          }));
+          if (corpus.length > 0) {
+            const ftsHits = await native.memoryFtsSearch({ corpus, query: q, limit: MAX_RESULTS });
+            results = ftsHits.map((hit) => {
+              const idx = parseInt(hit.id, 10);
+              const entry = entries[idx];
+              return {
+                kind: entry?.kind ?? "memory",
+                title: entry?.title ?? hit.id,
+                time: entry?.time ?? 0,
+                snippet: hit.snippet,
+                score: hit.score,
+              };
+            });
+          } else {
+            results = [];
+          }
+        } else if (searchMode === "hybrid") {
+          // Hybrid: combine lexical + FTS scores.
+          const lexicalResults = searchEntries(entries, q);
+          const corpus = entries.map((e, i) => ({
+            id: String(i),
+            text: e.text,
+          }));
+          let ftsResults: SearchResult[] = [];
+          if (corpus.length > 0) {
+            const ftsHits = await native.memoryFtsSearch({ corpus, query: q, limit: MAX_RESULTS });
+            ftsResults = ftsHits.map((hit) => {
+              const idx = parseInt(hit.id, 10);
+              const entry = entries[idx];
+              return {
+                kind: entry?.kind ?? "memory",
+                title: entry?.title ?? hit.id,
+                time: entry?.time ?? 0,
+                snippet: hit.snippet,
+                score: hit.score,
+              };
+            });
+          }
+          // Merge: union by title, max score wins.
+          const seen = new Map<string, SearchResult>();
+          for (const r of [...lexicalResults, ...ftsResults]) {
+            const key = r.title + r.kind;
+            const existing = seen.get(key);
+            if (!existing || r.score > existing.score) {
+              seen.set(key, r);
+            }
+          }
+          results = [...seen.values()]
+            .sort((a, b) => b.score - a.score)
+            .slice(0, MAX_RESULTS);
+        } else {
+          // Default vector/lexical mode.
+          results = searchEntries(entries, q);
+        }
         return {
           results: results.map((r) => ({
             ...r,

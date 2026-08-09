@@ -1,6 +1,6 @@
 //! `WebFetchClient` — shared HTTP client with cache, HTML-to-markdown
 //! conversion, URL validation, and SSRF protection.
-//! Ported from Grok grok-build `web_fetch/client.rs`. Media/PDF/video
+//! Ported from  -build `web_fetch/client.rs`. Media/PDF/video
 //! download-to-disk is simplified: binary content types are reported rather
 //! than saved to a session file system.
 
@@ -243,7 +243,7 @@ fn validate_url(raw: &str) -> Result<Url, WebFetchError> {
         return Err(WebFetchError::CredentialsInUrl);
     }
 
-    // Whole-URL rejection of secrets in the query (decision 6, Hermes-aligned).
+    // Whole-URL rejection of secrets in the query (decision 6, -aligned).
     if let Some(param) = url_safety::detect_secret_in_query(&parsed) {
         return Err(WebFetchError::SecretInUrl { param });
     }

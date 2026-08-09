@@ -1,5 +1,5 @@
 //! Domain allowlist matching with precomputed host → path-prefix lookup.
-//! Ported from Grok grok-build `web_fetch/domain.rs`.
+//! Ported from  -build `web_fetch/domain.rs`.
 
 use std::collections::HashMap;
 
@@ -209,5 +209,49 @@ mod tests {
             Some("docs.python.org".to_string())
         );
         assert_eq!(domain_from_url("not a url"), None);
+    }
+
+    #[test]
+    fn default_allowlist_covers_high_value_sources() {
+        let raw: Vec<String> = super::super::config::DEFAULT_ALLOWED_DOMAINS
+            .iter()
+            .map(|s| (*s).to_owned())
+            .collect();
+        let m = DomainMatcher::new(&raw);
+        for (label, u) in [
+            ("stack overflow", "https://stackoverflow.com/questions/123"),
+            ("reddit", "https://www.reddit.com/r/rust/comments/abc"),
+            ("wikipedia", "https://en.wikipedia.org/wiki/Rust_(programming_language)"),
+            ("arxiv", "https://arxiv.org/abs/2401.00000"),
+            ("ietf rfc", "https://datatracker.ietf.org/doc/html/rfc9110"),
+            ("rfc editor", "https://www.rfc-editor.org/rfc/rfc1"),
+            ("github issue", "https://github.com/rust-lang/rust/issues/1"),
+            ("github raw", "https://raw.githubusercontent.com/rust-lang/rust/master/README.md"),
+            ("medium", "https://medium.com/@user/post"),
+        ] {
+            assert!(
+                m.check(&Url::parse(u).unwrap()).is_none(),
+                "default allowlist must permit {label}"
+            );
+        }
+    }
+
+    #[test]
+    fn default_allowlist_still_blocks_unlisted() {
+        let raw: Vec<String> = super::super::config::DEFAULT_ALLOWED_DOMAINS
+            .iter()
+            .map(|s| (*s).to_owned())
+            .collect();
+        let m = DomainMatcher::new(&raw);
+        for (label, u) in [
+            ("private analytics", "https://analytics.evil-corp.example/collect"),
+            ("phishing", "https://paypal.secure-login.example/verify"),
+            ("piracy", "https://totally-not-piracy.example/movies"),
+        ] {
+            assert!(
+                m.check(&Url::parse(u).unwrap()).is_some(),
+                "default allowlist must block {label}"
+            );
+        }
     }
 }

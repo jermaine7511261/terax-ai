@@ -55,7 +55,7 @@ pub struct MessageEvent {
 
 impl MessageEvent {
     /// Build the canonical session key: `agent:main:{platform}:{chat_type}:{chat_id}`.
-    /// Mirrors Hermes `session.py` routing semantics.
+    /// Mirrors  `session.py` routing semantics.
     pub fn session_key(&self) -> String {
         let ct = match self.chat_type {
             ChatType::Dm => "dm",

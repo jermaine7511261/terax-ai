@@ -1,5 +1,5 @@
 /**
- * Iteration budget (H5) — consume/refund counter modelled on hermes'
+ * Iteration budget (H5) — consume/refund counter modelled on '
  * `IterationBudget`. Lets a parent agent (and each delegated subagent)
  * enforce a hard step ceiling with a refund path so a cancelled/errored run
  * can hand its remaining budget back.

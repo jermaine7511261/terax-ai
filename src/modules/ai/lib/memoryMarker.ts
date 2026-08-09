@@ -1,5 +1,5 @@
 /**
- * Recalled-memory isolation marker + scrubber (P1-4, hermes
+ * Recalled-memory isolation marker + scrubber (P1-4, 
  * `StreamingContextScrubber`). Leaf module (no deps) so both `transport.ts`
  * (injection) and `agent.ts` (output scrub) import it without a cycle.
  */
@@ -16,7 +16,7 @@ export const MEMORY_NOTE_END = "[end recalled memory]";
 /**
  * Scrub any echo of the recalled-memory block out of a model reply. The model
  * sometimes quotes the injected context back; without stripping it, that echo
- * can be misread as new user input on the next turn. (hermes
+ * can be misread as new user input on the next turn. (
  * StreamingContextScrubber.)
  */
 export function scrubMemoryEcho(

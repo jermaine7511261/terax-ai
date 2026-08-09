@@ -7,6 +7,86 @@ export type ReadResult =
   | { kind: "binary"; size: number }
   | { kind: "toolarge"; size: number; limit: number };
 
+// ── R28 agent platform types (mirror src-tauri agents/*) ────────────────────
+export type AgentMode = "subagent" | "primary" | "hidden";
+export type ToolScope =
+  | { kind: "all" }
+  | { kind: "allowList"; value: string[] }
+  | { kind: "denyList"; value: string[] }
+  | { kind: "named"; value: string };
+export type AgentMemoryConfig = {
+  recall: boolean;
+  autoSave: boolean;
+  scope: "session" | "workspace" | "global";
+};
+export type AgentDef = {
+  id: string;
+  name: string;
+  description: string;
+  model?: string | null;
+  reasoningEffort?: string | null;
+  systemPrompt: string;
+  tools: ToolScope;
+  maxSteps?: number | null;
+  maxTokens?: number | null;
+  budgetCap?: number | null;
+  mode: AgentMode;
+  enabled: boolean;
+  memory?: AgentMemoryConfig | null;
+  knowledge?: string | null;
+  planMode: boolean;
+  approval?: "default" | "always" | "never" | null;
+  hooks?: { onStart?: string | null; onEnd?: string | null; onError?: string | null } | null;
+  color?: string | null;
+  icon?: string | null;
+};
+export type AgentState =
+  | { kind: "created" }
+  | { kind: "running" }
+  | { kind: "idle" }
+  | { kind: "paused" }
+  | { kind: "stopped" }
+  | { kind: "failed"; payload: string };
+export type TokenUsage = {
+  input: number;
+  output: number;
+  cachedInput: number;
+};
+export type StepRecord = {
+  step: number;
+  toolName?: string | null;
+  toolInput?: string | null;
+  toolOutput?: string | null;
+  durationMs: number;
+  tokenDelta: TokenUsage;
+};
+export type AgentInstance = {
+  id: string;
+  defId: string;
+  state: AgentState;
+  sessionId: string;
+  parentId?: string | null;
+  depth: number;
+  createdAt: number;
+  startedAt?: number | null;
+  finishedAt?: number | null;
+  stepCount: number;
+  tokenUsage: TokenUsage;
+  costUsd: number;
+  error?: string | null;
+};
+export type AgentRunRecord = {
+  instanceId: string;
+  defId: string;
+  input: string;
+  output?: string | null;
+  state: AgentState;
+  steps: StepRecord[];
+  durationMs: number;
+  tokenUsage: TokenUsage;
+  costUsd: number;
+};
+
 export type DirEntry = {
   name: string;
   kind: "file" | "dir" | "symlink";
@@ -412,6 +492,7 @@ export const native = {
     glob?: string[];
     caseInsensitive?: boolean;
     maxResults?: number;
+    offset?: number;
   }) =>
     invoke<GrepResponse>("fs_grep", {
       pattern: params.pattern,
@@ -419,6 +500,7 @@ export const native = {
       glob: params.glob ?? null,
       caseInsensitive: params.caseInsensitive ?? null,
       maxResults: params.maxResults ?? null,
+      offset: params.offset ?? null,
       source: "ai",
       workspace: currentWorkspaceEnv(),
     }),
@@ -448,6 +530,7 @@ export const native = {
     command: string,
     cwd?: string | null,
     timeoutSecs?: number,
+    env?: Record<string, string>,
   ) =>
     invoke<{
       stdout: string;
@@ -462,6 +545,7 @@ export const native = {
       cwd: cwd ?? null,
       timeoutSecs: timeoutSecs ?? null,
       workspace: currentWorkspaceEnv(),
+      env: env ?? null,
     }),
   shellSessionClose: (id: number) =>
     invoke<void>("shell_session_close", { id }),
@@ -616,6 +700,44 @@ export const native = {
       name: name ?? null,
       workspace: currentWorkspaceEnv(),
     }),
+  gitBlame: (repoRoot: string, path: string) =>
+    invoke<{
+      line: number;
+      sha: string;
+      author: string;
+      authorMail: string;
+      time: number;
+      summary: string;
+      content: string;
+    }[]>("git_blame", {
+      repoRoot,
+      path,
+      workspace: currentWorkspaceEnv(),
+    }),
+  gitCheckpointCreate: (repoRoot: string, message?: string) =>
+    invoke<{
+      sha: string;
+      message: string;
+      createdAt: number;
+    } | null>("git_checkpoint_create", {
+      repoRoot,
+      message: message ?? null,
+      workspace: currentWorkspaceEnv(),
+    }),
+  gitCheckpointList: (repoRoot: string) =>
+    invoke<
+      {
+        sha: string;
+        message: string;
+        createdAt: number;
+      }[]
+    >("git_checkpoint_list", { repoRoot }),
+  gitCheckpointRestore: (repoRoot: string, sha: string) =>
+    invoke<void>("git_checkpoint_restore", {
+      repoRoot,
+      sha,
+      workspace: currentWorkspaceEnv(),
+    }),
   gitListBranches: (repoRoot: string) =>
     invoke<GitBranchListResult>("git_list_branches", {
       repoRoot,
@@ -728,12 +850,16 @@ export const native = {
     query: string;
     maxResults?: number | null;
     categories?: string[] | null;
+    dateFrom?: string | null;
+    dateTo?: string | null;
   }) =>
     invoke<WebSearchCommandResult>("web_search", {
       params: {
         query: params.query,
         maxResults: params.maxResults ?? null,
         categories: params.categories ?? null,
+        dateFrom: params.dateFrom ?? null,
+        dateTo: params.dateTo ?? null,
       },
     }),
   // --- 原生 AI harness (迭代 25, P0) ---
@@ -818,6 +944,111 @@ export const native = {
     }),
   deepSearchReserve: (id: number, workers: number) =>
     invoke<number>("deep_search_reserve", { id, workers }),
+  // --- agent platform (R28: registry / lifecycle / trace / checkpoint) ---
+  agentRegistryList: () =>
+    invoke<
+      { def: AgentDef; source: string }[]
+    >("agent_registry_list"),
+  agentRegistryGet: (id: string) =>
+    invoke<AgentDef | null>("agent_registry_get", { id }),
+  agentRegistryDelegatable: () =>
+    invoke<AgentDef[]>("agent_registry_delegatable"),
+  agentRegistryPrimary: () => invoke<AgentDef[]>("agent_registry_primary"),
+  agentRegistryRegister: (def: AgentDef, source: string) =>
+    invoke<void>("agent_registry_register", { def, source }),
+  agentRegistryRemove: (id: string) =>
+    invoke<void>("agent_registry_remove", { id }),
+  agentInstanceCreate: (params: {
+    defId: string;
+    sessionId: string;
+    parentId?: string | null;
+    depth?: number | null;
+  }) =>
+    invoke<string>("agent_instance_create", {
+      defId: params.defId,
+      sessionId: params.sessionId,
+      parentId: params.parentId ?? null,
+      depth: params.depth ?? null,
+    }),
+  agentInstanceGet: (id: string) =>
+    invoke<AgentInstance | null>("agent_instance_get", { id }),
+  agentInstanceTransition: (id: string, next: AgentState) =>
+    invoke<void>("agent_instance_transition", { id, next }),
+  agentInstanceRecordStep: (params: {
+    id: string;
+    step: number;
+    tokenDelta: TokenUsage;
+    costDelta: number;
+  }) =>
+    invoke<void>("agent_instance_record_step", {
+      id: params.id,
+      step: params.step,
+      tokenDelta: params.tokenDelta,
+      costDelta: params.costDelta,
+    }),
+  agentInstanceFinalize: (params: {
+    id: string;
+    input: string;
+    output?: string | null;
+    steps: StepRecord[];
+  }) =>
+    invoke<AgentRunRecord>("agent_instance_finalize", {
+      id: params.id,
+      input: params.input,
+      output: params.output ?? null,
+      steps: params.steps,
+    }),
+  agentHistory: (defId?: string | null) =>
+    invoke<AgentRunRecord[]>("agent_history", { defId: defId ?? null }),
+  agentWithinBudget: (costUsd: number, budgetCap: number | null) =>
+    invoke<boolean>("agent_within_budget", { costUsd, budgetCap }),
+  agentCheckpointSave: () => invoke<void>("agent_checkpoint_save"),
+  agentCheckpointRestore: () => invoke<void>("agent_checkpoint_restore"),
+  agentSteerAdd: (sessionId: string, note: string) =>
+    invoke<void>("agent_steer_add", { sessionId, note }),
+  agentSteerList: (sessionId: string) =>
+    invoke<string[]>("agent_steer_list", { sessionId }),
+  agentSteerDrain: (sessionId: string) =>
+    invoke<string[]>("agent_steer_drain", { sessionId }),
+  agentTemplateList: () => invoke<AgentDef[]>("agent_template_list"),
+  agentTemplateClone: (templateId: string, newId: string, name?: string | null) =>
+    invoke<AgentDef>("agent_template_clone", {
+      templateId,
+      newId,
+      name: name ?? null,
+    }),
+  agentSkillFork: (params: {
+    skillName: string;
+    description: string;
+    prompt: string;
+    toolAllowlist: string[];
+    modelOverride?: string | null;
+    reasoningEffort?: string | null;
+  }) =>
+    invoke<AgentDef>("agent_skill_fork", {
+      skillName: params.skillName,
+      description: params.description,
+      prompt: params.prompt,
+      toolAllowlist: params.toolAllowlist,
+      modelOverride: params.modelOverride ?? null,
+      reasoningEffort: params.reasoningEffort ?? null,
+    }),
+  resourceStats: () =>
+    invoke<{
+      cpuPercent: number;
+      memoryMb: number;
+      uptimeSecs: number;
+    }>("resource_stats"),
+  resilienceStatus: () =>
+    invoke<
+      {
+        id: string;
+        state: "closed" | "open" | "halfOpen";
+        failureCount: number;
+        successCount: number;
+        openedAt?: number | null;
+      }[]
+    >("resilience_status"),
   // --- computer use (P3, Windows M1-M2) ---
   computerSessionOpen: () => invoke<number>("computer_session_open"),
   computerSessionClose: (id: number) =>
@@ -828,4 +1059,36 @@ export const native = {
     invoke<ComputerCaptureResult>("computer_capture", { id }),
   computerAction: (id: number, action: ComputerActionParams) =>
     invoke<string>("computer_action", { id, action }),
+  // --- §3.1.2 computer-use simple commands ---
+  computerScreenshot: () =>
+    invoke<ComputerCaptureResult>("computer_screenshot"),
+  computerClick: (x: number, y: number, button?: string) =>
+    invoke<string>("computer_click", { x, y, button: button ?? "left" }),
+  computerType: (text: string) =>
+    invoke<string>("computer_type", { text }),
+  computerReadAccessibilityTree: () =>
+    invoke<unknown>("computer_read_accessibility_tree"),
+  // --- §3.5.2 FTS search ---
+  memoryFtsSearch: (params: {
+    corpus: Array<{ id: string; text: string }>;
+    query: string;
+    limit?: number | null;
+  }) =>
+    invoke<Array<{ id: string; text: string; score: number; snippet: string }>>("memory_fts_search", {
+      corpus: params.corpus,
+      query: params.query,
+      limit: params.limit ?? null,
+    }),
+  // --- §3.5.3 user preferences ---
+  preferencesExtract: (text: string) =>
+    invoke<{ editorStyle?: string | null; shellPreference?: string | null; commonTools: string[]; responseStyle?: string | null; extractedAt?: string | null }>("preferences_extract", { text }),
+  preferencesGet: () =>
+    invoke<{ editorStyle?: string | null; shellPreference?: string | null; commonTools: string[]; responseStyle?: string | null; extractedAt?: string | null }>("preferences_get"),
+  // --- §3.6.2 image generation ---
+  generateImage: (params: { prompt: string; provider: string; size?: string | null }) =>
+    invoke<{ ok: boolean; imageDataUrl?: string | null; provider: string; model?: string | null; error?: string | null }>("generate_image", {
+      prompt: params.prompt,
+      provider: params.provider,
+      size: params.size ?? null,
+    }),
 };

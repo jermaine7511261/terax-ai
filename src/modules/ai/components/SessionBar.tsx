@@ -9,6 +9,7 @@ import {
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { InlineInput } from "@/modules/explorer/InlineInput";
+import { estimateCost, getModelContextLimit } from "../config";
 import type { SessionMeta } from "../lib/sessions";
 import { useChatStore } from "../store/chatStore";
 import {
@@ -19,6 +20,37 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useState } from "react";
+
+function formatTokens(n: number): string {
+  if (n < 1000) return String(n);
+  if (n < 1_000_000) return `${(n / 1000).toFixed(n < 10_000 ? 1 : 0)}k`;
+  return `${(n / 1_000_000).toFixed(2)}M`;
+}
+
+/** Session token + cost readout for the main AI panel header. The mini-window
+ *  header has a fuller hover-card; this is the always-visible cumulative line. */
+function SessionTokenStats() {
+  const modelId = useChatStore((s) => s.selectedModelId);
+  const tokens = useChatStore((s) => s.agentMeta.tokens);
+  const total = tokens.inputTokens + tokens.outputTokens;
+  if (total === 0) return null;
+  const cost = estimateCost(modelId, tokens);
+  return (
+    <span
+      className="flex shrink-0 items-center gap-1.5 rounded-md px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-muted-foreground/80"
+      title={`input ${formatTokens(tokens.inputTokens)} · output ${formatTokens(tokens.outputTokens)} · window ${formatTokens(getModelContextLimit(modelId ?? undefined))}`}
+    >
+      <span>{formatTokens(tokens.inputTokens)} in</span>
+      <span>/</span>
+      <span>{formatTokens(tokens.outputTokens)} out</span>
+      {cost != null ? (
+        <span className="text-muted-foreground/60">
+          · ${cost.toFixed(cost < 0.01 ? 4 : cost < 1 ? 3 : 2)}
+        </span>
+      ) : null}
+    </span>
+  );
+}
 
 /** Shared session-picker + new-session button. Used by both the main window and
  *  the mini window header. */
@@ -41,7 +73,7 @@ export function SessionBar({
 
   const sorted = [...sessions].sort((a, b) => b.updatedAt - a.updatedAt);
   // P2-2: indent sub-sessions under their parent so the worker/session tree is
-  // visible (opencode parentID semantics). Root sessions get a 0 indent; a
+  // visible ( parentID semantics). Root sessions get a 0 indent; a
   // child gets one level per ancestor.
   const parentOf = new Map(sessions.map((s) => [s.id, s.parentId ?? null]));
   const depthOf = (id: string): number => {
@@ -77,6 +109,8 @@ export function SessionBar({
         <HugeiconsIcon icon={Add01Icon} size={12} strokeWidth={1.75} />
         <span className="hidden sm:inline">{t("ai.newSession")}</span>
       </Button>
+
+      <SessionTokenStats />
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>

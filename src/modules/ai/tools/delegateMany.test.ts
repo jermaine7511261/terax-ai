@@ -199,4 +199,28 @@ describe("delegate_many (P0-2 parallel workers)", () => {
       vi.useRealTimers();
     }
   });
+
+  it("returns partial progress when a worker times out mid-run", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.mocked(runSubagent).mockImplementation(async ({ onStep }) => {
+        onStep?.("explore: read_file");
+        onStep?.("explore: grep");
+        return new Promise(() => {}); // hang after 2 completed steps
+      });
+      const promise = tool().execute({
+        tasks: [{ type: "explore", prompt: "partial task" }],
+      });
+      await vi.advanceTimersByTimeAsync(7 * 60 * 1000 + 1000);
+      const res = await promise;
+      expect(res.results[0].ok).toBe(false);
+      expect(res.results[0].partial).toBe(true);
+      expect(res.results[0].stepCount).toBe(2);
+      expect(res.results[0].lastStep).toBe("explore: grep");
+      expect(res.results[0].summary).toContain("read_file");
+      expect(res.results[0].summary).toContain("grep");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

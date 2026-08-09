@@ -1,11 +1,11 @@
 //! Output-schema validation for subagent structured results (P2). Mirrors
-//! grok `schema_contract.rs` (compile + validate, no external `$ref`, size cap)
+//!  `schema_contract.rs` (compile + validate, no external `$ref`, size cap)
 //! and omp `yield-assembly.ts` (`outputSchema` check). Uses `serde_json` to
 //! enforce the schema shape — no new dependency.
 
 use serde_json::Value;
 
-/// Size cap on a compiled schema / payload (grok: 256 KB) so a hostile graph
+/// Size cap on a compiled schema / payload (: 256 KB) so a hostile graph
 /// def can't blow memory validating.
 pub const MAX_SCHEMA_BYTES: usize = 256 * 1024;
 

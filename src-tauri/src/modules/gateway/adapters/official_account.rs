@@ -4,7 +4,7 @@
 //! via the passive callback (SHA-1 signature + AES-256-CBC encrypted XML);
 //! outbound replies use the customer-service message API.
 //!
-//! Reference: LangBot `officialaccount.py`.
+//! Reference:  `officialaccount.py`.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};

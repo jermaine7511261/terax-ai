@@ -178,6 +178,23 @@ describe("open_preview", () => {
     expect(result.error).toMatch(/restricted to localhost/i);
   });
 
+  it("rejects URLs with embedded credentials", async () => {
+    const result = await runTool(makeContext(), "open_preview", {
+      url: "http://user:pass@localhost:5173",
+    });
+    expect(result.error).toMatch(/credentials/i);
+  });
+
+  it("accepts any 127.x loopback host", async () => {
+    const open = vi.fn(() => true);
+    const ctx = makeContext({ openPreview: open });
+    const result = await runTool(ctx, "open_preview", {
+      url: "http://127.0.0.2:8080",
+    });
+    expect(result.ok).toBe(true);
+    expect(open).toHaveBeenCalledWith("http://127.0.0.2:8080");
+  });
+
   it("accepts loopback hosts and calls openPreview", async () => {
     const open = vi.fn(() => true);
     const ctx = makeContext({ openPreview: open });

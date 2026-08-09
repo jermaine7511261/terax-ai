@@ -8,13 +8,16 @@ import { useSnippetsStore } from "../store/snippetsStore";
 import type { ToolContext } from "./context";
 
 /**
- * Skills auto-distillation (★ H2 Hermes). After a long task the agent can call
+ * Skills auto-distillation (★ H2). After a long task the agent can call
  * `create_skill(name, prompt, toolAllowlist?, handle?)` to persist a reusable
  * skill under `<workspace>/skills/<name>/skill.json`, which the settings page
  * and `useAiBootstrap` then pick up as a `builtin: true` snippet.
  */
 
 const HANDLE_RE = /^[a-z0-9](?:[a-z0-9_-]{0,62}[a-z0-9])?$/;
+/** Skill names become directory names under `<workspace>/skills/` — keep them
+ *  filesystem-safe: lowercase alphanumeric + `-`/`_` only (S4). */
+const NAME_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 
 /**
  * Validate a skill file payload. Returns an error string, or null when valid.
@@ -26,6 +29,9 @@ export function validateSkillFields(input: {
   toolAllowlist?: string[];
 }): string | null {
   if (!input.name.trim()) return "skill name cannot be empty";
+  if (!NAME_RE.test(input.name.trim().toLowerCase())) {
+    return `invalid skill name '${input.name.trim()}': use lowercase letters, digits, '-', '_' (e.g. 'fix-ts')`;
+  }
   if (!input.prompt.trim()) return "skill prompt cannot be empty";
   if (input.handle?.trim()) {
     if (!HANDLE_RE.test(input.handle.trim())) {
@@ -50,7 +56,7 @@ export function buildSkillPayload(input: {
   toolAllowlist?: string[];
 }): Record<string, unknown> {
   const payload: Record<string, unknown> = {
-    name: input.name.trim(),
+    name: input.name.trim().toLowerCase(),
     description: input.description.trim(),
     prompt: input.prompt.trim(),
     // P1-5: mark agent-created + stamp first activity so the background curator
@@ -66,6 +72,27 @@ export function buildSkillPayload(input: {
     payload.toolAllowlist = input.toolAllowlist.map((t) => t.trim());
   }
   return payload;
+}
+
+/**
+ * §3.4.2 Auto-distill hint: when a subagent completes a complex task
+ * (steps ≥ 5, no error), suggest saving the pattern as a skill.
+ * Returns a suggested skill payload, or null if no suggestion.
+ */
+export function suggestSkillFromRun(
+  summary: string,
+  stepCount: number,
+  toolNames: string[],
+): { name: string; description: string; prompt: string; toolAllowlist: string[] } | null {
+  if (stepCount < 5) return null;
+  if (!summary || summary.trim().length === 0) return null;
+  const name = `distill-${Date.now().toString(36).slice(-6)}`;
+  return {
+    name,
+    description: `Auto-extracted from a ${stepCount}-step task`,
+    prompt: summary.slice(0, 4096),
+    toolAllowlist: toolNames.slice(0, 20),
+  };
 }
 
 export function buildCreateSkillTools(ctx: ToolContext) {
@@ -121,13 +148,27 @@ export function buildCreateSkillTools(ctx: ToolContext) {
         }
 
         const dir = `${workspaceRoot.replace(/\/$/, "")}/skills`;
-        const safeName = name.trim().replace(/[^a-zA-Z0-9._-]/g, "_");
-        const filePath = `${dir}/${safeName}/skill.json`;
+        // Name was validated to /^[a-z0-9][a-z0-9_-]*$/ above, so it is a safe
+        // single directory component (no dots, no separators).
+        const safeName = name.trim().toLowerCase();
+        const skillDir = `${dir}/${safeName}`;
+        const filePath = `${skillDir}/skill.json`;
 
         // Workspace authorization: the skill path must be writable within the
         // workspace.
         const writeCheck = await checkWritableCanonical(filePath, native.canonicalize);
         if (!writeCheck.ok) return { error: writeCheck.reason };
+
+        // Target directory may not exist for a fresh skill name — create it
+        // first or the write fails with ENOENT (R29 verification found this
+        // live: create_skill on a new name → os error 3). fs_create_dir builds
+        // the chain; "already exists" is tolerated below.
+        try {
+          await native.createDir(skillDir);
+        } catch {
+          // Directory may already exist from a prior run — the write below is
+          // the real arbiter.
+        }
 
         const payload = buildSkillPayload({
           name,

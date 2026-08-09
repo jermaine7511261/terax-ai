@@ -410,7 +410,7 @@ graph human 节点 + **H3 审批通道升级为三态**（opencode/claude）。
 **验证**：`npx vitest run src/modules/ai/lib/budget.test.ts` + `cargo test graph`
 
 ### 构建
-- 版本 0.1.20 → 0.1.21（四文件同步）；`npx tauri build`；部署 `C:\Users\Admin\AppData\Local\Yamet\`
+- 版本 0.1.20 → 0.1.21（四文件同步）；`npx tauri build`；部署 `C:\Users\Admin\AppData\Local\YaMet\`
 - 根目录三文档同步（CHANGELOG/ROADMAP/YAMET）补第20轮
 
 **验收总门禁**：cargo test 全绿（含 graph 单测）+ clippy + tsc 0 错误 + vitest 全绿 + i18n-scan + drift + `npx tauri build` exit 0。

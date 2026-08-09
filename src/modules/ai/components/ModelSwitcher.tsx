@@ -28,8 +28,8 @@ import { setThinkingLength, type ThinkingLength } from "@/modules/settings/store
 import {
   compatModelIdForEndpoint,
   getCompatModelInfo,
+  getEffectiveContextLimit,
   getModel,
-  getModelContextLimit,
   isCompatModelId,
   MODELS,
   providerNeedsKey,
@@ -218,9 +218,9 @@ export function ModelSwitcher() {
   const PIcon = PROVIDER_ICON[currentModel.provider] ?? SparklesIcon;
 
   // Context usage percent, computed from the SAME approximation the compaction
-  // logic uses (approxBytes/4) over the model's context limit. Mirrors Hermes's
+  // logic uses (approxBytes/4) over the model's context limit. Mirrors 
   // status-bar `context_pct`: the number IS "how close to compaction".
-  const contextLimit = getModelContextLimit(selectedModel, undefined);
+  const contextLimit = getEffectiveContextLimit(selectedModel, customEndpoints);
   const contextPct =
     contextLimit > 0 ? Math.round((contextEstimate / contextLimit) * 100) : 0;
   const showPct = contextEstimate > 0 && contextLimit > 0;

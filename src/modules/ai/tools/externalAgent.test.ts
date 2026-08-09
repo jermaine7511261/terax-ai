@@ -15,9 +15,9 @@ describe("buildExternalAgentCommand", () => {
     expect(cmd).toContain("refactor");
   });
 
-  it("builds opencode run command", () => {
-    const cmd = buildExternalAgentCommand("opencode", "test", null);
-    expect(cmd).toContain("opencode run");
+  it("builds  run command", () => {
+    const cmd = buildExternalAgentCommand("", "test", null);
+    expect(cmd).toContain(" run");
   });
 
   it("builds gemini command", () => {
@@ -25,9 +25,9 @@ describe("buildExternalAgentCommand", () => {
     expect(cmd).toContain("gemini -p");
   });
 
-  it("builds pi and grok commands", () => {
+  it("builds pi and  commands", () => {
     expect(buildExternalAgentCommand("pi", "x", null)).toContain("pi -p");
-    expect(buildExternalAgentCommand("grok", "x", null)).toContain("grok -p");
+    expect(buildExternalAgentCommand("", "x", null)).toContain(" -p");
   });
 
   it("prepends cd when cwd is provided", () => {

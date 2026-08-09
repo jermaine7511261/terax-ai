@@ -1,4 +1,4 @@
-//! Cron scheduler (★ H3 Hermes). Tasks defined by a natural-language prompt +
+//! Cron scheduler (★ H3). Tasks defined by a natural-language prompt +
 //! a 5-field cron expression fire on schedule; the frontend listens for
 //! `yamet:scheduler-fire` and spawns the agent (notification/session target).
 

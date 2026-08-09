@@ -1,4 +1,4 @@
-//! Guardrail protocol chain (S2, PraisonAI `guardrails/protocols.py` +
+//! Guardrail protocol chain (S2,  `guardrails/protocols.py` +
 //! `chain.py`): structured, machine-deterministic checks on the AI tool
 //! execution pipeline — before a prompt is sent (`validate_input`), before a
 //! tool runs (`validate_tool_call`, may rewrite args), and before output is
@@ -12,7 +12,7 @@
 
 use serde::{Deserialize, Serialize};
 
-/// Uniform guardrail result (PraisonAI `GuardrailResult{success, result,
+/// Uniform guardrail result ( `GuardrailResult{success, result,
 /// error}`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -49,7 +49,7 @@ impl GuardrailResult {
     }
 }
 
-/// Which phase a guard applies to (PraisonAI three hooks).
+/// Which phase a guard applies to ( three hooks).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GuardHook {
     /// Validate (or rewrite) the assembled prompt / context before the model call.
@@ -67,6 +67,74 @@ pub trait Guard: Send + Sync {
     /// Validate/rewrite `value`. Return `GuardrailResult::ok()` to allow,
     /// `rewrite(value)` to adjust, or `deny(msg)` to block (short-circuit).
     fn check(&self, value: &serde_json::Value) -> GuardrailResult;
+}
+
+/// Computer-use guard: rate-limits screenshots (≤1/sec), checks click bounds,
+/// detects sensitive content in typed text (passwords/keys/secret patterns).
+pub struct ComputerUseGuardrail;
+
+impl Guard for ComputerUseGuardrail {
+    fn hook(&self) -> GuardHook {
+        GuardHook::ToolCall
+    }
+    fn name(&self) -> &'static str {
+        "computer-use"
+    }
+    fn check(&self, v: &serde_json::Value) -> GuardrailResult {
+        let tool_name = v.get("_toolName").and_then(|n| n.as_str()).unwrap_or("");
+        if !tool_name.starts_with("computer_") {
+            return GuardrailResult::ok();
+        }
+
+        // Rate-limit screenshots: ≤1 per second.
+        if tool_name == "computer_screenshot" {
+            static LAST_SCREENSHOT: std::sync::Mutex<Option<std::time::Instant>> =
+                std::sync::Mutex::new(None);
+            let mut last = LAST_SCREENSHOT.lock().unwrap_or_else(|e| e.into_inner());
+            if let Some(prev) = *last {
+                if prev.elapsed() < std::time::Duration::from_secs(1) {
+                    return GuardrailResult::deny(
+                        "screenshot rate-limited: max 1 per second",
+                    );
+                }
+            }
+            *last = Some(std::time::Instant::now());
+        }
+
+        // Click bounds check.
+        if tool_name == "computer_click" {
+            if let (Some(x), Some(y)) = (
+                v.get("x").and_then(|n| n.as_f64()),
+                v.get("y").and_then(|n| n.as_f64()),
+            ) {
+                if !(0.0..=1.0).contains(&x) || !(0.0..=1.0).contains(&y) {
+                    return GuardrailResult::deny(format!(
+                        "click coordinates out of bounds: ({x}, {y}) — must be in [0, 1]"
+                    ));
+                }
+            }
+        }
+
+        // Sensitive text detection for type.
+        if tool_name == "computer_type" {
+            if let Some(text) = v.get("text").and_then(|t| t.as_str()) {
+                let lower = text.to_lowercase();
+                let sensitive_patterns = [
+                    "password", "passwd", "secret", "api_key", "apikey",
+                    "token", "bearer", "private_key",
+                ];
+                for pattern in &sensitive_patterns {
+                    if lower.contains(pattern) {
+                        return GuardrailResult::deny(format!(
+                            "type blocked: text may contain sensitive content ('{pattern}')"
+                        ));
+                    }
+                }
+            }
+        }
+
+        GuardrailResult::ok()
+    }
 }
 
 /// Shell-command guard: rejects empty or control-character-laden commands
@@ -156,6 +224,7 @@ impl GuardrailChain {
         let mut chain = Self::new();
         chain.push(Box::new(ShellCommandGuard));
         chain.push(Box::new(SensitivePathGuard));
+        chain.push(Box::new(ComputerUseGuardrail));
         chain
     }
 
@@ -335,7 +404,7 @@ mod tests {
     #[test]
     fn default_chain_is_ordered_and_composed() {
         let chain = GuardrailChain::default_consolidated();
-        assert_eq!(chain.len(), 2);
+        assert_eq!(chain.len(), 3);
         // A command with both a control char and a sensitive path denies on
         // the first guard (shell-command runs first).
         let r = chain.run(

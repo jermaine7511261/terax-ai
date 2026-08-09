@@ -3,7 +3,7 @@
 //! reproduced in Rust. Messages are modeled as `serde_json::Value` (the wire
 //! shape the harness already handles), keeping this layer free of I/O.
 //!
-//! Head/tail protection (hermes context_compressor): never elide the first
+//! Head/tail protection ( context_compressor): never elide the first
 //! `protect_first` / last `protect_last` messages.
 
 use serde_json::{json, Value};
@@ -326,7 +326,7 @@ pub fn select_context(
 }
 
 /// 3/4 debounce gate: stop compressing after two consecutive low-savings
-/// passes (hermes context_compressor anti-thrash).
+/// passes ( context_compressor anti-thrash).
 #[derive(Debug, Clone)]
 pub struct CompressionDebouncer {
     min_saved_pct: u64,

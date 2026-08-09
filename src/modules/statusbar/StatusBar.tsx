@@ -17,6 +17,7 @@ import { GitBranchIcon, IncognitoIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { CwdBreadcrumb } from "./CwdBreadcrumb";
 import { DiagnosticsBadge } from "./DiagnosticsBadge";
+import { ResourceStatsIndicator } from "./ResourceStatsIndicator";
 import { useGitStatusBar } from "./useGitStatusBar";
 import { WorkspaceEnvSelector } from "./WorkspaceEnvSelector";
 
@@ -135,6 +136,7 @@ export function StatusBar({
             </TooltipContent>
           </Tooltip>
         ) : null}
+        <ResourceStatsIndicator />
       </div>
       <div className="flex shrink-0 items-center gap-1.5">
         <AgentStatusPill onClick={onOpenMini} />

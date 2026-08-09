@@ -129,6 +129,8 @@ describe("web_search tool (Rust-backed thin shell)", () => {
     expect(nativeMock.webSearch).toHaveBeenCalledWith({
       query: "rust",
       maxResults: 5,
+      dateFrom: null,
+      dateTo: null,
     });
     const results = res.results as { title: string; url: string }[];
     expect(results.length).toBe(1);

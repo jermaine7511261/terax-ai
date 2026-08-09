@@ -50,7 +50,7 @@ function makeChat(sessionId: string): Chat<UIMessage> {
       const { activeId, customAgents } = useAgentsStore.getState();
       const all = [...BUILTIN_AGENTS, ...customAgents];
       const a = all.find((x) => x.id === activeId) ?? BUILTIN_AGENTS[0];
-      return { name: a.name, instructions: a.instructions };
+      return { name: a.name, instructions: a.instructions, maxSteps: a.maxSteps };
     },
     getLive: () => {
       const live = useChatStore.getState().live;
@@ -167,7 +167,20 @@ export async function sendMessage(text: string): Promise<boolean> {
     !getActiveProviderKey()
   )
     return false;
+  // R28 #16 message steering: inject any pending steering notes for this
+  // session ahead of the user text (drained so they apply exactly once).
+  let finalText = text;
+  const steers = await getPendingSteers(sessionId).catch(() => []);
+  if (steers.length > 0) {
+    const block = steers.map((s) => `- ${s}`).join("\n");
+    finalText = `<steer>\n${block}\n</steer>\n\n${text}`;
+  }
   const c = getOrCreateChat(sessionId);
-  await c.sendMessage({ text });
+  await c.sendMessage({ text: finalText });
   return true;
+}
+
+async function getPendingSteers(sessionId: string): Promise<string[]> {
+  const native = (await import("../lib/native")).native;
+  return native.agentSteerDrain(sessionId).catch(() => []);
 }

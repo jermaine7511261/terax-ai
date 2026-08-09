@@ -9,8 +9,22 @@ export type AgentIconId =
   | "designer"
   | "spark";
 
-/** Agent visibility mode (opencode agent schema): where the agent is offered. */
+/** Agent visibility mode ( agent schema): where the agent is offered. */
 type AgentMode = "subagent" | "primary" | "all";
+
+/** Tool visibility scope (R28 #1 AgentDef). */
+export type ToolScope =
+  | { kind: "all" }
+  | { kind: "allowList"; value: string[] }
+  | { kind: "denyList"; value: string[] }
+  | { kind: "named"; value: string };
+
+/** Per-agent memory behavior (R28 #1). */
+export type AgentMemoryConfig = {
+  recall: boolean;
+  autoSave: boolean;
+  scope: "session" | "workspace" | "global";
+};
 
 export type Agent = {
   id: string;
@@ -20,17 +34,31 @@ export type Agent = {
   icon: AgentIconId;
   builtIn: boolean;
   /**
-   * Where this agent may be selected (P1-0 / opencode `mode`):
+   * Where this agent may be selected (P1-0 /  `mode`):
    *  - "primary" = the main chat agent picker only
    *  - "subagent" = only as a delegated worker
    *  - "all" = both (default for user-created agents)
    */
   mode?: AgentMode;
   /**
-   * Run but hide from selectors (opencode `hidden`). Used for internal/system
+   * Run but hide from selectors ( `hidden`). Used for internal/system
    * agents (e.g. a compaction agent) that can run but shouldn't clutter the UI.
    */
   hidden?: boolean;
+  /** R28 #1: model override (None = inherit the main agent). */
+  model?: string;
+  /** R28 #1: reasoning depth override. */
+  reasoningEffort?: "off" | "low" | "medium" | "high";
+  /** R28 #1: step cap (default 24). */
+  maxSteps?: number;
+  /** R28 #1: token cap. */
+  maxTokens?: number;
+  /** R28 #1: cost cap in USD. */
+  budgetCap?: number;
+  /** R28 #1: tool visibility scope (default all). */
+  toolScope?: ToolScope;
+  /** R28 #1: per-agent color badge. */
+  color?: string;
 };
 
 export const BUILTIN_AGENTS: readonly Agent[] = [
@@ -167,7 +195,7 @@ export function findAgent(
 }
 
 /**
- * Merge user-provided agent overrides onto the builtin set (P1-0 / opencode
+ * Merge user-provided agent overrides onto the builtin set (P1-0 / 
  * ConfigV2 semantics): a user agent with the same `name` as a builtin overrides
  * it (same-name override); `disabled: true` removes the builtin of that name;
  * otherwise the user agent is appended as a new custom agent. Returns a fresh
@@ -175,7 +203,7 @@ export function findAgent(
  */
 export type AgentOverride = Partial<Omit<Agent, "id">> & {
   name: string;
-  /** Set true to remove a builtin of the same name (opencode `disable`). */
+  /** Set true to remove a builtin of the same name ( `disable`). */
   disabled?: boolean;
 };
 
@@ -200,6 +228,13 @@ export function mergeAgentOverrides(
       builtIn: !!base,
       mode: ov.mode ?? base?.mode,
       hidden: ov.hidden ?? base?.hidden,
+      model: ov.model ?? base?.model,
+      reasoningEffort: ov.reasoningEffort ?? base?.reasoningEffort,
+      maxSteps: ov.maxSteps ?? base?.maxSteps,
+      maxTokens: ov.maxTokens ?? base?.maxTokens,
+      budgetCap: ov.budgetCap ?? base?.budgetCap,
+      toolScope: ov.toolScope ?? base?.toolScope,
+      color: ov.color ?? base?.color,
     };
     if (idx !== -1) out[idx] = merged;
     else out.push(merged);

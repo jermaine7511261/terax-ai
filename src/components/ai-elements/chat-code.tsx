@@ -107,13 +107,33 @@ function BlockChrome({
   );
 }
 
+function CodeLines({ lines }: { lines: React.ReactNode[][] }) {
+  const width = `${String(lines.length).length}ch`;
+  return (
+    <>
+      {lines.map((tokens, i) => (
+        <div key={i} className="flex">
+          <span
+            aria-hidden
+            className="shrink-0 select-none pr-3 text-right text-muted-foreground/60"
+            style={{ width }}
+          >
+            {i + 1}
+          </span>
+          <span className="whitespace-pre">
+            {tokens.length > 0 ? tokens : " "}
+          </span>
+        </div>
+      ))}
+    </>
+  );
+}
+
 function FinalizedCodeBlock({ code, lang }: { code: string; lang: string }) {
   if (!isHighlightable(lang)) {
     return (
       <BlockChrome label={lang} code={code}>
-        <pre className="m-0 px-3 py-2.5 font-mono text-[11.5px] leading-relaxed text-foreground">
-          {code}
-        </pre>
+        <PlainPre code={code} />
       </BlockChrome>
     );
   }
@@ -121,6 +141,15 @@ function FinalizedCodeBlock({ code, lang }: { code: string; lang: string }) {
     <BlockChrome label={lang} code={code}>
       <HighlightedPre code={code} lang={lang} />
     </BlockChrome>
+  );
+}
+
+function PlainPre({ code }: { code: string }) {
+  const lines = code.split("\n").map((line) => [line === "" ? "\u00A0" : line]);
+  return (
+    <pre className="m-0 px-3 py-2.5 font-mono text-[11.5px] leading-relaxed text-foreground">
+      <CodeLines lines={lines} />
+    </pre>
   );
 }
 
@@ -153,26 +182,25 @@ const HighlightedPre = memo(function HighlightedPre({
   }, [code, lang]);
 
   if (!nodes) {
-    return (
-      <pre className="m-0 px-3 py-2.5 font-mono text-[11.5px] leading-relaxed text-foreground">
-        {code}
-      </pre>
-    );
+    return <PlainPre code={code} />;
+  }
+
+  const lines: React.ReactNode[][] = [[]];
+  for (const node of nodes) {
+    if (node.kind === "break") {
+      lines.push([]);
+    } else {
+      lines[lines.length - 1].push(
+        <span key={lines[lines.length - 1].length} className={node.cls || undefined}>
+          {node.value}
+        </span>,
+      );
+    }
   }
 
   return (
     <pre className="m-0 px-3 py-2.5 font-mono text-[11.5px] leading-relaxed text-foreground">
-      {nodes.map((node, i) =>
-        node.kind === "break" ? (
-          // eslint-disable-next-line react/no-array-index-key
-          <span key={i}>{"\n"}</span>
-        ) : (
-          // eslint-disable-next-line react/no-array-index-key
-          <span key={i} className={node.cls || undefined}>
-            {node.value}
-          </span>
-        ),
-      )}
+      <CodeLines lines={lines} />
     </pre>
   );
 });

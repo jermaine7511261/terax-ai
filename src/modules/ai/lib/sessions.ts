@@ -8,7 +8,7 @@ export type SessionMeta = {
   updatedAt: number;
   incompleteTurn?: boolean;
   /**
-   * Parent session id (H2 parentID tree, opencode semantics). A sub-session
+   * Parent session id (H2 parentID tree,  semantics). A sub-session
    * (created by createSubSession) carries an independent message history but
    * inherits its parent's approval/permission scope. `undefined` = a root
    * (top-level) session.

@@ -1,8 +1,8 @@
 //! URL secret detection (P1.5). Four-way secret-in-query detection mirroring
-//! hermes `_PREFIX_RE`: raw, unquote, normalized (case/`%` folding), and
+//!  `_PREFIX_RE`: raw, unquote, normalized (case/`%` folding), and
 //! unquote-normalized. Sensitive query param names (api_key, token, secret,
 //! key, password, etc.) with a non-empty value cause whole-URL rejection
-//! (decision point 6: 整体拒绝, aligning with Hermes).
+//! (decision point 6: 整体拒绝, aligning with ).
 //!
 //! Pure functions — unit-tested.
 
@@ -39,7 +39,7 @@ const SENSITIVE_PARAM_NAMES: &[&str] = &[
     "sig",
 ];
 
-/// The four URL forms checked (mirrors hermes' four-way `_PREFIX_RE`).
+/// The four URL forms checked (mirrors ' four-way `_PREFIX_RE`).
 fn candidate_forms(url: &Url) -> Vec<String> {
     let raw = url.as_str().to_string();
     let unquoted = percent_decode(&raw);
@@ -76,7 +76,7 @@ fn percent_decode(s: &str) -> String {
 }
 
 /// Lowercase scheme + host, normalize `%2f`/`%2F` to `/` and `%3f` to `?`,
-/// collapse duplicate path slashes (hermes-style normalization).
+/// collapse duplicate path slashes (-style normalization).
 fn normalize_url(s: &str) -> String {
     let mut out = s.to_string();
     // Case-fold the scheme+host region only (query values may be case-sensitive).

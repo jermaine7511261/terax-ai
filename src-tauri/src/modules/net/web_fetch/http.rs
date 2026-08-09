@@ -1,5 +1,5 @@
 //! Cached HTTP client with atomic invalidation for `web_fetch`.
-//! Ported from Grok grok-build `web_fetch/http.rs` (ArcSwap → std RwLock).
+//! Ported from  -build `web_fetch/http.rs` (ArcSwap → std RwLock).
 
 use std::sync::{Arc, RwLock};
 

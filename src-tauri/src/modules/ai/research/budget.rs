@@ -1,4 +1,4 @@
-//! Research budget ledger (P3, fira reserve/refund + grok parallel 预算预占).
+//! Research budget ledger (P3, fira reserve/refund +  parallel 预算预占).
 //! Pure accounting: a `ResearchBudget` tracks reserved vs spent quota. The
 //! deep_search run reserves per-worker quota up front (parallel), and cheap
 //! workers refund their unused reservation so the pool isn't over-committed.

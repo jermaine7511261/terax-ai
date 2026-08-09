@@ -1,6 +1,6 @@
 //! Weixin personal-account adapter (Tencent iLink Bot API).
 //!
-//! This is a faithful Rust port of the iLink protocol from Hermes'
+//! This is a faithful Rust port of the iLink protocol from '
 //! `gateway/platforms/weixin.py`:
 //!
 //! - Inbound delivery is driven by **long-polling** `ilink/bot/getupdates`
@@ -13,7 +13,7 @@
 //! - Session expiry (`errcode = -14`, or `-2` with errmsg `"unknown error"`)
 //!   pauses polling for `SESSION_EXPIRED_PAUSE_SECONDS` and retries; it never
 //!   auto-starts a QR login (iLink bot tokens have no refresh path, so a scan
-//!   must be initiated manually from Settings). Mirrors Hermes' `weixin.py`
+//!   must be initiated manually from Settings). Mirrors ' `weixin.py`
 //!   `_poll_loop`, which sleeps 10 minutes on session expiry. Genuine
 //!   rate-limit `-2` backs off exponentially and retries.
 
@@ -63,7 +63,7 @@ const QR_TIMEOUT_MS: u64 = 35_000;
 const RETRY_DELAY_SECONDS: u64 = 2;
 const BACKOFF_DELAY_SECONDS: u64 = 30;
 const MAX_CONSECUTIVE_FAILURES: u32 = 3;
-/// Pause after session expiry before retrying, mirroring Hermes' `weixin.py`
+/// Pause after session expiry before retrying, mirroring ' `weixin.py`
 /// (`"Session expired; pausing for 10 minutes"`, `await asyncio.sleep(600)`).
 #[allow(dead_code)] // retained for the session-expiry retry path
 const SESSION_EXPIRED_PAUSE_SECONDS: u64 = 600;
@@ -1090,7 +1090,7 @@ async fn emit_fresh_qr(
         return Err("weixin: QR response missing qrcode".into());
     }
     // Use the full scannable URL if the API provides it; fall back to wrapping
-    // the raw token (hermes pattern: qrcode_img_content).
+    // the raw token ( pattern: qrcode_img_content).
     let qrcode_url = qr_resp
         .get("qrcode_img_content")
         .and_then(Value::as_str)

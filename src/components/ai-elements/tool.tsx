@@ -56,12 +56,19 @@ const TOOL_META: Record<string, { label: string; icon: typeof File01Icon }> = {
   terminal_type: { label: "Type in terminal", icon: TerminalIcon },
   open_preview: { label: "Preview", icon: EyeIcon },
   run_subagent: { label: "Subagent", icon: RobotIcon },
+  handoff: { label: "Handoff", icon: RobotIcon },
   run_external_agent: { label: "External agent", icon: RobotIcon },
   git_status: { label: "Git status", icon: FolderGitTwoIcon },
   git_diff: { label: "Git diff", icon: FolderGitTwoIcon },
+  git_blame: { label: "Git blame", icon: FolderGitTwoIcon },
   git_stage: { label: "Git stage", icon: FolderGitTwoIcon },
   git_commit: { label: "Git commit", icon: FolderGitTwoIcon },
+  git_checkpoint: { label: "Checkpoint", icon: FolderGitTwoIcon },
+  git_checkpoint_restore: { label: "Restore", icon: FolderGitTwoIcon },
   todo_write: { label: "Todos", icon: CheckListIcon },
+  generate_image: { label: "Image", icon: SparklesIcon },
+  lsp_hover: { label: "Hover", icon: SparklesIcon },
+  lsp_goto: { label: "Goto def", icon: SparklesIcon },
   update_project_memory: { label: "Project memory", icon: SparklesIcon },
 };
 
@@ -177,6 +184,9 @@ const HEAVY_CONTENT_TOOLS = new Set([
   "run_subagent",
   "todo_write",
 ]);
+
+/** Cap for inline before/after pairs rendered for `multi_edit` input. */
+const MAX_INLINE_EDITS = 8;
 
 /**
  * Look up the MCP server name that a namespaced `mcp_<server>_<tool>` call
@@ -380,6 +390,63 @@ function renderInputPreview(
       <div className="space-y-0.5 font-mono text-[11px]">
         <div className="text-foreground">{pat}</div>
         {path ? <div className="text-muted-foreground">{path}</div> : null}
+      </div>
+    );
+  }
+  if (toolName === "write_file") {
+    const content = str("content");
+    if (content == null) return null;
+    return <ToolCodeBlock code={content} />;
+  }
+  if (toolName === "edit") {
+    const oldStr = str("old_string");
+    const newStr = str("new_string");
+    if (oldStr == null || newStr == null) return null;
+    return (
+      <div className="space-y-2">
+        <div className="space-y-1">
+          <div className="text-[10px] font-medium text-muted-foreground">
+            {tStatic("ai.before")}
+          </div>
+          <ToolCodeBlock code={oldStr} />
+        </div>
+        <div className="space-y-1">
+          <div className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
+            {tStatic("ai.after")}
+          </div>
+          <ToolCodeBlock code={newStr} />
+        </div>
+      </div>
+    );
+  }
+  if (toolName === "multi_edit") {
+    const edits = Array.isArray(i.edits)
+      ? (i.edits as Array<{ old_string?: unknown; new_string?: unknown }>)
+      : [];
+    if (edits.length === 0) return null;
+    return (
+      <div className="space-y-2.5">
+        {edits.slice(0, MAX_INLINE_EDITS).map((e, idx) => {
+          const oldStr = typeof e.old_string === "string" ? e.old_string : "";
+          const newStr = typeof e.new_string === "string" ? e.new_string : "";
+          return (
+            <div key={idx} className="space-y-1">
+              <div className="text-[10px] font-medium text-muted-foreground">
+                {tStatic("ai.before")} {idx + 1}
+              </div>
+              <ToolCodeBlock code={oldStr} />
+              <div className="pt-1 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
+                {tStatic("ai.after")} {idx + 1}
+              </div>
+              <ToolCodeBlock code={newStr} />
+            </div>
+          );
+        })}
+        {edits.length > MAX_INLINE_EDITS ? (
+          <div className="text-[10px] italic text-muted-foreground">
+            +{edits.length - MAX_INLINE_EDITS} more
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -766,10 +833,36 @@ function formatBytes(n: number): string {
 function CodeBlockMini({ code }: { code: string; language: string }) {
   // Tool input/output is debug-grade detail — JSON arrives pre-formatted and
   // file content is shown in the editor diff tab. Highlighting here is not
-  // worth the parser hop.
+  // worth the parser hop, but every block gets line numbers + proper wrapping
+  // so expanded write/edit payloads stay scannable.
+  return <ToolCodeBlock code={code} />;
+}
+
+/**
+ * Line-numbered code block used for tool input/output bodies. The width of the
+ * gutter is derived from the line count so every line aligns, matching the
+ * chat markdown code blocks (chat-code.tsx).
+ */
+function ToolCodeBlock({ code }: { code: string }) {
+  const body = code.replace(/\n+$/, "");
+  const lines = body.length > 0 ? body.split("\n") : [""];
+  const width = `${String(lines.length).length}ch`;
   return (
-    <pre className="max-h-60 overflow-auto rounded bg-muted/40 p-2 font-mono text-[11px] leading-relaxed text-foreground whitespace-pre-wrap">
-      {code}
+    <pre className="max-h-60 overflow-auto rounded bg-muted/40 p-2 font-mono text-[11px] leading-relaxed text-foreground">
+      {lines.map((line, i) => (
+        <div key={i} className="flex">
+          <span
+            aria-hidden
+            className="shrink-0 select-none pr-3 text-right text-muted-foreground/50"
+            style={{ width }}
+          >
+            {i + 1}
+          </span>
+          <span className="whitespace-pre">
+            {line === "" ? "\u00A0" : line}
+          </span>
+        </div>
+      ))}
     </pre>
   );
 }

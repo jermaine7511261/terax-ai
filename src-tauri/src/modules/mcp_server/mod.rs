@@ -3,7 +3,7 @@
 //!
 //! Usage: `yamet __mcp_server [--workdir <path>]`
 //!
-//! This module mirrors the Hermes gateway architecture: a main loop reads
+//! This module mirrors the  gateway architecture: a main loop reads
 //! stdin line-by-line, dispatches to tool handlers, and writes responses to
 //! stdout. All tools are read-only and paths are sandboxed to the workspace.
 

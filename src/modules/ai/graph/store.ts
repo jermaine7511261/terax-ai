@@ -138,7 +138,7 @@ export const useGraphStore = create<GraphStore>((set, get) => ({
     );
     const resolver = humanResolvers.get(nodeId);
     if (resolver) {
-      // Approve continues the loop (hermes nudge gate). Reject fails the node,
+      // Approve continues the loop ( nudge gate). Reject fails the node,
       // and the feedback message is surfaced via a synthetic reject.
       resolver(decision !=="reject");
       humanResolvers.delete(nodeId);

@@ -2,7 +2,7 @@ import { createStorage } from "@/platform";
 import type { JournalEntry } from "./types";
 
 /**
- * Journal (H6 checkpoint/resume, grok journal.rs): every graph run snapshots
+ * Journal (H6 checkpoint/resume,  journal.rs): every graph run snapshots
  * its per-node state to durable storage keyed by a request_hash. On resume,
  * a run with the same graph id + def hash finds its prior entry and continues
  * from the last non-terminal node instead of re-running completed work.

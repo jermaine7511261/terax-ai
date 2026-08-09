@@ -1,7 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { native } from "../lib/native";
-import { checkShellCommand } from "../lib/security";
+import { checkEnvKeys, checkShellCommand } from "../lib/security";
 import type { ToolContext } from "./context";
 import { currentWorkspaceEnv, workspaceScopeKey } from "@/modules/workspace";
 
@@ -40,11 +40,19 @@ export function buildShellTools(ctx: ToolContext) {
       inputSchema: z.object({
         command: z.string(),
         timeout_secs: z.number().int().min(1).max(300).optional(),
+        env: z
+          .record(z.string(), z.string())
+          .optional()
+          .describe(
+            "Optional extra environment variables for this one call. Only allowlisted keys (locale/TTY, HOME, NODE_ENV, CI, …) are accepted; loader-injection keys are refused.",
+          ),
       }),
       needsApproval: true,
-      execute: async ({ command, timeout_secs }) => {
+      execute: async ({ command, timeout_secs, env }) => {
         const safety = checkShellCommand(command);
         if (!safety.ok) return { error: safety.reason };
+        const envCheck = checkEnvKeys(env);
+        if (!envCheck.ok) return { error: envCheck.reason };
         const sid = ctx.getSessionId();
         if (!sid) return { error: "no active chat session" };
         try {
@@ -55,6 +63,7 @@ export function buildShellTools(ctx: ToolContext) {
             command,
             cwd,
             timeout_secs,
+            envCheck.env,
           );
           return {
             command,

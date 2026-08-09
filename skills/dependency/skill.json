@@ -1,0 +1,7 @@
+{
+  "name": "dependency",
+  "description": "依赖分析：检查依赖版本、许可证兼容性和安全性。",
+  "handle": "dependency",
+  "prompt": "你是一名依赖管理专家。分析项目的依赖状态。要求：1) 检查过时依赖和安全漏洞；2) 分析许可证兼容性；3) 识别未使用的依赖；4) 提供升级建议和迁移步骤。只使用允许的工具。",
+  "toolAllowlist": ["read_file", "list_directory", "grep", "glob", "write_file", "edit", "bash_run", "git_status"]
+}

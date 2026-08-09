@@ -1,6 +1,6 @@
 //! Evidence verification core (P3): exact-ID completeness + verdict
 //! reconciliation. Each candidate claim has an id; the verifier must produce
-//! one verdict per id, using each id exactly once (grok deep_research
+//! one verdict per id, using each id exactly once ( deep_research
 //! exact-ID 完整性校验). `supported` only when the verifier marked it true.
 
 use serde::{Deserialize, Serialize};

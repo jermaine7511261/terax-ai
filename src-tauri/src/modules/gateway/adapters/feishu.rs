@@ -1,8 +1,8 @@
 //! Feishu (飞书 / Lark) platform adapter.
 //!
 //! Reference implementations:
-//! - Hermes  `plugins/platforms/feishu/adapter.py`
-//! - LangBot `pkg/platform/sources/lark.py`
+//! -   `plugins/platforms/feishu/adapter.py`
+//! -  `pkg/platform/sources/lark.py`
 //!
 //! Protocol notes (lark-oapi, faithful to the references above — no invented
 //! endpoints):
@@ -104,7 +104,7 @@ fn new_uuid() -> String {
 
 /// Exchange `app_id` + `app_secret` for a `tenant_access_token`.
 ///
-/// Mirrors Hermes `_probe_bot_http` and lark-oapi's internal token flow:
+/// Mirrors  `_probe_bot_http` and lark-oapi's internal token flow:
 /// `POST {base}/open-apis/auth/v3/tenant_access_token/internal`.
 async fn fetch_tenant_access_token(
     client: &reqwest::Client,
@@ -174,8 +174,8 @@ async fn feishu_send_text(
     let _ = cfg; // used by future media uploads (send_file); text replies need no config
     let client = http_client();
 
-    // Map the normalized target to Feishu's receive_id_type (mirrors LangBot's
-    // `send_message` mapping and Hermes' `_build_create_message_request`).
+    // Map the normalized target to Feishu's receive_id_type (mirrors 's
+    // `send_message` mapping and ' `_build_create_message_request`).
     let (receive_id_type, receive_id) = match target.chat_type {
         ChatType::Dm => {
             if let Some(stripped) = target.chat_id.strip_prefix("feishu_user_id:") {

@@ -76,6 +76,47 @@ export function buildMemoryTools(ctx: ToolContext) {
             : await appendProjectMemory(workspaceRoot, memEntry);
         }
 
+        // §3.5.1 Auto-compact: when YAMET.md entries exceed 20, compress oldest half.
+        if (workspaceRoot && persisted?.ok) {
+          const root = workspaceRoot;
+          try {
+            const re = await native.readFile(
+              `${root.replace(/\/$/, "")}/YAMET.md`,
+            );
+            if (re.kind === "text" && "content" in re) {
+              const text = (re as { kind: "text"; content: string }).content;
+              const lines = parseBlock(text).lines.filter(
+                (l: string) => l.trim(),
+              );
+              if (lines.length > 20) {
+                const half = Math.floor(lines.length / 2);
+                const oldLines = lines.slice(0, half);
+                const newLines = lines.slice(half);
+                const summaryLines = oldLines.map((l: string) => {
+                  const t = l.replace(/^-\\s*/, "").trim();
+                  const firstSentence = t.split(/[.。！？]/)[0];
+                  return `- ${firstSentence || t}`;
+                });
+                const compacted = `[auto-compact] ${summaryLines.length} entries merged`;
+                const merged = [compacted, ...newLines]
+                  .map((l: string) => `- ${l.replace(/^-\\s*/, "")}`)
+                  .join("\n");
+                await native.writeFile(
+                  `${root.replace(/\/$/, "")}/YAMET.md`,
+                  `<!-- yamet-project-memory:start -->\n${merged}\n<!-- yamet-project-memory:end -->\n`,
+                );
+                console.log(
+                  "[yamet] auto-summarize triggered: compacted " +
+                    oldLines.length +
+                    " old entries",
+                );
+              }
+            }
+          } catch {
+            // Non-fatal: auto-compact is best-effort.
+          }
+        }
+
         return {
           ok: true,
           id: memId,
@@ -114,15 +155,18 @@ export function buildMemoryTools(ctx: ToolContext) {
 
         if (workspaceRoot) {
           try {
-            const r = await native.readFile(`${workspaceRoot.replace(/\/$/, "")}/YAMET.md`);
-            if (r.kind === "text") {
-              for (const line of parseBlock(r.content).lines) {
-                const content = line.replace(/^-\s*/, "").trim();
-                if (!content || seen.has(content.toLowerCase())) continue;
-                seen.add(content.toLowerCase());
+            const r = await native.readFile(
+              `${workspaceRoot.replace(/\/$/, "")}/YAMET.md`,
+            );
+            if (r.kind === "text" && "content" in r) {
+              const content = (r as { kind: "text"; content: string }).content;
+              for (const line of parseBlock(content).lines) {
+                const c = line.replace(/^-\\s*/, "").trim();
+                if (!c || seen.has(c.toLowerCase())) continue;
+                seen.add(c.toLowerCase());
                 entries.push({
-                  id: `file:${content}`,
-                  content,
+                  id: `file:${c}`,
+                  content: c,
                   source: "tool",
                   persisted: true,
                 });

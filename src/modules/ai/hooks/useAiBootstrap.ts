@@ -104,7 +104,7 @@ export function useAiBootstrap(): {
   useEffect(() => {
     void hydrateSessions();
     void useAgentsStore.getState().hydrate();
-    // Scan the workspace `skills/` directory once at boot (★ L4 LangBot):
+    // Scan the workspace `skills/` directory once at boot (★ L4):
     // builtins merge into the snippet store as `builtin: true` snippets and
     // honor the user's disabled set. hydrate() must settle first — merging
     // builtins before it resolves lets its set({snippets}) overwrite them.
@@ -125,7 +125,7 @@ export function useAiBootstrap(): {
     })();
   }, [hydrateSessions]);
 
-  // Cron scheduler fires (★ H3 Hermes): spawn the agent for session targets,
+  // Cron scheduler fires (★ H3): spawn the agent for session targets,
   // otherwise send a system notification.
   useEffect(() => {
     let unlisten: (() => void) | undefined;

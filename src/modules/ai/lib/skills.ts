@@ -2,7 +2,7 @@ import { native, type DirEntry, type ReadResult } from "./native";
 import { normalizeHandle, type Snippet } from "./snippets";
 
 /**
- * Builtin skills — LangBot-style `skills/` directory convention (★ L4).
+ * Builtin skills — builtin-style `skills/` directory convention (★ L4).
  *
  * A skill lives at `<workspaceRoot>/skills/<name>/skill.json` (or
  * `<name>.json`) with fields `{ name, description, prompt, handle?,
@@ -36,7 +36,7 @@ export type SkillFile = {
 /** S6 activation state. */
 export type SkillState = "ACTIVE" | "DEGRADED" | "UNAVAILABLE";
 
-/** S6 prompt budget (PraisonAI SkillPromptBudget). */
+/** S6 prompt budget ( SkillPromptBudget). */
 export const SKILL_MAX_CHARS = 4096;
 export const SKILL_MAX_COUNT = 50;
 

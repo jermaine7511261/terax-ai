@@ -8,8 +8,8 @@
 //! message topic.
 //!
 //! Reference implementations followed:
-//! - Hermes  `plugins/platforms/dingtalk/adapter.py`
-//! - LangBot `pkg/platform/sources/dingtalk.py` + `libs/dingtalk_api/`
+//! -   `plugins/platforms/dingtalk/adapter.py`
+//! -  `pkg/platform/sources/dingtalk.py` + `libs/dingtalk_api/`
 //!
 //! Outbound messages are sent through the DingTalk robot OpenAPI
 //! (`/v1.0/robot/oToMessages/batchSend` for DMs, `/v1.0/robot/groupMessages/send`
@@ -68,7 +68,7 @@ pub struct DingTalkConfig {
     pub app_secret: String,
     /// Optional dedicated robot code. For enterprise-internal robots this
     /// equals the AppKey; when `None`/empty the adapter falls back to
-    /// `app_key` (mirrors LangBot's `self.robot_code or self.key`).
+    /// `app_key` (mirrors 's `self.robot_code or self.key`).
     pub robot_code: Option<String>,
 }
 

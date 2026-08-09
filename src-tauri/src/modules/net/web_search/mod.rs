@@ -61,6 +61,12 @@ pub struct WebSearchParams {
     #[serde(default)]
     pub max_results: Option<usize>,
     pub categories: Option<Vec<String>>,
+    /// Optional ISO date window (`YYYY-MM-DD`) — forwarded to the provider as
+    /// a time-range filter (DDG `df`/`dt`). `None` = no restriction.
+    #[serde(default)]
+    pub date_from: Option<String>,
+    #[serde(default)]
+    pub date_to: Option<String>,
 }
 
 /// Tauri command: search the web through the configured provider (DDG by
@@ -90,6 +96,8 @@ pub async fn web_search(
         query: query.clone(),
         max_results: max,
         categories: params.categories.unwrap_or_default(),
+        date_from: params.date_from.clone(),
+        date_to: params.date_to.clone(),
     };
     match provider.search(&request).await {
         Ok(hits) => {

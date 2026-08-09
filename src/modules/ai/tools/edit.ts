@@ -174,7 +174,7 @@ async function applyEdits(
   abs: string,
   edits: { old_string: string; new_string: string; replace_all?: boolean }[],
   kind: "edit" | "multi_edit",
-  readCache: Map<string, { size: number; hash: number }>,
+  readCache: Map<string, { size: number; hash: number; mtime?: number }>,
 ): Promise<EditResult> {
   const r = await native.readFile(abs);
   if (r.kind === "binary")

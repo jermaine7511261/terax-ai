@@ -17,6 +17,32 @@ describe("validateSkillFields", () => {
     );
   });
 
+  it("rejects unsafe names (path separators / dots / spaces)", () => {
+    expect(
+      validateSkillFields({ name: "../../etc/passwd", prompt: "x" }),
+    ).toContain("name");
+    expect(validateSkillFields({ name: "..", prompt: "x" })).toContain("name");
+    expect(validateSkillFields({ name: "my skill", prompt: "x" })).toContain(
+      "name",
+    );
+    expect(validateSkillFields({ name: "deploy.ts", prompt: "x" })).toContain(
+      "name",
+    );
+  });
+
+  it("normalizes uppercase names to safe lowercase", () => {
+    expect(validateSkillFields({ name: "Deploy", prompt: "x" })).toBeNull();
+  });
+
+  it("accepts lowercase dash/underscore names", () => {
+    expect(
+      validateSkillFields({ name: "fix-ts", prompt: "x" }),
+    ).toBeNull();
+    expect(
+      validateSkillFields({ name: "deploy_staging", prompt: "x" }),
+    ).toBeNull();
+  });
+
   it("rejects empty prompt", () => {
     expect(validateSkillFields({ name: "x", prompt: "  " })).toContain(
       "prompt",

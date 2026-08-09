@@ -1,4 +1,4 @@
-//! Minimal 5-field cron parser + next-trigger computation (★ H3 Hermes).
+//! Minimal 5-field cron parser + next-trigger computation (★ H3).
 //! No external dependency — a hand-rolled subset: `*`, `N`, `a-b`, `*/n`,
 //! `a-b/n`, comma lists. Day-of-month and day-of-week are ANDed (standard
 //! cron ORs them; the simpler AND is fine for task scheduling).

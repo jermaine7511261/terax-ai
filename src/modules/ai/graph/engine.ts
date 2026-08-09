@@ -271,7 +271,7 @@ export class GraphEngine {
           const r = await deps.runAgent(n.def, n.context);
           let output = r.output ?? "";
           let stepCount = r.stepCount;
-          // Worker/verify double-round (grok goal_tracker): skeptic pass.
+          // Worker/verify double-round ( goal_tracker): skeptic pass.
           if (deps.verify && output.trim()) {
             const v = await deps.verify(n.def, output);
             output = v.output ?? output;
@@ -436,7 +436,7 @@ export class GraphEngine {
 }
 
 /**
- * Bounded semaphore (hermes/grok concurrency limit). `acquire()` resolves when
+ * Bounded semaphore (/ concurrency limit). `acquire()` resolves when
  * a slot frees; callers must `release()` in a finally block.
  */
 class Semaphore {

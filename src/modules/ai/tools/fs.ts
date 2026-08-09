@@ -66,7 +66,9 @@ export function buildFsTools(ctx: ToolContext) {
           if (isFullRead && prior && prior.size === r.size && prior.hash === hash) {
             return { path: abs, unchanged: true, size: r.size };
           }
-          ctx.readCache.set(abs, { size: r.size, hash });
+          const mtime =
+            "mtime" in r && typeof r.mtime === "number" ? r.mtime : undefined;
+          ctx.readCache.set(abs, { size: r.size, hash, mtime });
 
           if (isFullRead) {
             const lines = r.content.split("\n");
@@ -180,8 +182,21 @@ export function buildFsTools(ctx: ToolContext) {
         // failure degrades to "no data" and never blocks the write.
         const releaseBaseline = await captureBaseline(abs);
         try {
-          await native.writeFile(abs, content);
-          ctx.readCache.set(abs, { size: content.length, hash: djb2(content) });
+          // Optimistic concurrency: when this path was read this session,
+          // carry the observed mtime so a concurrent writer can't be silently
+          // clobbered (the write refuses on mismatch — same invariant as
+          // edit/multi_edit/apply_patch).
+          const cached = ctx.readCache.get(abs);
+          if (cached?.mtime != null) {
+            await native.writeFile(abs, content, { expectedMtime: cached.mtime });
+          } else {
+            await native.writeFile(abs, content);
+          }
+          ctx.readCache.set(abs, {
+            size: content.length,
+            hash: djb2(content),
+            mtime: cached?.mtime,
+          });
           const lsp = await newDiagnosticsAfterWrite(abs, content);
           return withLspDiagnostics(
             { path: abs, bytesWritten: content.length, ok: true },
@@ -505,7 +520,7 @@ export function buildFsTools(ctx: ToolContext) {
 
     delete_file: tool({
       description:
-        "Delete a file (or an empty directory). Recursively deletes a non-empty directory, so be careful. Always asks the user before running. Never use bash_run rm for this — use this tool so the path safety checks apply.",
+        "Delete a file or directory. Non-empty directories are deleted recursively, so this removes the entire subtree — only use it when you intend to delete everything under the path. Always asks the user before running. Never use bash_run rm for this — use this tool so the path safety checks apply.",
       inputSchema: z.object({
         path: z
           .string()

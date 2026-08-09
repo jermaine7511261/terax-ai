@@ -15,9 +15,9 @@ describe("buildExternalAgentCommand", () => {
     expect(cmd).toContain("codex exec");
   });
 
-  it("opencode: uses run subcommand", () => {
-    const cmd = buildExternalAgentCommand("opencode", "hi", "/tmp");
-    expect(cmd).toContain("opencode run");
+  it(": uses run subcommand", () => {
+    const cmd = buildExternalAgentCommand("", "hi", "/tmp");
+    expect(cmd).toContain(" run");
   });
 
   it("gemini: uses -p flag", () => {
@@ -30,9 +30,9 @@ describe("buildExternalAgentCommand", () => {
     expect(cmd).toContain("pi -p");
   });
 
-  it("grok: uses -p flag", () => {
-    const cmd = buildExternalAgentCommand("grok", "hi", "/tmp");
-    expect(cmd).toContain("grok -p");
+  it(": uses -p flag", () => {
+    const cmd = buildExternalAgentCommand("", "hi", "/tmp");
+    expect(cmd).toContain(" -p");
   });
 
   it("includes cd prefix when cwd is provided", () => {
@@ -49,7 +49,7 @@ describe("buildExternalAgentCommand", () => {
 
   it("all agent ids produce a valid non-empty command", () => {
     const ids: ExternalAgentId[] = [
-      "claude", "codex", "opencode", "gemini", "pi", "grok",
+      "claude", "codex", "", "gemini", "pi", "",
     ];
     for (const id of ids) {
       const cmd = buildExternalAgentCommand(id, "test prompt", "/tmp");

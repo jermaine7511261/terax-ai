@@ -2,6 +2,7 @@
 //! The safety core (`safety.rs`) is pure and cross-platform; the platform layer
 //! (`platform.rs`) is Windows-first per decision 4.
 
+pub mod commands;
 pub mod platform;
 pub mod safety;
 
@@ -43,7 +44,7 @@ pub struct ComputerUseSession {
 #[serde(rename_all = "camelCase")]
 pub struct ComputerCaptureResult {
     pub ok: bool,
-    /// PNG as a data URI for the vision call (`image_url` data-URI, hermes).
+    /// PNG as a data URI for the vision call (`image_url` data-URI, ).
     pub image_data_url: Option<String>,
     pub width: Option<u32>,
     pub height: Option<u32>,
@@ -145,8 +146,9 @@ pub fn computer_action(
     if budget_exceeded(used, MAX_ACTIONS_PER_SESSION) {
         return Ok("{ \"error\": \"action budget exceeded\" }".into());
     }
-    // M2 milestone: platform input injection lands with the vision loop in the
-    // same milestone; until then the gated action is recorded (mock-safe).
+    // M2: real platform input injection (Windows SendInput; other platforms
+    // return a clear "not implemented" error).
+    platform::inject_action(&action)?;
     Ok(format!(
         "{{ \"ok\": true, \"action\": \"{:?}\", \"actionsUsed\": {used} }}",
         action.kind

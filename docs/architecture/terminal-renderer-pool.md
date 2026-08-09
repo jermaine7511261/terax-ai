@@ -4,7 +4,7 @@
 
 ## 为什么有池
 
-终端标签切换时保持挂载与隐藏，让 PTY 与开发服务器持续后台流式输出。无限创建活跃的 xterm + WebGL 渲染实例会爆内存预算，所以 Yamet 池化渲染槽位。
+终端标签切换时保持挂载与隐藏，让 PTY 与开发服务器持续后台流式输出。无限创建活跃的 xterm + WebGL 渲染实例会爆内存预算，所以 YaMet 池化渲染槽位。
 
 池在 `src/modules/terminal/lib/rendererPool.ts`。
 

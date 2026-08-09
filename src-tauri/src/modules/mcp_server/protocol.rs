@@ -1,6 +1,6 @@
 //! MCP server-side JSON-RPC 2.0 protocol (stdio, newline-delimited).
 //!
-//! Mirrors the wire format expected by MCP clients (Claude Code, OpenCode, etc.):
+//! Mirrors the wire format expected by MCP clients (Claude Code, , etc.):
 //! - Requests: `{"jsonrpc":"2.0","id":...,"method":"...","params":{...}}\n`
 //! - Responses: `{"jsonrpc":"2.0","id":...,"result":{...}}\n` or `{"jsonrpc":"2.0","id":...,"error":{...}}\n`
 //! - Notifications (no id): `{"jsonrpc":"2.0","method":"...","params":{...}}\n`

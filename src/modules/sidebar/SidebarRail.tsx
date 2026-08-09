@@ -8,6 +8,7 @@ import {
   GlobeIcon,
   GitBranchIcon,
   Plug01Icon,
+  RobotIcon,
   Search01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -44,6 +45,7 @@ export function SidebarRail({ activeView, onSelectView, changedCount }: Props) {
     { id: "mcp", label: t("sidebar.mcp"), icon: Plug01Icon },
     { id: "gateway", label: t("sidebar.gateway"), icon: Chat01Icon },
     { id: "git-history", label: t("sidebar.gitHistory"), icon: GitBranchIcon },
+    { id: "agents", label: t("sidebar.agents"), icon: RobotIcon },
   ];
 
   return (

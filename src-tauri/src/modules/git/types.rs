@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 pub(crate) const DEFAULT_TIMEOUT_SECS: u64 = 30;
 pub(crate) const NETWORK_TIMEOUT_SECS: u64 = 120;
@@ -106,6 +106,29 @@ pub struct GitLogEntry {
     pub files_changed: u32,
     pub insertions: u32,
     pub deletions: u32,
+}
+
+/// One line of `git blame --line-porcelain` output (P2-14).
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BlameLine {
+    pub line: u32,
+    pub sha: String,
+    pub author: String,
+    pub author_mail: String,
+    pub time: i64,
+    pub summary: String,
+    pub content: String,
+}
+
+/// A pre-edit snapshot (P3-13, N3): `git stash create`'s commit sha recorded
+/// out-of-band so AI edits can be rolled back without polluting the branch.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitCheckpoint {
+    pub sha: String,
+    pub message: String,
+    pub created_at: u64,
 }
 
 #[derive(Serialize)]

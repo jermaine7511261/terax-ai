@@ -1,6 +1,6 @@
 //! DAP transport integration tests against real child processes.
 //!
-//! Round-12 pattern (grok `xai-grok-test-support`): exercise the native
+//! Round-12 pattern ( `xai--test-support`): exercise the native
 //! stdio transport against a real subprocess and the real Content-Length
 //! framing; never mock the transport layer. Unix-only: Windows uses ConPTY
 //! elsewhere and the plain-pipe semantics differ; the cfg gate keeps the

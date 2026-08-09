@@ -90,6 +90,15 @@ function setText(content: string) {
   });
 }
 
+function setTextMtime(content: string, mtime: number) {
+  nativeMock.readFile.mockResolvedValue({
+    kind: "text",
+    content,
+    size: content.length,
+    mtime,
+  });
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   nativeMock.canonicalize.mockImplementation(async (p: string) => p);
@@ -199,6 +208,24 @@ describe("write_file validation branches", () => {
     expect(result).toMatchObject({ path: FILE, bytesWritten: 5, ok: true });
     // read cache is primed so a follow-up read reports unchanged.
     expect(ctx.readCache.has(FILE)).toBe(true);
+  });
+
+  it("carries the cached read mtime as optimistic CAS on overwrite", async () => {
+    // Simulate a file read earlier this session: the read path stores mtime.
+    setTextMtime("original body", 123);
+    const ctx = makeContext(new Map());
+    await runTool(ctx, "read_file", { path: FILE });
+    nativeMock.writeFile.mockClear();
+    await runTool(ctx, "write_file", { path: FILE, content: "replacement" });
+    expect(nativeMock.writeFile).toHaveBeenCalledWith(FILE, "replacement", {
+      expectedMtime: 123,
+    });
+  });
+
+  it("omits expectedMtime when the path was never read this session", async () => {
+    const ctx = makeContext(new Map());
+    await runTool(ctx, "write_file", { path: FILE, content: "fresh" });
+    expect(nativeMock.writeFile).toHaveBeenCalledWith(FILE, "fresh");
   });
 
   it("rejects a sensitive write target (.env)", async () => {

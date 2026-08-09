@@ -64,11 +64,11 @@ export type CustomEndpoint = {
   contextLimit: number;
 };
 
-/** Built-in OpenAI-compatible endpoint for opencode-go. */
+/** Built-in OpenAI-compatible endpoint for -go. */
 export const OPENCODE_GO_ENDPOINT: CustomEndpoint = {
-  id: "opencode-go",
-  name: "opencode-go",
-  baseURL: "https://opencode.ai/zen/go/v1",
+  id: "-go",
+  name: "-go",
+  baseURL: "https://.ai/zen/go/v1",
   modelId: "deepseek-v4-flash",
   contextLimit: 1_000_000,
 };
@@ -337,12 +337,12 @@ export const MODEL_CONTEXT_LIMITS: Record<string, number> = {
   "gemini-3-flash-preview": 1_000_000,
   "gemini-2.5-pro": 1_000_000,
   "gemini-2.5-flash": 1_000_000,
-  "grok-4.5": 500_000,
-  "grok-4.20-reasoning": 2_000_000,
-  "grok-4.20-non-reasoning": 2_000_000,
-  "grok-4-fast-reasoning": 2_000_000,
-  "grok-4.3": 1_000_000,
-  "grok-build-0.1": 256_000,
+  "-4.5": 500_000,
+  "-4.20-reasoning": 2_000_000,
+  "-4.20-non-reasoning": 2_000_000,
+  "-4-fast-reasoning": 2_000_000,
+  "-4.3": 1_000_000,
+  "-build-0.1": 256_000,
   "deepseek-v4-pro": 1_000_000,
   "deepseek-v4-flash": 1_000_000,
   "deepseek-reasoner": 128_000,
@@ -371,6 +371,26 @@ export function getModelContextLimit(
   if (modelId === "openai-compatible-custom" && compatOverride)
     return compatOverride;
   return MODEL_CONTEXT_LIMITS[modelId] ?? 128_000;
+}
+
+/** Resolve the effective context window for a model the way the runtime does
+ *  (agent.ts): named endpoints carry their own `contextLimit` (set in model
+ *  settings), which must win over the legacy flat `openaiCompatibleContextLimit`
+ *  preference. Mirrors `runAgentStream` so the status-bar / mini-window
+ *  indicator and the actual compaction budget can never disagree. */
+export function getEffectiveContextLimit(
+  modelId: string | undefined,
+  customEndpoints: readonly CustomEndpoint[] = [],
+  compatOverride?: number,
+): number {
+  if (!modelId) return 128_000;
+  if (isCompatModelId(modelId)) {
+    const ep = customEndpoints.find(
+      (e) => e.id === endpointIdFromCompatModel(modelId),
+    );
+    return ep?.contextLimit ?? 128_000;
+  }
+  return getModelContextLimit(modelId, compatOverride);
 }
 
 export type ModelPricing = {
@@ -402,12 +422,12 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
   "gemini-3-flash-preview": { input: 0.3, output: 2.5, cacheRead: 0.075 },
   "gemini-2.5-pro": { input: 1.25, output: 10, cacheRead: 0.31 },
   "gemini-2.5-flash": { input: 0.3, output: 2.5, cacheRead: 0.075 },
-  "grok-4.5": { input: 2, output: 6, cacheRead: 0.5 },
-  "grok-4.20-reasoning": { input: 3, output: 15 },
-  "grok-4.20-non-reasoning": { input: 1, output: 5 },
-  "grok-4-fast-reasoning": { input: 0.2, output: 0.5 },
-  "grok-4.3": { input: 1.25, output: 2.5 },
-  "grok-build-0.1": { input: 1, output: 2 },
+  "-4.5": { input: 2, output: 6, cacheRead: 0.5 },
+  "-4.20-reasoning": { input: 3, output: 15 },
+  "-4.20-non-reasoning": { input: 1, output: 5 },
+  "-4-fast-reasoning": { input: 0.2, output: 0.5 },
+  "-4.3": { input: 1.25, output: 2.5 },
+  "-build-0.1": { input: 1, output: 2 },
   "deepseek-v4-pro": { input: 0.28, output: 1.1, cacheRead: 0.028 },
   "deepseek-v4-flash": { input: 0.07, output: 0.27, cacheRead: 0.007 },
   "deepseek-reasoner": { input: 0.55, output: 2.19, cacheRead: 0.14 },
@@ -481,7 +501,9 @@ export const DEFAULT_STT_PROVIDER: SttProvider = "whispercpp";
 export const WHISPERCPP_DEFAULT_BASE_URL = "http://127.0.0.1:8080";
 export const LLAMA_CPP_DEFAULT_BASE_URL = "http://localhost:8080/v1";
 export const OPENAI_COMPATIBLE_DEFAULT_BASE_URL = "";
-export const MAX_AGENT_STEPS = 24;
+/** Default agent step cap. Overridden per-agent by the selected AgentDef's
+ *  `max_steps` (R28 #1) when set; the main chat loop and subagents use it. */
+export const MAX_AGENT_STEPS = 100;
 export const TERMINAL_BUFFER_LINES = 300;
 
 export const SYSTEM_PROMPT = `You are Yamet, an AI agent embedded in a developer terminal emulator. You are a hands-on engineer, not a chat bot — your job is to *do* the work, not narrate it.
@@ -500,7 +522,7 @@ Every turn carries a short <env> block (prepended to the latest user message): w
 - Read: read_file, list_directory, grep, glob, get_terminal_output
 - Mutate (approval required): edit, multi_edit, write_file, create_directory, bash_run, bash_background
 - Background process IO: bash_logs, bash_list, bash_kill
-- Plan / delegation: todo_write, run_subagent
+- Plan / delegation: todo_write, run_subagent, handoff
 - Git: git_status, git_diff (read-only), git_stage, git_commit (approval required)
 - Side-channel: suggest_command, open_preview
 - Terminal drive: terminal_execute, terminal_type (both need an active terminal and run live in the user's shell — use sparingly and only when the user wants the action in their real terminal)
@@ -563,7 +585,7 @@ const LITE_SYSTEM_PROMPT_MODEL_IDS = new Set<string>([
   "llama3.3-70b",
   "llama-3.3-70b-versatile",
   "qwen-3-32b",
-  "grok-build-0.1",
+  "-build-0.1",
 ]);
 
 export function selectSystemPrompt(modelId: string | undefined): string {
