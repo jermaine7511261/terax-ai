@@ -25,7 +25,7 @@ type FileTrigger = {
   query: string;
 };
 
-function detectSnippetTrigger(
+export function detectSnippetTrigger(
   value: string,
   caret: number,
 ): SnippetTrigger | null {
@@ -44,7 +44,7 @@ function detectSnippetTrigger(
   return null;
 }
 
-function detectFileTrigger(value: string, caret: number): FileTrigger | null {
+export function detectFileTrigger(value: string, caret: number): FileTrigger | null {
   for (let i = caret - 1; i >= 0; i--) {
     const ch = value[i];
     if (ch === "@") {
