@@ -71,6 +71,11 @@ pub struct AiSession {
     options: client::ChatOptions,
     model: String,
     system: Option<String>,
+    /// Tool definitions passed from the frontend. When present, the model
+    /// receives tool schemas and may emit tool_calls.  Execution stays on
+    /// the frontend (Vercel AI SDK); the harness streams tool_call events
+    /// and the frontend calls `ai_session_send` with tool results.
+    tools: Option<Vec<client::ToolDef>>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -83,6 +88,10 @@ pub struct AiSessionOpenParams {
     pub keyring_account: Option<String>,
     pub allow_private_network: bool,
     pub system: Option<String>,
+    /// Tool definitions the model may invoke.  Each entry is a serialized
+    /// OpenAI-compatible function tool definition.  The harness passes them
+    /// to the API; execution stays on the frontend.
+    pub tools: Option<Vec<client::ToolDef>>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -159,6 +168,7 @@ pub async fn ai_session_open(
         },
         model: params.model.trim().to_string(),
         system: params.system,
+        tools: params.tools,
     });
     state
         .sessions
@@ -366,7 +376,7 @@ fn build_request(session: &AiSession) -> client::ChatRequest {
     client::ChatRequest {
         model: session.model.clone(),
         messages: full,
-        tools: None,
+        tools: session.tools.clone(),
         reasoning_effort: None,
         temperature: None,
         max_tokens: None,
@@ -398,6 +408,7 @@ mod tests {
             },
             model: "m".into(),
             system: None,
+            tools: None,
         });
         s.abort.store(true, Ordering::Release);
         assert!(s.abort.load(Ordering::Acquire));
@@ -418,6 +429,7 @@ mod tests {
             },
             model: "m".into(),
             system: Some("sys".into()),
+            tools: None,
         });
         let req = build_request(&s);
         assert_eq!(req.messages.len(), 2);
@@ -440,6 +452,7 @@ mod tests {
             },
             model: "m".into(),
             system: Some("   ".into()),
+            tools: None,
         });
         let req = build_request(&s);
         assert!(req.messages.is_empty());

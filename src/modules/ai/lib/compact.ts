@@ -1,5 +1,38 @@
 import type { ModelMessage, UIMessage } from "ai";
 
+/**
+ * Safety net after AI SDK `pruneMessages` / `selectContext`: remove orphan
+ * `tool-call` parts from assistant messages when their matching `tool-result`
+ * has been dropped.  Without this, the provider rejects the history with
+ * "Tool result is missing for tool call".
+ */
+export function sanitizeModelMessages(
+  messages: ModelMessage[],
+): ModelMessage[] {
+  const resultIds = new Set<string>();
+  for (const m of messages) {
+    if (m.role !== "tool" || !Array.isArray(m.content)) continue;
+    for (const part of m.content as ToolPart[]) {
+      if (part.type === "tool-result" && part.toolCallId) {
+        resultIds.add(part.toolCallId);
+      }
+    }
+  }
+  let changed = false;
+  const out = messages.map((m) => {
+    if (m.role !== "assistant" || !Array.isArray(m.content)) return m;
+    const filtered = (m.content as ToolPart[]).filter(
+      (p) => !(p.type === "tool-call" && !resultIds.has(p.toolCallId ?? "")),
+    );
+    if (filtered.length === (m.content as ToolPart[]).length) return m;
+    changed = true;
+    if (filtered.length === 0) return null;
+    return { ...m, content: filtered } as ModelMessage;
+  });
+  if (!changed) return messages;
+  return (out.filter(Boolean) as ModelMessage[]);
+}
+
 const KEEP_TAIL = 24;
 const ELISION_TEXT = "[elided to save context — see prior tool call in history]";
 

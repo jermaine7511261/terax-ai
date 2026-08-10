@@ -409,8 +409,19 @@ async fn build_egress_client(
     }
 
     if system_proxy_configured() {
+        // Disable automatic decompression when using a system proxy.
+        // Proxies (Clash / v2ray) may return HTML error pages that carry the
+        // original `Content-Encoding: gzip` header from the upstream server,
+        // causing reqwest's auto-decompression to fail with "error decoding
+        // response body".  By disabling auto-decompression, we get raw bytes
+        // that match the actual wire format.  SSE responses from LLM providers
+        // are plain text (no gzip) when the client omits Accept-Encoding, so
+        // this is safe in practice.
         return reqwest::Client::builder()
             .connect_timeout(Duration::from_secs(10))
+            .no_gzip()
+            .no_brotli()
+            .no_deflate()
             .build()
             .map_err(|e| e.to_string());
     }

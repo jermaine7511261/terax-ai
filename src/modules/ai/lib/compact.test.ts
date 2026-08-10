@@ -5,6 +5,7 @@ import {
   compactModelMessagesDetailed,
   createCompressionDebouncer,
   pruneToolResultsOnly,
+  sanitizeModelMessages,
   selectContext,
   shouldCompress,
   PROTECT_FIRST_N,
@@ -269,5 +270,54 @@ describe("pruneToolResultsOnly (P2-1 4/4)", () => {
     const r = pruneToolResultsOnly(messages);
     expect(r.changed).toBe(false);
     expect(r.messages).toBe(messages);
+  });
+});
+
+describe("sanitizeModelMessages", () => {
+  it("strips orphan tool-call parts when result is missing", () => {
+    const messages = [
+      {
+        role: "assistant",
+        content: [
+          { type: "text", text: "thinking" },
+          { type: "tool-call", toolCallId: "c1", toolName: "bash", input: {} },
+          { type: "tool-call", toolCallId: "c2", toolName: "read", input: {} },
+        ],
+      },
+      {
+        role: "tool",
+        content: [{ type: "tool-result", toolCallId: "c1", output: { type: "text", value: "ok" } }],
+      },
+    ] as unknown as ModelMessage[];
+    const result = sanitizeModelMessages(messages);
+    expect(result).toHaveLength(2);
+    const parts = result[0].content as { type: string; toolCallId?: string }[];
+    expect(parts).toHaveLength(2);
+    expect(parts[0].type).toBe("text");
+    expect(parts[1].toolCallId).toBe("c1");
+  });
+
+  it("removes assistant message entirely if all tool-calls are orphaned", () => {
+    const messages: ModelMessage[] = [
+      {
+        role: "assistant",
+        content: [
+          { type: "tool-call", toolCallId: "c1", toolName: "bash", input: {} },
+        ],
+      },
+      { role: "user", content: "next" },
+    ];
+    const result = sanitizeModelMessages(messages);
+    expect(result).toHaveLength(1);
+    expect(result[0].role).toBe("user");
+  });
+
+  it("returns original array when nothing changed", () => {
+    const messages: ModelMessage[] = [
+      { role: "user", content: "hello" },
+      { role: "assistant", content: "hi" },
+    ];
+    const result = sanitizeModelMessages(messages);
+    expect(result).toBe(messages);
   });
 });

@@ -491,13 +491,15 @@ export function getAutocompleteEligibleModels(): readonly ModelInfo[] {
   );
 }
 
-export type SttProvider = "whispercpp";
+export type SttProvider = "openai" | "groq" | "whispercpp";
 
 export const STT_PROVIDER_LABELS: Record<SttProvider, string> = {
+  openai: "OpenAI Whisper",
+  groq: "Groq Whisper",
   whispercpp: "Whisper.cpp (local)",
 };
 
-export const DEFAULT_STT_PROVIDER: SttProvider = "whispercpp";
+export const DEFAULT_STT_PROVIDER: SttProvider = "openai";
 export const WHISPERCPP_DEFAULT_BASE_URL = "http://127.0.0.1:8080";
 export const LLAMA_CPP_DEFAULT_BASE_URL = "http://localhost:8080/v1";
 export const OPENAI_COMPATIBLE_DEFAULT_BASE_URL = "";

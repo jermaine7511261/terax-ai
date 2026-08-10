@@ -1,5 +1,8 @@
 import type { ProviderKeys } from "./keyring";
 
+const OPENAI_BASE_URL = "https://api.openai.com/v1";
+const GROQ_BASE_URL = "https://api.groq.com/openai/v1";
+const STT_TIMEOUT_CLOUD_MS = 30_000;
 const STT_TIMEOUT_WHISPERCPP_MS = 180_000;
 
 async function fetchWithTimeout(
@@ -14,6 +17,38 @@ async function fetchWithTimeout(
   } finally {
     clearTimeout(timer);
   }
+}
+
+async function transcribeOpenAI(blob: Blob, apiKey: string): Promise<string> {
+  return transcribeViaRest(OPENAI_BASE_URL, blob, apiKey, "whisper-1");
+}
+
+async function transcribeViaRest(
+  baseURL: string,
+  blob: Blob,
+  apiKey: string | null,
+  model: string,
+): Promise<string> {
+  const form = new FormData();
+  form.append("file", blob, "audio.webm");
+  form.append("model", model);
+  form.append("response_format", "text");
+
+  const headers: Record<string, string> = {};
+  if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+
+  const res = await fetchWithTimeout(`${baseURL}/audio/transcriptions`, {
+    method: "POST",
+    headers,
+    body: form,
+  }, STT_TIMEOUT_CLOUD_MS);
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(
+      `STT request failed (${res.status}): ${body || res.statusText}`,
+    );
+  }
+  return res.text();
 }
 
 async function toWav(blob: Blob): Promise<Blob> {
@@ -99,16 +134,31 @@ function assertLoopbackUrl(baseURL: string): void {
 }
 
 export type SttOptions = {
+  groqSttModel?: string;
   whispercppBaseURL?: string;
 };
 
 export async function transcribeAudio(
   blob: Blob,
   provider: import("../config").SttProvider,
-  _apiKeys: ProviderKeys,
+  apiKeys: ProviderKeys,
   options: SttOptions = {},
 ): Promise<string> {
+  // STT providers may differ from the main chat ProviderId union.
+  // Access keys via string indexing for flexibility.
+  const keys = apiKeys as Record<string, string | null>;
   switch (provider) {
+    case "openai": {
+      const key = keys.openai;
+      if (!key) throw new Error("OpenAI API key is not configured");
+      return transcribeOpenAI(blob, key);
+    }
+    case "groq": {
+      const key = keys.groq;
+      if (!key) throw new Error("Groq API key is not configured");
+      const model = options.groqSttModel || "whisper-large-v3-turbo";
+      return transcribeViaRest(GROQ_BASE_URL, blob, key, model);
+    }
     case "whispercpp": {
       const baseURL =
         options.whispercppBaseURL?.replace(/\/+$/, "") || "http://127.0.0.1:8080";

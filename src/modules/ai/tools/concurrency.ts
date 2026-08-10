@@ -18,6 +18,7 @@
 const CONCURRENCY_SAFE: ReadonlySet<string> = new Set([
   // fs reads
   "read_file",
+  "read_spreadsheet",
   "list_directory",
   "grep",
   "glob",

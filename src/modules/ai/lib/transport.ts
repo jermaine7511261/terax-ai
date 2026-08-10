@@ -1,6 +1,8 @@
 import type { UIMessage } from "@ai-sdk/react";
 import type { CustomEndpoint } from "../config";
 import { runAgentStream, type AgentUsageDelta } from "./agent";
+import { isRetryableModelError } from "./resilience";
+import { usePreferencesStore } from "@/modules/settings/preferences";
 import type { ProviderKeys, CustomEndpointKeys } from "./keyring";
 import type { ThinkingLength } from "@/modules/settings/store";
 import { formatAiError } from "./errors";
@@ -324,9 +326,18 @@ export function createContextAwareTransport(deps: Deps) {
     const messagesForRun = envBlock
       ? injectEnvIntoLastUser(cleanMessages, envBlock)
       : cleanMessages;
-    const result = await runAgentStream({
+    // R30 §2.1: cross-provider failover for the main chat stream. The first
+    // fullStream item is probed to trigger the HTTP request; a retryable
+    // failure (429/5xx/network) before any content is emitted transparently
+    // re-runs the whole agent stream against the next provider in the chain.
+    const fallbackChain = usePreferencesStore.getState().providerFallbackChain ?? [];
+    const fallbackOrder = Array.from(new Set([deps.getModelId(), ...fallbackChain]));
+    let fallbackErr: unknown;
+    for (const fallbackModelId of fallbackOrder) {
+      if (!(await native.resilienceAvailable(fallbackModelId))) continue;
+      const result = await runAgentStream({
       keys: deps.getKeys(),
-      modelId: deps.getModelId(),
+      modelId: fallbackModelId,
       customInstructions: deps.getCustomInstructions(),
       agentPersona: deps.getAgentPersona(),
       toolContext: deps.toolContext,
@@ -351,10 +362,51 @@ export function createContextAwareTransport(deps: Deps) {
       uiMessages: messagesForRun,
       abortSignal: options.abortSignal,
     });
-    return result.toUIMessageStream({
-      originalMessages: options.messages,
-      onError: formatAiError,
-    });
+      if (!result.fullStream) {
+        return result.toUIMessageStream({
+          originalMessages: options.messages,
+          onError: formatAiError,
+        });
+      }
+      try {
+        const streamSrc = result.fullStream as unknown as AsyncIterable<unknown>;
+        const it = streamSrc[Symbol.asyncIterator]();
+        const first = await it.next();
+        if (first.done) {
+          return result.toUIMessageStream({
+            originalMessages: options.messages,
+            onError: formatAiError,
+          });
+        }
+        const fullStream = (async function* () {
+          yield first.value;
+          for (let n = await it.next(); !n.done; n = await it.next()) {
+            yield n.value;
+          }
+        })();
+        const merged = Object.create(Object.getPrototypeOf(result));
+        Object.assign(merged, result);
+        Object.defineProperty(merged, "fullStream", {
+          value: fullStream,
+          writable: true,
+          enumerable: true,
+          configurable: true,
+        });
+        void native.resilienceRecordSuccess(fallbackModelId);
+        return merged.toUIMessageStream({
+          originalMessages: options.messages,
+          onError: formatAiError,
+        });
+      } catch (e) {
+        fallbackErr = e;
+        void native.resilienceRecordFailure(fallbackModelId);
+        if (!isRetryableModelError(e)) throw e;
+        console.warn(
+          `[resilience] chat fallback: provider ${fallbackModelId} failed (${String(e)})`,
+        );
+      }
+    }
+    throw fallbackErr instanceof Error ? fallbackErr : new Error(String(fallbackErr));
   };
 
   return {

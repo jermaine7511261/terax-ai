@@ -26,10 +26,19 @@ function providerNeedsKey(provider: SttProvider): boolean {
 }
 
 function getApiKeyForStt(
-  _apiKeys: import("../lib/keyring").ProviderKeys,
-  _provider: SttProvider,
+  apiKeys: import("../lib/keyring").ProviderKeys,
+  provider: SttProvider,
 ): string | null {
-  return null;
+  // STT providers may differ from the main ProviderId union.
+  const keys = apiKeys as Record<string, string | null>;
+  switch (provider) {
+    case "openai":
+      return keys.openai ?? null;
+    case "groq":
+      return keys.groq ?? null;
+    default:
+      return null;
+  }
 }
 
 type State = "idle" | "recording" | "transcribing";
@@ -41,6 +50,7 @@ export function useWhisperRecording({
 }) {
   const apiKeys = useChatStore((s) => s.apiKeys);
   const sttProvider = usePreferencesStore((s) => s.sttProvider);
+  const groqSttModel = usePreferencesStore((s) => s.groqSttModel);
   const whispercppBaseURL = usePreferencesStore((s) => s.whispercppBaseURL);
   const [state, setState] = useState<State>("idle");
   const recRef = useRef<MediaRecorder | null>(null);
@@ -57,8 +67,8 @@ export function useWhisperRecording({
     typeof MediaRecorder !== "undefined";
 
   const sttOptions: SttOptions = useMemo(
-    () => ({ whispercppBaseURL }),
-    [whispercppBaseURL],
+    () => ({ groqSttModel, whispercppBaseURL }),
+    [groqSttModel, whispercppBaseURL],
   );
 
   const teardownStream = useCallback(() => {

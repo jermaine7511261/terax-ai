@@ -7,6 +7,7 @@ import { buildEditTools } from "./edit";
 import { buildExternalAgentTools } from "./externalAgent";
 import { buildFsTools } from "./fs";
 import { buildFusionTools } from "./fusion";
+import { buildSpreadsheetTools } from "./spreadsheet";
 import { buildGitTools } from "./git";
 import { buildGraphTools } from "./graph";
 import { buildHandoffTools } from "./handoff";
@@ -20,6 +21,7 @@ import { buildSearchMemoriesTools } from "./searchMemories";
 import { buildSearchTools } from "./search";
 import { buildShellTools } from "./shell";
 import { buildSubagentTools } from "./subagent";
+import { buildSwarmFlowTools } from "./swarmFlow";
 import { buildTerminalTools } from "./terminal";
 import { buildTodoTools } from "./todo";
 
@@ -50,12 +52,14 @@ export { TOOL_REGISTRY } from "./registry";
 export function buildTools(ctx: import("./context").ToolContext) {
   return {
     ...buildFsTools(ctx),
+    ...buildSpreadsheetTools(ctx),
     ...buildGitTools(ctx),
     ...buildEditTools(ctx),
     ...buildSearchTools(ctx),
     ...buildShellTools(ctx),
     ...buildSubagentTools(ctx),
     ...buildDelegateManyTools(ctx),
+    ...buildSwarmFlowTools(ctx),
     ...buildExternalAgentTools(ctx),
     ...buildTerminalTools(ctx),
     ...buildTodoTools(ctx),

@@ -7,6 +7,7 @@
  */
 export const TOOL_REGISTRY: ReadonlyArray<{ id: string; description: string }> = [
   { id: "read_file", description: "读取文件内容" },
+  { id: "read_spreadsheet", description: "读取 Excel/CSV/TSV 表格（只读）" },
   { id: "list_directory", description: "列出目录条目" },
   { id: "write_file", description: "写入文件（需审批）" },
   { id: "create_docx", description: "创建 Word 文档 .docx（需审批）" },
@@ -40,6 +41,7 @@ export const TOOL_REGISTRY: ReadonlyArray<{ id: string; description: string }> =
   { id: "terminal_type", description: "在终端输入（需审批）" },
   { id: "open_preview", description: "打开网页预览" },
   { id: "run_subagent", description: "派生子 agent（需审批）" },
+  { id: "swarm_flow", description: "Declarative multi-agent pipeline via flow DSL (parallel/sequential/H-human-gate/relay/aggregate)" },
   { id: "handoff", description: "移交控制权给其他 agent（需审批）" },
   { id: "spawn_coding_agent", description: "派发编码 agent（需审批）" },
   { id: "send_to_agent", description: "向 agent 发送消息（需审批）" },

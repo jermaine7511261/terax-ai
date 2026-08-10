@@ -200,10 +200,49 @@ pub static DEFAULT_ALLOWED_DOMAINS: &[&str] = &[
     "cloud.ibm.com",
     "docs.databricks.com",
     "docs.snowflake.com",
-    "dev.mysql.com",
     // Misc dev references
     "gitlab.com",
     "bitbucket.org",
     "www.jetbrains.com",
-    "kotlinlang.org",
+    // ── Research / deep-search domains (expanded for deep_search) ──────
+    // News
+    "bbc.com",
+    "www.bbc.com",
+    "reuters.com",
+    "www.reuters.com",
+    "apnews.com",
+    "www.nytimes.com",
+    "www.washingtonpost.com",
+    "www.theguardian.com",
+    "www.ft.com",
+    "www.economist.com",
+    // Tech news
+    "theverge.com",
+    "arstechnica.com",
+    "techcrunch.com",
+    "wired.com",
+    "www.tomshardware.com",
+    "www.anandtech.com",
+    "arstechnica.com",
+    // Reference
+    "www.britannica.com",
+    "dictionary.com",
+    "www.merriam-webster.com",
+    // General knowledge
+    "www.quora.com",
+    "www.zhihu.com",
+    "news.ycombinator.com",
+    "lobste.rs",
+    // Government / institutional (.gov / .edu broad patterns handled by domain matcher)
+    "www.gov.uk",
+    "www.usa.gov",
+    "europa.eu",
+    // Wikipedia language variants
+    "de.wikipedia.org",
+    "fr.wikipedia.org",
+    "ja.wikipedia.org",
+    "zh.wikipedia.org",
+    "es.wikipedia.org",
+    "pt.wikipedia.org",
+    "ru.wikipedia.org",
 ];
