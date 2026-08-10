@@ -53,6 +53,8 @@ import {
 import { useChatStore } from "@/modules/ai/store/chatStore";
 import { usePreferencesStore } from "@/modules/settings/preferences";
 import { ProviderFallbackChain } from "./ProviderFallbackChain";
+import { SearchProviderKeys } from "../components/SearchProviderKeys";
+import { UserPreferencesPanel } from "./UserPreferencesPanel";
 import {
   type AutocompleteTrigger,
   emitKeysChanged,
@@ -356,6 +358,13 @@ export function ModelsSection() {
       />
 
       <ProviderFallbackChain />
+
+      <SearchProviderKeys />
+
+        <div className="mt-2 flex flex-col gap-1">
+          <span className="text-sm font-medium">{t("settingsModels.userPreferences")}</span>
+          <UserPreferencesPanel />
+        </div>
 
       <VoiceBlock />
 

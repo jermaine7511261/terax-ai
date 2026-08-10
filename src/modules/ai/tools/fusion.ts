@@ -25,9 +25,16 @@ export function buildFusionTools(ctx: ToolContext) {
           .string()
           .optional()
           .describe("Judge model (defaults to the primary provider)."),
+        web_search: z
+          .boolean()
+          .optional()
+          .describe("Allow each model to use web_search + fetch_url (general workers already carry these tools)."),
       }),
       needsApproval: true,
-      execute: async ({ query, models, judge_model }) => {
+      execute: async ({ query, models, judge_model, web_search }) => {
+        const webNote = web_search
+          ? "\n\nYou may use web_search and fetch_url to gather up-to-date evidence; cite the URLs you used."
+          : "";
         const keys = await import("../lib/keyring").then((m) =>
           m.getAllKeys(),
         );
@@ -41,7 +48,7 @@ export function buildFusionTools(ctx: ToolContext) {
           models.map(async (modelId) => {
             const result = await runSubagent({
               type: "general",
-              prompt: query,
+              prompt: query + webNote,
               keys,
               modelId,
               toolContext: ctx,

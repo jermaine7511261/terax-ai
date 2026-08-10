@@ -39,4 +39,28 @@ describe("agentActivityStore selector stability", () => {
 
     useAgentActivityStore.setState({ activities: [] });
   });
+
+  it("writes runId on start and preserves it through finish", () => {
+    useAgentActivityStore.setState({ activities: [] });
+    const store = useAgentActivityStore.getState();
+    const id = "act-run-test";
+    store.start({
+      id,
+      kind: "subagent",
+      type: "subagent",
+      prompt: "runId contract",
+      status: "running",
+      step: null,
+      startedAt: Date.now(),
+    });
+    expect(useAgentActivityStore.getState().activities[0].runId).toBe(id);
+
+    store.finish(id, "done", 3);
+    const finished = useAgentActivityStore.getState().activities[0];
+    expect(finished.runId).toBe(id); // runId survives finish
+    expect(finished.status).toBe("done");
+    expect(typeof finished.durationMs).toBe("number");
+
+    useAgentActivityStore.setState({ activities: [] });
+  });
 });

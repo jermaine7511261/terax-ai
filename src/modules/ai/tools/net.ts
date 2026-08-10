@@ -111,6 +111,7 @@ export function buildNetTools(_ctx: ToolContext) {
             results: res.results,
             truncated: res.truncated,
             degraded: res.degraded,
+            category: res.category ?? null,
           };
         } catch (e) {
           return { error: String(e) };

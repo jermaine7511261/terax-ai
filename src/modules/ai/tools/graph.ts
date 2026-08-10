@@ -2,7 +2,7 @@ import { tool } from "ai";
 import { z } from "zod";
 import { generateText, stepCountIs } from "ai";
 import { usePreferencesStore } from "@/modules/settings/preferences";
-import { buildConfiguredLanguageModel } from "../lib/agent";
+import { generateTextWithFallback } from "../lib/resilience";
 import { runSubagent } from "../agents/runSubagent";
 import { useChatStore } from "../store/chatStore";
 import {
@@ -59,17 +59,20 @@ function buildHooks(ctx: ToolContext) {
       const choices = Object.entries(branches)
         .map(([target, label]) => `- ${target}: ${label}`)
         .join("\n");
-      const model = await buildConfiguredLanguageModel(
-        JUDGE_MODEL,
-        apiKeys,
-        { customEndpoints, customEndpointKeys },
-      );
-      const res = await generateText({
-        model,
-        system:
-          "You are a graph router. Choose exactly ONE branch target id from the provided options, based on the given context. Reply with ONLY the target id, nothing else.",
-        prompt: `Context:\n${context}\n\nBranches:\n${choices}\n\nPick one target id:`,
-        stopWhen: stepCountIs(2),
+      const chain = usePreferencesStore.getState().providerFallbackChain ?? [];
+      const res = await generateTextWithFallback({
+        modelId: JUDGE_MODEL,
+        keys: apiKeys,
+        chain,
+        buildOpts: { customEndpoints, customEndpointKeys },
+        run: (model) =>
+          generateText({
+            model,
+            system:
+              "You are a graph router. Choose exactly ONE branch target id from the provided options, based on the given context. Reply with ONLY the target id, nothing else.",
+            prompt: `Context:\n${context}\n\nBranches:\n${choices}\n\nPick one target id:`,
+            stopWhen: stepCountIs(2),
+          }),
       });
       const chosen = res.text.trim();
       return branches[chosen] ? chosen : Object.keys(branches)[0] ?? "";

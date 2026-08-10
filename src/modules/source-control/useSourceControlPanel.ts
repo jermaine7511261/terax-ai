@@ -882,41 +882,57 @@ export function useSourceControlPanel(
     setActionMessage(null);
     setActionError(null);
     try {
-      const [{ buildConfiguredLanguageModel }, { generateText }, diff] =
+      const [{ generateTextWithFallback }, { generateText }, diff] =
         await Promise.all([
-          import("@/modules/ai/lib/agent"),
+          import("@/modules/ai/lib/resilience"),
           import("ai"),
           native.gitDiff(repo.repoRoot, null, true),
         ]);
       const { text: diffText, truncated } = truncateDiff(diff.diffText);
       const chatState = useChatStore.getState();
       const prefs = usePreferencesStore.getState();
-      const model = await buildConfiguredLanguageModel(
-        selectedModelId,
-        chatState.apiKeys,
-        {
+      const fallbackChain = prefs.providerFallbackChain ?? [];
+      const result = await generateTextWithFallback({
+        modelId: selectedModelId,
+        keys: chatState.apiKeys,
+        chain: fallbackChain,
+        buildOpts: {
           llamaCppBaseURL: prefs.llamaCppBaseURL,
           llamaCppModelId,
           openaiCompatibleBaseURL,
           openaiCompatibleModelId,
           openrouterModelId,
         },
-      );
-      const result = await generateText({
-        model,
-        system: COMMIT_MESSAGE_SYSTEM_PROMPT,
-        prompt: buildCommitMessagePrompt(stagedEntries, diffText, truncated),
-        maxOutputTokens: COMMIT_MESSAGE_MAX_OUTPUT_TOKENS,
-        ...(selectedModelSupportsTemperature ? { temperature: 0.2 } : {}),
+        run: (model) =>
+          generateText({
+            model,
+            system: COMMIT_MESSAGE_SYSTEM_PROMPT,
+            prompt: buildCommitMessagePrompt(stagedEntries, diffText, truncated),
+            maxOutputTokens: COMMIT_MESSAGE_MAX_OUTPUT_TOKENS,
+            ...(selectedModelSupportsTemperature ? { temperature: 0.2 } : {}),
+          }),
       });
       let message = cleanCommitMessage(result.text);
       if (!isValidCommitMessage(message)) {
-        const repair = await generateText({
-          model,
-          system: COMMIT_MESSAGE_SYSTEM_PROMPT,
-          prompt: buildRepairCommitMessagePrompt(message, stagedEntries),
-          maxOutputTokens: COMMIT_MESSAGE_MAX_OUTPUT_TOKENS,
-          ...(selectedModelSupportsTemperature ? { temperature: 0 } : {}),
+        const repair = await generateTextWithFallback({
+          modelId: selectedModelId,
+          keys: chatState.apiKeys,
+          chain: fallbackChain,
+          buildOpts: {
+            llamaCppBaseURL: prefs.llamaCppBaseURL,
+            llamaCppModelId,
+            openaiCompatibleBaseURL,
+            openaiCompatibleModelId,
+            openrouterModelId,
+          },
+          run: (model) =>
+            generateText({
+              model,
+              system: COMMIT_MESSAGE_SYSTEM_PROMPT,
+              prompt: buildRepairCommitMessagePrompt(message, stagedEntries),
+              maxOutputTokens: COMMIT_MESSAGE_MAX_OUTPUT_TOKENS,
+              ...(selectedModelSupportsTemperature ? { temperature: 0 } : {}),
+            }),
         });
         message = cleanCommitMessage(repair.text);
       }

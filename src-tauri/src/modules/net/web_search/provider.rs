@@ -4,13 +4,17 @@
 //! registry shape.
 
 use async_trait::async_trait;
+use serde::Serialize;
 
 use super::ddg::SearchHit;
 
 /// Typed failure category (search-cli `FailureCategory`): lets callers
 /// distinguish auth/quota/rate-limit from transient network noise instead of
-/// swallowing everything as "no results".
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// swallowing everything as "no results". Serializes camelCase so it can ride
+/// the Tauri IPC boundary as `rateLimited` / `quota` / `timeout` / `network` /
+/// `server` / `parse` / `auth` / `internal`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub enum FailureCategory {
     Auth,
     Quota,

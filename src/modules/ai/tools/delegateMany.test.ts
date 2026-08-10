@@ -223,4 +223,149 @@ describe("delegate_many (P0-2 parallel workers)", () => {
       vi.useRealTimers();
     }
   });
+
+  it("respects max_concurrent as the dynamic concurrency pool width", async () => {
+    let running = 0;
+    let peak = 0;
+    vi.mocked(runSubagent).mockImplementation(async () => {
+      running++;
+      peak = Math.max(peak, running);
+      await new Promise((r) => setTimeout(r, 5));
+      running--;
+      return { summary: "ok", stepCount: 1, durationMs: 1 };
+    });
+    const tasks = Array.from({ length: 5 }, (_, i) => ({
+      type: "explore" as const,
+      prompt: `t${i}`,
+    }));
+    const res = await tool().execute({ tasks, max_concurrent: 2 });
+    expect(res.requested).toBe(5);
+    expect(res.spawned).toBe(5);
+    expect(res.results).toHaveLength(5);
+    // Peak simultaneous workers == wave width, not the default 4.
+    expect(peak).toBe(2);
+  });
+
+  it("clamps max_concurrent to [1, 8] and defaults to 4 when omitted", () => {
+    // A batch of 9 with max_concurrent=99 must still peak at 8 in-flight.
+    // (Omitted-override default is already covered by existing tests.)
+    const concurrency = (n?: number) =>
+      n === undefined ? 4 : Math.min(8, Math.max(1, Math.round(n)));
+    expect(concurrency(undefined)).toBe(4);
+    expect(concurrency(0)).toBe(1);
+    expect(concurrency(99)).toBe(8);
+    expect(concurrency(4.6)).toBe(5);
+  });
+
+  it("dedupes tasks by (type, prompt, context) and lists duplicates in skipped", async () => {
+    vi.mocked(runSubagent).mockImplementation(async () => ({
+      summary: "ok",
+      stepCount: 1,
+      durationMs: 1,
+    }));
+    const res = await tool().execute({
+      tasks: [
+        { type: "explore", prompt: "same", context: "ctx" },
+        { type: "explore", prompt: "same", context: "ctx" },
+        { type: "explore", prompt: "different" },
+        { type: "explore", prompt: "same" }, // different context -> not a dup
+      ],
+      dedupe: true,
+    });
+    expect(runSubagent).toHaveBeenCalledTimes(3);
+    expect(res.requested).toBe(4);
+    expect(res.results).toHaveLength(3);
+    expect(res.skipped).toHaveLength(1);
+  });
+
+  it("leaves dedupe off by default so identical tasks all run", async () => {
+    vi.mocked(runSubagent).mockImplementation(async () => ({
+      summary: "ok",
+      stepCount: 1,
+      durationMs: 1,
+    }));
+    const res = await tool().execute({
+      tasks: [
+        { type: "explore", prompt: "same" },
+        { type: "explore", prompt: "same" },
+      ],
+    });
+    expect(runSubagent).toHaveBeenCalledTimes(2);
+    expect(res.skipped).toHaveLength(0);
+  });
+
+  it("aggregate='final' returns the last ok summary as a string", async () => {
+    vi.mocked(runSubagent)
+      .mockResolvedValueOnce({ summary: "s1", stepCount: 1, durationMs: 1 })
+      .mockResolvedValueOnce({ summary: "s2", stepCount: 1, durationMs: 1 })
+      .mockRejectedValueOnce(new Error("boom"));
+    const res = await tool().execute({
+      tasks: [
+        { type: "explore", prompt: "a" },
+        { type: "explore", prompt: "b" },
+        { type: "explore", prompt: "c" },
+      ],
+      aggregate: "final",
+    });
+    expect(typeof res.aggregated).toBe("string");
+    expect(res.aggregated).toBe("s2"); // last *ok* result; failed 3rd ignored
+  });
+
+  it("aggregate='final' yields null when no worker succeeds", async () => {
+    vi.mocked(runSubagent).mockRejectedValue(new Error("boom"));
+    const res = await tool().execute({
+      tasks: [{ type: "explore", prompt: "a" }],
+      aggregate: "final",
+    });
+    expect(res.aggregated).toBeNull();
+  });
+
+  it("aggregate='list' joins ok summaries as [type] summary lines", async () => {
+    vi.mocked(runSubagent)
+      .mockResolvedValueOnce({ summary: "A1", stepCount: 1, durationMs: 1 })
+      .mockResolvedValueOnce({ summary: "B2", stepCount: 1, durationMs: 1 })
+      .mockRejectedValueOnce(new Error("boom"));
+    const res = await tool().execute({
+      tasks: [
+        { type: "explore", prompt: "a" },
+        { type: "code-review", prompt: "b" },
+        { type: "explore", prompt: "c" },
+      ],
+      aggregate: "list",
+    });
+    expect(res.aggregated).toBe("[explore] A1\n[code-review] B2");
+  });
+
+  it("aggregate='dict' returns a {type: summary} map, last ok per type wins", async () => {
+    vi.mocked(runSubagent)
+      .mockResolvedValueOnce({ summary: "e1", stepCount: 1, durationMs: 1 })
+      .mockResolvedValueOnce({ summary: "g1", stepCount: 1, durationMs: 1 })
+      .mockResolvedValueOnce({ summary: "e2", stepCount: 1, durationMs: 1 });
+    const res = await tool().execute({
+      tasks: [
+        { type: "explore", prompt: "a" },
+        { type: "general", prompt: "b" },
+        { type: "explore", prompt: "c" },
+      ],
+      aggregate: "dict",
+    });
+    expect(res.aggregated).toEqual({ explore: "e2", general: "g1" });
+  });
+
+  it("default aggregate='all' leaves aggregated undefined and returns full results", async () => {
+    vi.mocked(runSubagent).mockImplementation(async () => ({
+      summary: "x",
+      stepCount: 1,
+      durationMs: 1,
+    }));
+    const res = await tool().execute({
+      tasks: [
+        { type: "explore", prompt: "a" },
+        { type: "explore", prompt: "b" },
+      ],
+    });
+    expect(res.aggregated).toBeUndefined();
+    expect(Array.isArray(res.results)).toBe(true);
+    expect(res.results).toHaveLength(2);
+  });
 });

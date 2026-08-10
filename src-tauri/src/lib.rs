@@ -581,6 +581,9 @@ pub fn run() {
             // §3.6.2 image generation
             ai::media::generate_image,
             ai::resilience::resilience_status,
+            ai::resilience::record_provider_success,
+            ai::resilience::record_provider_failure,
+            ai::resilience::is_provider_available,
             history::history_suggest,
             history::history_commands,
             history::history_record,

@@ -275,6 +275,9 @@ export type WebSearchCommandResult = {
   truncated: boolean;
   degraded: boolean;
   error: string | null;
+  /** Provider category/vertical (e.g. "news", "videos") when the search provider
+   *  supports one; null otherwise. Mirrors Rust WebSearchCommandResult (serde camelCase). */
+  category?: string | null;
 };
 
 export type AiHarnessEvent =
@@ -1049,6 +1052,13 @@ export const native = {
         openedAt?: number | null;
       }[]
     >("resilience_status"),
+  // --- R30 §2.1 provider resilience wiring ---
+  resilienceAvailable: (providerId: string) =>
+    invoke<boolean>("is_provider_available", { providerId }),
+  resilienceRecordSuccess: (providerId: string) =>
+    invoke<void>("record_provider_success", { providerId }),
+  resilienceRecordFailure: (providerId: string) =>
+    invoke<void>("record_provider_failure", { providerId }),
   // --- computer use (P3, Windows M1-M2) ---
   computerSessionOpen: () => invoke<number>("computer_session_open"),
   computerSessionClose: (id: number) =>

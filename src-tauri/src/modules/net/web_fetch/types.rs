@@ -84,6 +84,9 @@ pub enum WebFetchError {
     /// A sensitive query parameter (api_key / token / secret / ...) with a
     /// non-empty value was found in the URL — reject whole-URL (decision 6).
     SecretInUrl { param: String },
+    /// A recognizable vendor key/token prefix was found anywhere in the URL
+    /// (path / fragment / no-query), not just in the query string.
+    SecretPrefixInUrl { prefix: &'static str },
     SingleLabelHost { host: String },
     InvalidUrl(String),
     UrlTooLong { max: usize },
@@ -111,6 +114,10 @@ impl fmt::Display for WebFetchError {
             Self::SecretInUrl { param } => write!(
                 f,
                 "URL contains a sensitive query parameter '{param}' with a value — refusing to fetch (would leak a secret)"
+            ),
+            Self::SecretPrefixInUrl { prefix } => write!(
+                f,
+                "API key or token in URL (vendor prefix '{prefix}') — refusing to fetch (would leak a secret)"
             ),
             Self::SingleLabelHost { host } => {
                 write!(f, "single-label hostname not allowed: {host}")

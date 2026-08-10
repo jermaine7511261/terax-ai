@@ -31,12 +31,19 @@ export function detectSnippetTrigger(
 ): SnippetTrigger | null {
   for (let i = caret - 1; i >= 0; i--) {
     const ch = value[i];
-    if (ch === "#" || ch === "/") {
+    // 半角 "/" 与全角 "／"（U+FF0F，中文输入法可能上屏全角）都触发。
+    if (ch === "#" || ch === "/" || ch === "\uFF0F") {
       const prev = i === 0 ? " " : value[i - 1];
       if (!/\s/.test(prev)) return null;
       const slice = value.slice(i + 1, caret);
       if (!/^[a-z0-9-]*$/i.test(slice)) return null;
-      return { start: i, end: caret, query: slice.toLowerCase(), char: ch };
+      // 全角 ／ 归一为半角 "/"（命令前缀）；"#" 保留原样（snippet 前缀）。
+      return {
+        start: i,
+        end: caret,
+        query: slice.toLowerCase(),
+        char: ch === "\uFF0F" ? "/" : ch,
+      };
     }
     if (/\s/.test(ch)) return null;
     if (!/[a-z0-9-]/i.test(ch)) return null;
@@ -221,6 +228,20 @@ export function AiComposerInput() {
               onClick={updateTrigger}
               onSelect={updateTrigger}
               onKeyDown={(e) => {
+                // 物理键 "/" 直接打开命令联想：绕过中文输入法全角上屏（／）
+                // 与 IME 事件时序（onChange/onKeyUp 可能不触发）导致联想不弹。
+                // 仅当光标前是空白或开头（命令须在词边界）才触发。
+                if (e.key === "/" && !pickerOpen && !fileTrigger) {
+                  const el = c.textareaRef.current;
+                  if (el) {
+                    const caret = el.selectionStart ?? 0;
+                    const before = c.value.slice(0, caret);
+                    if (before.length === 0 || /\s$/.test(before)) {
+                      setTrigger({ start: caret, end: caret, query: "", char: "/" });
+                      return;
+                    }
+                  }
+                }
                 if (pickerOpen) {
                   const items = fileTrigger ? filteredFiles : filteredItems;
                   if (e.key === "ArrowDown") {

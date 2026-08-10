@@ -1,7 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("./native", () => ({
-  native: { readFile: vi.fn(), writeFile: vi.fn() },
+  native: {
+    readFile: vi.fn(),
+    writeFile: vi.fn(),
+    resilienceAvailable: vi.fn().mockResolvedValue(true),
+    resilienceRecordSuccess: vi.fn(),
+    resilienceRecordFailure: vi.fn(),
+  },
 }));
 vi.mock("../store/memoryStore", () => ({
   formatSessionMemory: vi.fn(() => null),

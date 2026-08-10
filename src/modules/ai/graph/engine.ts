@@ -241,11 +241,50 @@ export class GraphEngine {
     });
   }
 
+  /**
+   * Resolve a node's ACTIVE incoming edges. An edge is active when its source
+   * is done and produced output, and (if present) its `condition` predicate
+   * passes on the source output. Any `transform` is applied to the output
+   * before it is handed onward. Returns label + (possibly transformed) text
+   * per active edge — used both for context injection into successors and for
+   * multi-upstream aggregation at merge / any node kind.
+   */
+  private incomingParts(n: RuntimeNode): { label: string; text: string }[] {
+    const run = this.currentRun;
+    if (!run) return [];
+    const parts: { label: string; text: string }[] = [];
+    for (const e of n.in) {
+      const pred = run.nodes.get(e.from);
+      if (!pred) continue;
+      const predOut = pred.state.status === "done" ? pred.state.output : undefined;
+      if (!predOut) continue;
+      if (e.condition && !e.condition(predOut)) continue;
+      const text = e.transform ? e.transform(predOut) : predOut;
+      parts.push({ label: pred.def.name ?? pred.def.id, text });
+    }
+    return parts;
+  }
+
   private async executeNode(n: RuntimeNode): Promise<void> {
     const run = this.currentRun;
     if (!run) return;
     const deps = run.deps;
     const now = Date.now();
+
+    // Gather active incoming edges (condition-gated, transform-applied) and
+    // build this node's injected context from ALL of them, each source-labeled.
+    const parts = this.incomingParts(n);
+    n.context = parts
+      .map((p) => `[From ${p.label}]\n${p.text}`)
+      .join("\n\n");
+
+    // A node with incoming edges but zero active ones is skipped — every
+    // upstream edge was blocked by a condition or had a cancelled source.
+    if (n.in.length > 0 && parts.length === 0) {
+      n.state = { ...n.state, status: "cancelled", finishedAt: now };
+      return;
+    }
+
     n.state = {
       ...n.state,
       status: "running",
@@ -255,16 +294,6 @@ export class GraphEngine {
     deps.emit({ type: "node-start", runId: run.def.id, nodeId: n.def.id });
 
     try {
-      // Build context from all done predecessors (P1-2: output → successor).
-      n.context = [...n.in]
-        .map((e) => {
-          const pred = run.nodes.get(e.from);
-          return pred?.state.output
-            ? `[from ${pred.def.name ?? pred.def.id}]\n${pred.state.output}`
-            : "";
-        })
-        .filter(Boolean)
-        .join("\n\n");
 
       switch (n.def.kind) {
         case "agent": {
@@ -295,21 +324,27 @@ export class GraphEngine {
         }
         case "judge": {
           const target = await deps.judge(n.def, n.context);
+          // Only follow the chosen edge if it satisfies its own condition
+          // (evaluated against the judge's output = the picked target id). An
+          // ineligible chosen branch is treated exactly like an unchosen one.
+          const chosenEdge = n.out.find((e) => e.to === target);
+          const chosenAllowed =
+            !chosenEdge?.condition || chosenEdge.condition(target);
           n.state = {
             ...n.state,
             status: "done",
             output: target,
             finishedAt: Date.now(),
           };
-          // Only follow the chosen edge. Prune the unchosen branches
-          // transitively: an unchosen root is cancelled directly; a deeper
-          // node is cancelled only when ALL its predecessors are cancelled
-          // (so a merge/diamond fed by a live branch is NOT killed). Marking
-          // cancelled makes the later wave no-op via isTerminal.
+          // Prune the unchosen (or ineligible) branches transitively: an
+          // unchosen root is cancelled directly; a deeper node is cancelled
+          // only when ALL its predecessors are cancelled (so a merge/diamond
+          // fed by a live branch is NOT killed). Marking cancelled makes the
+          // later wave no-op via isTerminal.
           const cancelled = new Set<string>();
           const queue: string[] = [];
           for (const e of n.out) {
-            if (e.to === target) continue;
+            if (e.to === target && chosenAllowed) continue;
             const root = run.nodes.get(e.to);
             if (root && root.state.status === "pending") {
               root.state = { nodeId: root.def.id, status: "cancelled" };
@@ -392,23 +427,22 @@ export class GraphEngine {
           break;
         }
         case "merge": {
-          const parts = [...n.in]
-            .map((e) => {
-              const pred = run.nodes.get(e.from);
-              return pred?.state.output;
-            })
-            .filter((o): o is string => !!o);
+          // Multi-upstream aggregation: concatenate every ACTIVE incoming edge
+          // (condition-passed, transform-applied), each source-labeled.
+          const out = parts
+            .map((p) => `[From ${p.label}]\n${p.text}`)
+            .join("\n\n");
           n.state = {
             ...n.state,
             status: "done",
-            output: parts.join("\n\n"),
+            output: out,
             finishedAt: Date.now(),
           };
           deps.emit({
             type: "node-done",
             runId: run.def.id,
             nodeId: n.def.id,
-            output: parts.join("\n\n"),
+            output: out,
           });
           break;
         }

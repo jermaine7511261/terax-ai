@@ -206,6 +206,7 @@ fn registry() -> &'static Mutex<BreakerRegistry> {
 }
 
 /// Record a success for the given provider.
+#[tauri::command]
 pub fn record_provider_success(provider_id: &str) {
     if let Ok(mut reg) = registry().lock() {
         reg.get_or_insert(provider_id).record_success();
@@ -213,6 +214,7 @@ pub fn record_provider_success(provider_id: &str) {
 }
 
 /// Record a failure for the given provider.
+#[tauri::command]
 pub fn record_provider_failure(provider_id: &str) {
     if let Ok(mut reg) = registry().lock() {
         reg.get_or_insert(provider_id).record_failure();
@@ -220,6 +222,7 @@ pub fn record_provider_failure(provider_id: &str) {
 }
 
 /// Check if a provider is available (circuit breaker not open).
+#[tauri::command]
 pub fn is_provider_available(provider_id: &str) -> bool {
     registry()
         .lock()

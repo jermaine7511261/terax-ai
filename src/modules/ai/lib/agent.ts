@@ -25,6 +25,7 @@ import {
   createCompressionDebouncer,
   shouldCompress,
   selectContext,
+  sanitizeModelMessages,
 } from "./compact";
 import {
   detectDoomLoop,
@@ -319,6 +320,7 @@ function buildStableSystem(
   persona: { name: string; instructions: string } | null,
   customInstructions: string | undefined,
   projectMemory: string | null,
+  responseStyle: "concise" | "verbose" | null = null,
 ): string {
   const base = selectSystemPrompt(modelId);
   const personaBlock = persona?.instructions.trim()
@@ -334,7 +336,13 @@ function buildStableSystem(
   // ★ H2: periodic nudge — settle reusable findings into project
   // memory at task end so future sessions can recall them.
   const nudgeBlock = `\n\n## MEMORY NUDGE — when you finish a task and discovered reusable facts (decisions, conventions, gotchas), persist them via update_project_memory (source "auto" is only for the UI settle flow; use the default).`;
-  return `${base}${memoryBlock}${nudgeBlock}${personaBlock}${customBlock}`;
+  const styleBlock =
+    responseStyle === "concise"
+      ? `\n\n## RESPONSE STYLE — be concise: short answers, bullets, no filler.`
+      : responseStyle === "verbose"
+        ? `\n\n## RESPONSE STYLE — be thorough and detailed; explain your reasoning.`
+        : "";
+  return `${base}${memoryBlock}${nudgeBlock}${styleBlock}${personaBlock}${customBlock}`;
 }
 
 export type AgentUsage = {
@@ -408,6 +416,8 @@ export type RunAgentOptions = {
   thinkingLength?: ThinkingLength;
   /** R28 #1: explicit step cap override (None = persona's, then global default). */
   maxSteps?: number;
+  /** R30 §2.3: cross-session user preference (concise/verbose) from Rust. */
+  responseStyle?: "concise" | "verbose" | null;
 };
 
 export async function runAgentStream(opts: RunAgentOptions) {
@@ -438,6 +448,7 @@ export async function runAgentStream(opts: RunAgentOptions) {
     opts.agentPersona ?? null,
     opts.customInstructions,
     opts.projectMemory ?? null,
+    opts.responseStyle ?? null,
   );
 
   const history = await convertToModelMessages(opts.uiMessages);
@@ -468,7 +479,7 @@ export async function runAgentStream(opts: RunAgentOptions) {
   } else {
     compact = { messages: prunedHistory, compacted: false, droppedCount: 0 };
   }
-  const compactedHistory = compact.messages;
+  const compactedHistory = sanitizeModelMessages(compact.messages);
   if (compact.compacted) {
     opts.onCompact?.({ droppedCount: compact.droppedCount });
   }
@@ -512,6 +523,7 @@ export async function runAgentStream(opts: RunAgentOptions) {
     // stop condition here raced the tool-result fold-in and could end the stream
     // with an assistant tool-call that had no following tool message — which the
     // provider rejects on the next turn. `stepCountIs` alone is the safe cap.
+    
     stopWhen: stepCountIs(maxSteps),
     abortSignal: opts.abortSignal,
     providerOptions,
@@ -589,6 +601,12 @@ export async function runAgentStream(opts: RunAgentOptions) {
         finalText,
         stepsSeen,
       });
+      // R30 §2.3: fire-and-forget preference extraction from the completed turn.
+      if (finalText && finalText.trim().length >= 40) {
+        void import("./native")
+          .then(({ native }) => native.preferencesExtract(finalText.slice(0, 8000)))
+          .catch(() => {});
+      }
     },
   });
 }

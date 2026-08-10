@@ -1,10 +1,13 @@
 import { invoke } from "@/platform";
+import { loadPreferences } from "@/modules/settings/store";
 
 let cached: string | undefined;
 
 export async function initLaunchDir(): Promise<void> {
   const dir =
     (await invoke<string | null>("get_launch_dir").catch(() => null)) ??
+    // Persisted workspace root (openFolder / settings) survives restarts.
+    (await loadPreferences().catch(() => null))?.workspaceRoot ??
     (await invoke<string>("workspace_current_dir").catch(() => null));
   cached = dir ? dir.replace(/\\/g, "/") : undefined;
 }

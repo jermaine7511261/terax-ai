@@ -33,6 +33,20 @@ export type GraphNode = {
 export type GraphEdge = {
   from: string;
   to: string;
+  /**
+   * Runtime-only gate on the source node's output. When present, the source's
+   * output is passed through this predicate first; a `false` result means the
+   * edge is NOT active — it contributes no input to `to`, and `to` is skipped
+   * (cancelled) if it then has no active incoming edge at all. Functions are
+   * runtime-only: hashGraphDef ignores them (only from/to are serialized).
+   */
+  condition?: (output: string) => boolean;
+  /**
+   * Runtime-only transform applied to the source node's output before it is
+   * injected into `to`'s context (or aggregated into a merge). Functions are
+   * runtime-only: hashGraphDef ignores them (only from/to are serialized).
+   */
+  transform?: (output: string) => string;
 };
 
 export type GraphDef = {

@@ -118,32 +118,32 @@ YaMet 是一个快速、轻量的 AI 原生终端（ADE，agentic development en
 - [x] 预览面扩展（图片 / PDF / Markdown 处理）
 - [x] 测试覆盖扩展（PTY 边界、安全函数、AI 工具守卫、IM 网关加密/状态机）
 - [x] IM 网关：各平台接入/二维码打磨、公众号/企微回调隧道指南、onebot 配置助手
-- [ ] Computer-use / 浏览器自动化：接入 terminator（Windows uiautomation）+ computer-use-linux（AT-SPI）MCP server；可选 Playwright bridge；截图+鼠标键盘控制；来源：`docs/yamet-vs-projects-对比-2026-08-11.md` 第 6 节 P0
-- [ ] 多 Provider 容错 / 降级链：在 `native.chat()` 层实现熔断器（30s cooldown）+ 自动 failover；用户可配置 fallback 顺序；对标 daedra 9 后端 fallback、fetchira 免费额度感知路由；来源：`docs/yamet-vs-projects-对比-2026-08-11.md` 第 6 节 P0
-- [ ] 技能生态扩展：内置 10-15 个高频技能（代码审查/测试生成/文档撰写/API 集成/重构建议等）；从 agent 执行轨迹自动提取技能（对标 hermes）；支持 Cursor/Windsurf rules 导入（对标 oh-my-pi）；来源：`docs/yamet-vs-projects-对比-2026-08-11.md` 第 6 节 P0
+- [x] Computer-use / 浏览器自动化：接入 terminator（Windows uiautomation）+ computer-use-linux（AT-SPI）MCP server；可选 Playwright bridge；截图+鼠标键盘控制；来源：`docs/yamet-vs-projects-对比-2026-08-11.md` 第 6 节 P0
+- [x] 多 Provider 容错 / 降级链：在 `native.chat()` 层实现熔断器（30s cooldown）+ 自动 failover；用户可配置 fallback 顺序；对标 daedra 9 后端 fallback、fetchira 免费额度感知路由；来源：`docs/yamet-vs-projects-对比-2026-08-11.md` 第 6 节 P0
+- [x] 技能生态扩展：内置 10-15 个高频技能（代码审查/测试生成/文档撰写/API 集成/重构建议等）；从 agent 执行轨迹自动提取技能（对标 hermes）；支持 Cursor/Windsurf rules 导入（对标 oh-my-pi）；来源：`docs/yamet-vs-projects-对比-2026-08-11.md` 第 6 节 P0
 
 ### 更远期
 
 - [x] 发布自动化（`scripts/release.mjs` 一键版本递增 + CHANGELOG 固化 + commit + tag；`verify.ps1` CHANGELOG 门禁；第十轮交付）
 - [x] 打包体积优化（round-11 把 total client JS 上限压到 1550KB / eager 359KB；语言包懒加载持续进行）
 - [ ] AI 工具 / 片段作为可安装 bundle（`skills/` 目录约定 + 工具白名单已交付子集；bundle 分享留后续；方向：原生 JSON + 工具白名单，禁止非原生插件运行时）
-- [ ] 多模型融合（Model Jury）：同一问题 N 个 provider 并行回答 + judge 综合；基于图引擎分支/合并封装 `fusion` 模式；对标 thClaws OpenRouter Fusion（8 模型陪审团）；来源：`docs/yamet-vs-projects-对比-2026-08-11.md` 第 6 节 P1
-- [ ] 记忆深度：YaMet.md 自动过期/摘要机制（防无限增长）；用户偏好建模（从对话中提取并持久化）；跨会话 FTS5 全文检索（与现有向量搜索互补）；对标 hermes FTS5 + Honcho 用户建模；来源：`docs/yamet-vs-projects-对比-2026-08-11.md` 第 6 节 P1
-- [ ] 媒体生成（图片/视频）：text→image / image→video，多提供商（Gemini/OpenAI/Qwen/Veo）；作为可选技能或 MCP server 接入；对标 thClaws Media Studio；来源：`docs/yamet-vs-projects-对比-2026-08-11.md` 第 6 节 P2
-- [ ] LSP 诊断增强：扩展 LSP 覆盖面（悬停/跳转定义/代码操作）；可选 DAP 调试器深度集成（已在第十一轮交付基础版，此处为覆盖面扩展）；对标 oh-my-pi LSP 覆盖每次操作；来源：`docs/yamet-vs-projects-对比-2026-08-11.md` 第 6 节 P2
+- [x] 多模型融合（Model Jury）：同一问题 N 个 provider 并行回答 + judge 综合；基于图引擎分支/合并封装 `fusion` 模式；对标 thClaws OpenRouter Fusion（8 模型陪审团）；来源：`docs/yamet-vs-projects-对比-2026-08-11.md` 第 6 节 P1
+- [x] 记忆深度：YaMet.md 自动过期/摘要机制（防无限增长）；用户偏好建模（从对话中提取并持久化）；跨会话 FTS5 全文检索（与现有向量搜索互补）；对标 hermes FTS5 + Honcho 用户建模；来源：`docs/yamet-vs-projects-对比-2026-08-11.md` 第 6 节 P1
+- [x] 媒体生成（图片/视频）：text→image / image→video，多提供商（Gemini/OpenAI/Qwen/Veo）；作为可选技能或 MCP server 接入；对标 thClaws Media Studio；来源：`docs/yamet-vs-projects-对比-2026-08-11.md` 第 6 节 P2
+- [x] LSP 诊断增强：扩展 LSP 覆盖面（悬停/跳转定义/代码操作）；可选 DAP 调试器深度集成（已在第十一轮交付基础版，此处为覆盖面扩展）；对标 oh-my-pi LSP 覆盖每次操作；来源：`docs/yamet-vs-projects-对比-2026-08-11.md` 第 6 节 P2
 
 ### 调研采纳待办（08-11 对比报告，来源: `docs/yamet-vs-projects-对比-2026-08-11.md`）
 
 对比报告的采纳追踪，与上方规划交叉引用。每轮消化 1–2 项。
 
 - [x] 勘误：web 搜索（DuckDuckGo 内置 + fetch_url）与 Office 文档（office_oxide 读 + docx-rs/calamine 写 + edit + PDF 全管线）已在 v0.1.28 实现——初版报告的"三大缺口"判断过时
-- [ ] P0-1 Computer-use：接入 terminator（Windows）+ computer-use-linux（Linux）MCP server → 见「下一批」
-- [ ] P0-2 Provider 容错：熔断器 + 自动降级链 → 见「下一批」
-- [ ] P0-3 技能生态：内置技能 + 自动沉淀 + Cursor rules 导入 → 见「下一批」
-- [ ] P1-1 多模型融合：图引擎封装 fusion 模式 → 见「更远期」
-- [ ] P1-2 记忆深度：FTS5 + 用户建模 + 自动过期 → 见「更远期」
-- [ ] P2-1 媒体生成：MCP 接入 → 见「更远期」
-- [ ] P2-2 LSP 覆盖扩展 → 见「更远期」
+- [x] P0-1 Computer-use：接入 terminator（Windows）+ computer-use-linux（Linux）MCP server → 见「下一批」
+- [x] P0-2 Provider 容错：熔断器 + 自动降级链 → 见「下一批」
+- [x] P0-3 技能生态：内置技能 + 自动沉淀 + Cursor rules 导入 → 见「下一批」
+- [x] P1-1 多模型融合：图引擎封装 fusion 模式 → 见「更远期」
+- [x] P1-2 记忆深度：FTS5 + 用户建模 + 自动过期 → 见「更远期」
+- [x] P2-1 媒体生成：MCP 接入 → 见「更远期」
+- [x] P2-2 LSP 覆盖扩展 → 见「更远期」
 
 ### 调研采纳待办（08-10 盘点，来源见各文档）
 
@@ -160,6 +160,7 @@ YaMet 是一个快速、轻量的 AI 原生终端（ADE，agentic development en
 - [x] S2 guardrail 三钩子协议链（`ai/guardrails.rs` GuardrailChain：Input/ToolCall/Output 三钩子 + fail-closed + 短路 + 收拢 shell/path 守卫）— `docs/yamet-PraisonAI-深度调研-2026-08-09.md`
 - [x] S7 FastContext 检索子代理预算注入（`ai/lib/fastContext.ts`：maxFiles/maxLinesPerFile/maxTokens + prioritizePrecision + researcher prompt 注入）— `docs/yamet-PraisonAI-深度调研-2026-08-09.md`
 - [x] IM 微信/QQ 媒体下载补齐 — 已实现（weixin/qq `extract_media` + `download_media_items`，dingtalk/wecom/official_account 同步）— 第八轮 P9
+- [x] 第三十二轮：多 provider 搜索（Exa/Parallel MCP `tools/call` + FailureCategory 驱动 failover + category/retry_after 透传 + keyring 管理）+ vendor 前缀密钥闸（`url_safety.rs` `_PREFIX_RE` 式全 URL 扫描）+ deep_search 每问一并行 worker + swarm_flow DSL 编排 + graph 边 condition/transform/多上游聚合 + task_evaluator 完成门 + resilience 先自愈主链路 + ProviderProfile 声明式注册表 — `docs/yamet-需求迭代-第三十二轮-多智能体编排与多provider搜索-2026-08-10.md`
 
 ## 欢迎贡献
 

@@ -1,7 +1,8 @@
 // @ts-nocheck
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { generateText, stepCountIs } from "ai";
+import { generateText, stepCountIs, hasToolCall } from "ai";
 import { buildConfiguredLanguageModel } from "../lib/agent";
+import { generateTextWithFallback } from "../lib/resilience";
 import { buildFsTools } from "../tools/fs";
 import { buildNetTools } from "../tools/net";
 import { buildSearchTools } from "../tools/search";
@@ -15,9 +16,13 @@ import { runSubagent, DEFAULT_SUBAGENT_MODEL, SUBAGENT_SUMMARY_CAP } from "./run
 vi.mock("ai", () => ({
   generateText: vi.fn(),
   stepCountIs: vi.fn(),
+  hasToolCall: vi.fn(),
 }));
 vi.mock("../lib/agent", () => ({
   buildConfiguredLanguageModel: vi.fn(),
+}));
+vi.mock("../lib/resilience", () => ({
+  generateTextWithFallback: vi.fn((opts) => opts.run({ id: "mock-model" })),
 }));
 vi.mock("../tools/fs", () => ({
   buildFsTools: vi.fn(() => ({
@@ -99,6 +104,9 @@ beforeEach(() => {
   vi.mocked(stepCountIs).mockImplementation(
     (n: number) => ({ kind: "stepCount", max: n }) as never,
   );
+  vi.mocked(hasToolCall).mockImplementation(
+    (toolName: string) => ({ kind: "hasToolCall", toolName }) as never,
+  );
 });
 
 describe("runSubagent input validation", () => {
@@ -124,6 +132,7 @@ describe("runSubagent tool wiring", () => {
       "list_directory",
       "grep",
       "glob",
+      "task_evaluator",
     ]);
   });
 
@@ -177,14 +186,19 @@ describe("runSubagent options building", () => {
       }),
     );
 
-    expect(vi.mocked(buildConfiguredLanguageModel)).toHaveBeenCalledWith(
-      "deepseek-v4-flash",
-      keys,
-      {
-        customEndpoints: [{ id: "e1", baseURL: "http://x", modelId: "m", contextLimit: 1 }],
-        customEndpointKeys: { e1: "ck" },
-        llamaCppBaseURL: "http://localhost:8080/v1",
-      },
+    // R30 §2.1: the run is routed through the fallback chain helper, which
+    // builds the model itself; assert the helper received the config.
+    expect(vi.mocked(generateTextWithFallback)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        modelId: "deepseek-v4-flash",
+        keys,
+        chain: [],
+        buildOpts: {
+          customEndpoints: [{ id: "e1", baseURL: "http://x", modelId: "m", contextLimit: 1 }],
+          customEndpointKeys: { e1: "ck" },
+          llamaCppBaseURL: "http://localhost:8080/v1",
+        },
+      }),
     );
   });
 
@@ -195,14 +209,20 @@ describe("runSubagent options building", () => {
     expect(opts.system).toContain(SUBAGENTS["code-review"].systemPrompt);
     expect(opts.system).toContain("plain-text summary");
     expect(opts.prompt).toBe("review diff");
-    expect(opts.stopWhen).toEqual({ kind: "stepCount", max: 40 });
+    expect(opts.stopWhen).toEqual([
+      { kind: "stepCount", max: 40 },
+      { kind: "hasToolCall", toolName: "task_evaluator" },
+    ]);
   });
 
   it("honors a per-call maxSteps override (R28 #1)", async () => {
     await runSubagent(
       baseArgs({ type: "general", maxSteps: 120 }),
     );
-    expect(lastGenOpts().stopWhen).toEqual({ kind: "stepCount", max: 120 });
+    expect(lastGenOpts().stopWhen).toEqual([
+      { kind: "stepCount", max: 120 },
+      { kind: "hasToolCall", toolName: "task_evaluator" },
+    ]);
   });
 
   it("passes bounded retries and timeouts to generateText", async () => {
@@ -319,6 +339,104 @@ describe("runSubagent result shaping", () => {
     const result = await runSubagent(baseArgs({ type: "general" }));
     expect(result.summary).toBe("first-pass answer");
     expect(vi.mocked(generateText)).toHaveBeenCalledTimes(1);
+  });
+
+  it("injects the task_evaluator gate tool and combines hasToolCall into stopWhen", async () => {
+    await runSubagent(baseArgs({ type: "explore" }));
+
+    const opts = lastGenOpts();
+    const tools = opts.tools as Record<string, unknown>;
+    const te = tools.task_evaluator as {
+      type: string;
+      parameters: { properties: { status: { enum: string[] } } };
+    };
+    expect(te.type).toBe("function");
+    expect(te.parameters.properties.status.enum).toEqual(["complete", "incomplete"]);
+    expect(opts.system).toContain("task_evaluator");
+    expect(opts.stopWhen).toEqual([
+      { kind: "stepCount", max: 40 },
+      { kind: "hasToolCall", toolName: "task_evaluator" },
+    ]);
+  });
+
+  it("short-circuits on a complete task_evaluator using the final step text", async () => {
+    // Model calls the evaluator with status=complete; the run must NOT trigger
+    // the forced-summary nudge — the final step text becomes the summary.
+    vi.mocked(generateText).mockResolvedValue({
+      text: "",
+      steps: [
+        { toolCalls: [{ toolName: "read_file" }], toolResults: [{ toolName: "read_file", output: "x" }] },
+        {
+          toolCalls: [{ toolName: "task_evaluator" }],
+          toolResults: [{ toolName: "task_evaluator", output: { status: "complete" } }],
+          text: "Done. Found 3 issues.",
+        },
+      ],
+    } as never);
+
+    const result = await runSubagent(baseArgs({ type: "explore" }));
+
+    expect(result.summary).toBe("Done. Found 3 issues.");
+    expect(vi.mocked(generateText)).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses the raw text as-is when complete but the final step has no text", async () => {
+    vi.mocked(generateText).mockResolvedValue({
+      text: "already a summary",
+      steps: [
+        {
+          toolCalls: [{ toolName: "task_evaluator" }],
+          toolResults: [{ toolName: "task_evaluator", output: { status: "complete" } }],
+          text: "",
+        },
+      ],
+    } as never);
+
+    const result = await runSubagent(baseArgs({ type: "explore" }));
+    expect(result.summary).toBe("already a summary");
+    expect(vi.mocked(generateText)).toHaveBeenCalledTimes(1);
+  });
+
+  it("runs one bounded continuation turn when the evaluator reports incomplete with context", async () => {
+    vi.mocked(generateText)
+      .mockResolvedValueOnce({
+        text: "",
+        steps: [
+          {
+            toolCalls: [{ toolName: "task_evaluator" }],
+            toolResults: [
+              { toolName: "task_evaluator", output: { status: "incomplete", context: "verify src/main.ts" } },
+            ],
+            text: "",
+          },
+        ],
+      } as never)
+      .mockResolvedValueOnce({ text: "verified src/main.ts" } as never);
+
+    const result = await runSubagent(baseArgs({ type: "explore" }));
+
+    const contOpts = vi.mocked(generateText).mock.calls[1]?.[0] as {
+      prompt: string;
+      tools?: unknown;
+    };
+    expect(contOpts.prompt).toContain("verify src/main.ts");
+    expect(contOpts.prompt).toContain("final summary as plain text");
+    expect(contOpts.tools).toBeUndefined();
+    expect(result.summary).toBe("verified src/main.ts");
+  });
+
+  it("falls back to the original summary nudge when the evaluator was never called", async () => {
+    vi.mocked(generateText)
+      .mockResolvedValueOnce({
+        text: "",
+        steps: [
+          { toolCalls: [{ toolName: "read_file" }], toolResults: [{ toolName: "read_file" }] },
+        ],
+      } as never)
+      .mockResolvedValueOnce({ text: "summary from nudge" } as never);
+
+    const result = await runSubagent(baseArgs({ type: "explore" }));
+    expect(result.summary).toBe("summary from nudge");
   });
 });
 

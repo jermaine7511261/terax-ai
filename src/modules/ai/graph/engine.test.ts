@@ -228,4 +228,109 @@ describe("GraphEngine (P0-1, L4 + H6)", () => {
     expect(runCalls).toEqual([]); // completed nodes not re-run
     expect(d.events.some((e) => e.type === "run-done")).toBe(true);
   });
+
+  it("condition blocks an edge, skipping the downstream node", async () => {
+    const d = makeDeps();
+    const eng = new GraphEngine(d as never);
+    const executed: string[] = [];
+    d.runAgent.mockImplementation(async (node: GraphNode) => {
+      executed.push(node.id);
+      return { output: "raw", stepCount: 1 };
+    });
+    const def: GraphDef = {
+      id: "g-cond",
+      name: "cond",
+      nodes: [
+        { id: "src", kind: "agent", name: "S", prompt: "src" },
+        { id: "dst", kind: "agent", name: "D", prompt: "dst" },
+      ],
+      edges: [{ from: "src", to: "dst", condition: (o: string) => o === "keep" }],
+    };
+    await eng.run(def);
+    // src runs and outputs "raw", but its edge condition fails → dst is
+    // skipped (cancelled) and never executes.
+    expect(executed).toEqual(["src"]);
+    expect(
+      d.events.some((e) => e.type === "node-done" && e.nodeId === "dst"),
+    ).toBe(false);
+  });
+
+  it("transform rewrites the output injected into the successor context", async () => {
+    const d = makeDeps();
+    const eng = new GraphEngine(d as never);
+    let dstCtx = "";
+    d.runAgent.mockImplementation(async (node: GraphNode, ctx: string) => {
+      if (node.id === "dst") dstCtx = ctx;
+      return { output: "boom", stepCount: 1 };
+    });
+    const def: GraphDef = {
+      id: "g-xf",
+      name: "xf",
+      nodes: [
+        { id: "src", kind: "agent", name: "S", prompt: "src" },
+        { id: "dst", kind: "agent", name: "D", prompt: "dst" },
+      ],
+      edges: [{ from: "src", to: "dst", transform: (o: string) => o.toUpperCase() }],
+    };
+    await eng.run(def);
+    expect(dstCtx).toContain("[From S]");
+    expect(dstCtx).toContain("BOOM");
+    expect(dstCtx).not.toContain("boom");
+  });
+
+  it("aggregates multiple upstream outputs with source labels", async () => {
+    const d = makeDeps();
+    const eng = new GraphEngine(d as never);
+    let dstCtx = "";
+    d.runAgent.mockImplementation(async (node: GraphNode, ctx: string) => {
+      if (node.id === "dst") dstCtx = ctx;
+      return { output: `${node.id}-out`, stepCount: 1 };
+    });
+    const def: GraphDef = {
+      id: "g-multi",
+      name: "multi",
+      nodes: [
+        { id: "a", kind: "agent", name: "A", prompt: "a" },
+        { id: "b", kind: "agent", name: "B", prompt: "b" },
+        { id: "dst", kind: "agent", name: "D", prompt: "dst" },
+      ],
+      edges: [
+        { from: "a", to: "dst" },
+        { from: "b", to: "dst" },
+      ],
+    };
+    await eng.run(def);
+    expect(dstCtx).toContain("[From A]\na-out");
+    expect(dstCtx).toContain("[From B]\nb-out");
+  });
+
+  it("judge does not follow a chosen branch whose condition fails", async () => {
+    const d = makeDeps();
+    d.judge.mockResolvedValue("target-2");
+    const eng = new GraphEngine(d as never);
+    const executed: string[] = [];
+    d.runAgent.mockImplementation(async (node: GraphNode) => {
+      executed.push(node.id);
+      return { output: "x", stepCount: 1 };
+    });
+    const def: GraphDef = {
+      id: "g-judge-cond",
+      name: "judge-cond",
+      nodes: [
+        { id: "judge", kind: "judge", name: "J", prompt: "pick", branches: {} },
+        { id: "target-1", kind: "agent", name: "T1", prompt: "t1" },
+        { id: "target-2", kind: "agent", name: "T2", prompt: "t2" },
+      ],
+      edges: [
+        { from: "judge", to: "target-1" },
+        // judge picks "target-2", but this edge's condition only accepts
+        // "target-1" → the chosen branch is ineligible and must be pruned.
+        { from: "judge", to: "target-2", condition: (o: string) => o === "target-1" },
+      ],
+    };
+    await eng.run(def);
+    // Nothing downstream of the judge runs: the chosen branch failed its gate.
+    expect(executed).toEqual([]);
+    expect(d.judge).toHaveBeenCalled();
+  });
 });

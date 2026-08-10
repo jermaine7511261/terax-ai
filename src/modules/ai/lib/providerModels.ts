@@ -28,19 +28,138 @@ export function providerApiBase(
   return PROVIDER_API_BASES[provider] ?? baseURL.replace(/\/+$/, "");
 }
 
+// ── ProviderProfile declarative registry ──────────────────────────────────
+// Pure-additive. Mirrors the design of hermes' provider profile registry
+// (providers/base.py + providers/__init__.py): a provider is described
+// declaratively, registered by canonical name + aliases (last-writer-wins),
+// and resolved lazily by name or alias with a models-endpoint resolution
+// chain (modelsUrl → baseUrl → baseUrl + "/models").
+
+export type ProviderProfile = {
+  id: string;
+  name: string;
+  aliases?: readonly string[];
+  baseUrl?: string;
+  modelsUrl?: string;
+  authType?: "none" | "bearer" | "api-key";
+  keyOptional?: boolean;
+  supportsVision?: boolean;
+  supportsHealthCheck?: boolean;
+};
+
+export type ProviderProfileRegistry = {
+  profiles: Map<string, ProviderProfile>;
+  aliases: Map<string, string>;
+};
+
+/** Register a profile by canonical name + aliases. Later registrations of the
+ *  same name/alias overwrite earlier ones (last-writer-wins, hermes semantics). */
+export function registerProviderProfile(
+  registry: ProviderProfileRegistry,
+  profile: ProviderProfile,
+): void {
+  registry.profiles.set(profile.name, profile);
+  for (const alias of profile.aliases ?? []) {
+    registry.aliases.set(alias, profile.name);
+  }
+}
+
+/** Look up a profile by exact canonical name first, then by alias. Returns
+ *  null when neither matches. */
+export function resolveProviderProfile(
+  registry: ProviderProfileRegistry,
+  nameOrAlias: string,
+): ProviderProfile | null {
+  const canonical = registry.aliases.get(nameOrAlias) ?? nameOrAlias;
+  return registry.profiles.get(canonical) ?? null;
+}
+
+/** Build a fresh registry pre-populated with the built-in LLM providers,
+ *  mapping fields from config.ts PROVIDERS + PROVIDER_API_BASES. */
+export function createProviderProfileRegistry(): ProviderProfileRegistry {
+  const registry: ProviderProfileRegistry = {
+    profiles: new Map(),
+    aliases: new Map(),
+  };
+  registerProviderProfile(registry, {
+    id: "deepseek",
+    name: "deepseek",
+    aliases: ["deepseek-chat"],
+    baseUrl: PROVIDER_API_BASES.deepseek,
+    authType: "bearer",
+    supportsVision: false,
+    supportsHealthCheck: true,
+  });
+  registerProviderProfile(registry, {
+    id: "mistral",
+    name: "mistral",
+    aliases: ["mistral-ai"],
+    baseUrl: PROVIDER_API_BASES.mistral,
+    authType: "bearer",
+    supportsVision: true,
+    supportsHealthCheck: true,
+  });
+  registerProviderProfile(registry, {
+    id: "openrouter",
+    name: "openrouter",
+    aliases: ["open-router"],
+    baseUrl: PROVIDER_API_BASES.openrouter,
+    authType: "bearer",
+    supportsVision: true,
+    supportsHealthCheck: true,
+  });
+  registerProviderProfile(registry, {
+    id: "openai-compatible",
+    name: "openai-compatible",
+    aliases: ["openai"],
+    authType: "api-key",
+    keyOptional: true,
+    supportsVision: false,
+    supportsHealthCheck: true,
+  });
+  registerProviderProfile(registry, {
+    id: "llama.cpp",
+    name: "llama.cpp",
+    aliases: ["llamacpp", "llama-cpp"],
+    authType: "none",
+    keyOptional: true,
+    supportsVision: false,
+    supportsHealthCheck: false,
+  });
+  return registry;
+}
+
+/** Default registry with the built-in providers. Used by fetchProviderModels
+ *  as the first choice in its resolution chain. */
+export const DEFAULT_PROVIDER_REGISTRY: ProviderProfileRegistry =
+  createProviderProfileRegistry();
+
 /**
- * Fetch the provider's model list from its OpenAI-compatible `/models`
- * endpoint, routed through the Rust SSRF-guarded proxy.
+ * Resolve the models endpoint URL for a profile.
+ * Resolution chain: modelsUrl → baseUrl → caller-supplied base URL → null.
+ * Mirrors hermes `ProviderProfile.fetch_models` ordering.
  */
-export async function fetchProviderModels(
-  provider: ProviderId,
-  baseURL: string,
+function resolveProfileModelsUrl(
+  profile: ProviderProfile,
+  callerBaseURL: string,
+): string | null {
+  if (profile.modelsUrl) return profile.modelsUrl;
+  const base = (profile.baseUrl || callerBaseURL).replace(/\/+$/, "");
+  if (!base) return null;
+  return new URL("models", base.endsWith("/") ? base : `${base}/`).toString();
+}
+
+/**
+ * Shared SSRF-guarded GET + parse of a `/models` endpoint. Throws on failure
+ * so callers decide whether to surface (fetchProviderModels) or swallow
+ * (fetchModelsForProfile) the error.
+ */
+async function httpFetchModels(
+  url: string,
   apiKey: string | null,
 ): Promise<FetchedModel[]> {
-  const base = providerApiBase(provider, baseURL);
-  const url = new URL("models", base.endsWith("/") ? base : `${base}/`);
   const res = await invoke<HttpResponse>("ai_http_request", {
-    url: url.toString(),
+    url,
     method: "GET",
     headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
     allowPrivateNetwork: true,
@@ -73,6 +192,48 @@ export async function fetchProviderModels(
     }
   }
   return models;
+}
+
+/**
+ * Fetch a provider's model list via its declarative profile, using the
+ * modelsUrl → baseUrl → baseUrl+"/models" resolution chain. Returns [] when
+ * no endpoint can be resolved or the request fails (never throws).
+ */
+export async function fetchModelsForProfile(
+  profile: ProviderProfile,
+  apiKey: string | null,
+): Promise<FetchedModel[]> {
+  const url = resolveProfileModelsUrl(profile, "");
+  if (!url) return [];
+  try {
+    return await httpFetchModels(url, apiKey);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Fetch the provider's model list from its OpenAI-compatible `/models`
+ * endpoint, routed through the Rust SSRF-guarded proxy.
+ *
+ * Resolution prefers the declarative ProviderProfile chain (modelsUrl →
+ * baseUrl → caller base URL) when a profile resolves for the provider; when no
+ * profile or no endpoint resolves, it falls back to the legacy
+ * `providerApiBase` logic. Throws on non-2xx / network failure.
+ */
+export async function fetchProviderModels(
+  provider: ProviderId,
+  baseURL: string,
+  apiKey: string | null,
+): Promise<FetchedModel[]> {
+  const profile = resolveProviderProfile(DEFAULT_PROVIDER_REGISTRY, provider);
+  const url =
+    (profile && resolveProfileModelsUrl(profile, baseURL)) ??
+    new URL(
+      "models",
+      `${providerApiBase(provider, baseURL).replace(/\/+$/, "")}/`,
+    ).toString();
+  return httpFetchModels(url, apiKey);
 }
 
 type FetchedState = {

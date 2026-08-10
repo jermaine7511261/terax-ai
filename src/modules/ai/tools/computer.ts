@@ -16,7 +16,7 @@ export function buildComputerTools(_ctx: ToolContext) {
       needsApproval: true,
       execute: async () => {
         try {
-          const result = await native.computerCapture(0);
+          const result = await native.computerScreenshot();
           if (result.ok && result.imageDataUrl) {
             return {
               imageDataUrl: result.imageDataUrl,
@@ -46,11 +46,7 @@ export function buildComputerTools(_ctx: ToolContext) {
       needsApproval: true,
       execute: async ({ x, y, button }) => {
         try {
-          await native.computerAction(0, {
-            kind: "click",
-            x,
-            y,
-          });
+          await native.computerClick(x, y, button ?? "left");
           return { ok: true, x, y, button: button ?? "left" };
         } catch (e) {
           return { error: `click failed: ${String(e)}` };
@@ -67,10 +63,7 @@ export function buildComputerTools(_ctx: ToolContext) {
       needsApproval: true,
       execute: async ({ text }) => {
         try {
-          await native.computerAction(0, {
-            kind: "type",
-            text,
-          });
+          await native.computerType(text);
           return { ok: true, length: text.length };
         } catch (e) {
           return { error: `type failed: ${String(e)}` };
@@ -84,14 +77,15 @@ export function buildComputerTools(_ctx: ToolContext) {
       inputSchema: z.object({}),
       needsApproval: true,
       execute: async () => {
-        // Accessibility-tree extraction needs a native OS bridge that is not
-        // implemented yet; keep the tool surface defined but degrade cleanly
-        // instead of calling a non-existent command.
-        return {
-          ok: false,
-          error:
-            "accessibility tree is not implemented on this platform yet; use computer_screenshot instead",
-        };
+        // R30 §2.2: the Rust command (Windows UIA) and native wrapper exist —
+        // wire the tool to the real accessibility tree and pass platform
+        // errors through instead of the old hardcoded stub.
+        try {
+          const tree = await native.computerReadAccessibilityTree();
+          return { ok: true, tree };
+        } catch (e) {
+          return { ok: false, error: `read_tree failed: ${String(e)}` };
+        }
       },
     }),
   } as const;

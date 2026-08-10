@@ -50,9 +50,53 @@ export type DelegateManyResult = {
   spawned: number;
   depth: number;
   skipped: string[];
+  /** Optional aggregated view (only when aggregate != "all"): a string for
+   *  'final'/'list' or a {type: summary} map for 'dict'. */
+  aggregated?: string | Record<string, string> | null;
   /** Sub-session id created for this fan-out's worker tree (P2-2 parentID). */
   subSessionId?: string | null;
 };
+
+/** Stable dedupe key for a task: type + prompt + context. When the raw key is
+ *  very long, it is length-capped and mixed through an FNV-1a-style hash so
+ *  identical big prompts still dedupe without oversized keys (no new deps). */
+function dedupeKey(t: { type: string; prompt: string; context?: string }): string {
+  const raw = `${t.type}\u0000${t.prompt}\u0000${t.context ?? ""}`;
+  if (raw.length <= 512) return raw;
+  let h = 2166136261;
+  for (let i = 0; i < raw.length; i++) {
+    h ^= raw.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return `${raw.slice(0, 64)}::${raw.length}::${h >>> 0}`;
+}
+
+/** Effective concurrency: clamp the optional override to [1, 8], defaulting to
+ *  MAX_PARALLEL_WORKERS so behavior is unchanged when omitted. */
+function clampConcurrency(maxConcurrent?: number): number {
+  if (typeof maxConcurrent !== "number" || Number.isNaN(maxConcurrent)) {
+    return MAX_PARALLEL_WORKERS;
+  }
+  return Math.min(8, Math.max(1, Math.round(maxConcurrent)));
+}
+
+/** Build the aggregated payload for aggregate != "all" (semantics mirror the
+ *  swarms-rs rearrange strategies: Final/List/Dict). */
+function buildAggregation(
+  aggregate: "final" | "list" | "dict",
+  results: DelegateWorkerResult[],
+): string | Record<string, string> | null {
+  const ok = results.filter((r) => r.ok);
+  if (aggregate === "final") {
+    return ok.length > 0 ? ok[ok.length - 1].summary : null;
+  }
+  if (aggregate === "list") {
+    return ok.map((r) => `[${r.type}] ${r.summary}`).join("\n");
+  }
+  const map: Record<string, string> = {};
+  for (const r of ok) map[r.type] = r.summary; // last successful wins per type
+  return map;
+}
 
 /**
  * Fan out a batch of isolated subagents in parallel and aggregate their
@@ -69,7 +113,7 @@ export function buildDelegateManyTools(ctx: ToolContext) {
 Types:
 ${TYPE_KEYS.map((k) => `- ${k}: ${SUBAGENTS[k].description}`).join("\n")}
 
-Parallelism is capped at ${MAX_PARALLEL_WORKERS} workers; deeper nesting (beyond depth ${MAX_SPAWN_DEPTH}) is refused. Each worker's summary is capped at ${SUBAGENT_SUMMARY_CAP} chars.`,
+Parallelism is capped at ${MAX_PARALLEL_WORKERS} workers by default (override via 'max_concurrent', 1-8); deeper nesting (beyond depth ${MAX_SPAWN_DEPTH}) is refused. Each worker's summary is capped at ${SUBAGENT_SUMMARY_CAP} chars. Set 'dedupe' to drop tasks whose (type, prompt, context) repeat an earlier task. Choose an 'aggregate' strategy to collapse the results instead of returning the full array.`,
       inputSchema: z.object({
         tasks: z
           .array(
@@ -89,6 +133,27 @@ Parallelism is capped at ${MAX_PARALLEL_WORKERS} workers; deeper nesting (beyond
             }),
           )
           .describe("List of independent sub-tasks to run in parallel."),
+        max_concurrent: z
+          .number()
+          .int()
+          .min(1)
+          .max(8)
+          .optional()
+          .describe(
+            "Optional concurrency cap: max workers running simultaneously (1-8, default 4). Larger batches are sliced into waves of this width.",
+          ),
+        dedupe: z
+          .boolean()
+          .optional()
+          .describe(
+            "Optional: when true, drop tasks whose (type, prompt, context) match an earlier task. Duplicates are skipped (not executed) and listed in 'skipped'. Default false.",
+          ),
+        aggregate: z
+          .enum(["all", "final", "list", "dict"])
+          .optional()
+          .describe(
+            "Optional result aggregation strategy. 'all' (default) returns the full 'results' array. 'final' returns the last successful summary as a string. 'list' joins every successful summary as '[type] summary' lines. 'dict' returns a {type: summary} map (last wins per type). The aggregated value (if any) is exposed on 'aggregated'.",
+          ),
       }),
       // Read-only types auto-execute; writable types ask the user first.
       needsApproval: (input) => {
@@ -99,7 +164,12 @@ Parallelism is capped at ${MAX_PARALLEL_WORKERS} workers; deeper nesting (beyond
           tasks.some((t) => t.type === "code" || t.type === "executor")
         );
       },
-      execute: async ({ tasks }): Promise<DelegateManyResult> => {
+      execute: async ({
+        tasks,
+        max_concurrent,
+        dedupe,
+        aggregate,
+      }): Promise<DelegateManyResult> => {
         const { apiKeys, selectedModelId, customEndpointKeys } =
           useChatStore.getState();
         const customEndpoints = usePreferencesStore.getState().customEndpoints;
@@ -145,11 +215,31 @@ Parallelism is capped at ${MAX_PARALLEL_WORKERS} workers; deeper nesting (beyond
         const budget = createBudget({ max: WORKER_STEP_BUDGET });
         setActiveBudget(budget);
 
-        // Simple semaphore: slice workers into waves of MAX_PARALLEL_WORKERS.
+        // Optional dedupe: drop tasks whose (type, prompt, context) key matches
+        // an earlier task. Duplicates never run and are surfaced in `skipped`.
+        let tasksToRun: typeof tasks = tasks;
+        if (dedupe) {
+          const seen = new Set<string>();
+          const kept: typeof tasks = [];
+          for (const t of tasks) {
+            const key = dedupeKey(t);
+            if (seen.has(key)) {
+              skipped.push(t.prompt.slice(0, 40));
+            } else {
+              seen.add(key);
+              kept.push(t);
+            }
+          }
+          tasksToRun = kept;
+        }
+
+        // Dynamic concurrency pool: slice workers into waves of the effective
+        // concurrency (default MAX_PARALLEL_WORKERS, overridable via max_concurrent).
+        const concurrency = clampConcurrency(max_concurrent);
         const results: DelegateWorkerResult[] = [];
         const waves: typeof tasks[] = [];
-        for (let i = 0; i < tasks.length; i += MAX_PARALLEL_WORKERS) {
-          waves.push(tasks.slice(i, i + MAX_PARALLEL_WORKERS));
+        for (let i = 0; i < tasksToRun.length; i += concurrency) {
+          waves.push(tasksToRun.slice(i, i + concurrency));
         }
 
         for (const wave of waves) {
@@ -176,7 +266,7 @@ Parallelism is capped at ${MAX_PARALLEL_WORKERS} workers; deeper nesting (beyond
         }
 
         setActiveBudget(null);
-        return {
+        const base: DelegateManyResult = {
           ok: results.every((r) => r.ok),
           results,
           requested: tasks.length,
@@ -187,6 +277,11 @@ Parallelism is capped at ${MAX_PARALLEL_WORKERS} workers; deeper nesting (beyond
           skipped,
           subSessionId,
         };
+        const agg = aggregate ?? "all";
+        if (agg !== "all") {
+          return { ...base, aggregated: buildAggregation(agg, results) };
+        }
+        return base;
       },
     }),
   } as const;

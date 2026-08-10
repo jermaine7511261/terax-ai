@@ -88,6 +88,12 @@ const TOOL_META: Record<
   edit_pptx: { label: "Edit PPT", labelKey: "tool.editPptx", icon: FileEditIcon },
   merge_pdf: { label: "Merge PDF", labelKey: "tool.mergePdf", icon: File01Icon },
   encrypt_pdf: { label: "Encrypt PDF", labelKey: "tool.encryptPdf", icon: File01Icon },
+  computer_screenshot: { label: "Screenshot", labelKey: "tool.computerScreenshot", icon: EyeIcon },
+  computer_click: { label: "Click", labelKey: "tool.computerClick", icon: SparklesIcon },
+  computer_type: { label: "Type", labelKey: "tool.computerType", icon: SparklesIcon },
+  computer_read_tree: { label: "Read UI tree", labelKey: "tool.computerReadTree", icon: SparklesIcon },
+  model_fusion: { label: "Model fusion", labelKey: "tool.modelFusion", icon: SparklesIcon },
+  import_rules: { label: "Import rules", labelKey: "tool.importRules", icon: SparklesIcon },
 };
 
 const STATUS_DOT: Record<ToolPart["state"], string> = {

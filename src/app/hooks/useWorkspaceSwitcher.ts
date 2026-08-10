@@ -1,4 +1,5 @@
 import { native } from "@/modules/ai/lib/native";
+import { useChatStore } from "@/modules/ai/store/chatStore";
 import {
   loadPreferences,
   onPreferencesChange,
@@ -58,6 +59,11 @@ export function useWorkspaceSwitcher({
     // the OS user home directory.
     void (async () => {
       const prefs = await loadPreferences();
+      // Restore the last-selected model so the model switcher doesn't reset
+      // to the default on every launch (setSelectedModelId persists it).
+      if (prefs.selectedModelId) {
+        useChatStore.setState({ selectedModelId: prefs.selectedModelId });
+      }
       const saved = prefs.workspaceRoot;
       homeDir()
         .then(async (p) => {

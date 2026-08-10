@@ -243,6 +243,12 @@ fn validate_url(raw: &str) -> Result<Url, WebFetchError> {
         return Err(WebFetchError::CredentialsInUrl);
     }
 
+    // Vendor-prefix gate (first of two): catches secrets in path / fragment /
+    // no-query URLs that the param-name gate below cannot see.
+    if let Some(prefix) = url_safety::detect_secret_prefix_in_url(&parsed) {
+        return Err(WebFetchError::SecretPrefixInUrl { prefix });
+    }
+
     // Whole-URL rejection of secrets in the query (decision 6, -aligned).
     if let Some(param) = url_safety::detect_secret_in_query(&parsed) {
         return Err(WebFetchError::SecretInUrl { param });

@@ -6,6 +6,12 @@ export type ActivityStatus = "running" | "done" | "error";
 
 export type AgentActivity = {
   id: string;
+  /**
+   * Run id of the underlying agent run. `start` writes it (defaults to the
+   * activity's `id`), so the activity record can be correlated with the run
+   * that produced it. Present on every stored activity after `start`.
+   */
+  runId?: string;
   kind: ActivityKind;
   type: string;
   prompt: string;
@@ -42,7 +48,10 @@ export const useAgentActivityStore = create<State>((set) => ({
 
   start: (a) =>
     set((s) => ({
-      activities: [{ ...a, status: "running", step: null }, ...s.activities],
+      activities: [
+        { ...a, runId: a.runId ?? a.id, status: "running", step: null },
+        ...s.activities,
+      ],
     })),
 
   updateStep: (id, step) =>

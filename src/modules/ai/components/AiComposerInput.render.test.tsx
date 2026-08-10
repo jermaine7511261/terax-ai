@@ -50,6 +50,7 @@ describe("AiComposerInput render", () => {
 
   it("opens the snippet picker when typing a leading slash", async () => {
     const { rerender } = render(<AiComposerInput />);
+    // biome-ignore lint/style/noNonNullAssertion: mock ref is assigned before render
     const ta = mock.textareaRef.current!;
     expect(ta).toBeTruthy();
 
@@ -64,8 +65,39 @@ describe("AiComposerInput render", () => {
     expect(screen.queryByText("ui.prebuiltSnippets")).not.toBeNull();
   });
 
+  it("opens the command picker on the physical / key even without change/keyup (IME-safe)", async () => {
+    const { rerender } = render(<AiComposerInput />);
+    // biome-ignore lint/style/noNonNullAssertion: mock ref is assigned before render
+    const ta = mock.textareaRef.current!;
+
+    // Only keydown fires (Chinese IME may swallow the change/keyup events or
+    // commit a full-width ／). The picker must still open.
+    fireEvent.keyDown(ta, { key: "/", code: "Slash" });
+    await act(async () => {
+      rerender(<AiComposerInput />);
+    });
+
+    expect(screen.queryByText("ui.prebuiltSnippets")).not.toBeNull();
+  });
+
+  it("does not open the picker when / follows non-whitespace (word boundary)", async () => {
+    mock.value = "你好";
+    const { rerender } = render(<AiComposerInput />);
+    // biome-ignore lint/style/noNonNullAssertion: mock ref is assigned before render
+    const ta = mock.textareaRef.current!;
+    ta.setSelectionRange(2, 2);
+
+    fireEvent.keyDown(ta, { key: "/", code: "Slash" });
+    await act(async () => {
+      rerender(<AiComposerInput />);
+    });
+
+    expect(screen.queryByText("ui.prebuiltSnippets")).toBeNull();
+  });
+
   it("opens the file picker when typing a leading @", async () => {
     const { rerender } = render(<AiComposerInput />);
+    // biome-ignore lint/style/noNonNullAssertion: mock ref is assigned before render
     const ta = mock.textareaRef.current!;
 
     fireEvent.change(ta, { target: { value: "@" } });
