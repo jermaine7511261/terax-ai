@@ -1,4 +1,5 @@
 import { ensureMonoFontsLoaded } from "@/lib/fonts";
+import { tStatic } from "@/lib/i18n";
 import { usePreferencesStore } from "@/modules/settings/preferences";
 import type { SshTarget } from "@/modules/tabs";
 import { invoke } from "@/platform";
@@ -59,6 +60,7 @@ import {
   setSlotFocused,
 } from "./rendererPool";
 import { useTerminalFont } from "./useTerminalFont";
+import { toast } from "sonner";
 
 type Callbacks = {
   onSearchReady?: (addon: SearchAddon) => void;
@@ -167,7 +169,9 @@ export function writeToSession(leafId: number, data: string): boolean {
   const s = sessions.get(leafId);
   if (!s || s.shellExited) return false;
   if (s.pty) {
-    void s.pty.write(data);
+    s.pty.write(data).catch(() => {
+      toast.error("无法写入终端", { id: `pty-write:${leafId}` });
+    });
     return true;
   }
   queuePendingInput(s, data);
@@ -182,7 +186,7 @@ export function submitToLeaf(leafId: number, text: string): void {
   const data = text.includes("\n")
     ? `\x1b[200~${text}\x1b[201~\r`
     : `${text}\r`;
-  if (s.pty) void s.pty.write(data);
+  if (s.pty) s.pty.write(data).catch(() => { toast.error(tStatic("terminal.writeFailed")); });
   else queuePendingInput(s, data);
 }
 
@@ -497,6 +501,7 @@ function ensureSession(
     spawnFailed: false,
   };
   sessions.set(leafId, session);
+  ensureSnapshotTimer();
 
   session.ready = (async () => {
     await ensureMonoFontsLoaded();
@@ -842,7 +847,12 @@ export async function leafHasForegroundProcess(
 // that skips component unmount would otherwise lose the buffer. Skipping busy
 // (foreground job / running command) and alt-screen leaves keeps a mid-TUI
 // serialize from corrupting a session we can't faithfully replay.
-setInterval(() => {
+//
+// Lazily started: the timer only runs while at least one session is alive, so
+// dev/HMR reloads don't stack intervals and an idle app holds no timer.
+let snapshotTimer: ReturnType<typeof setInterval> | null = null;
+
+function tickSnapshots(): void {
   for (const [leafId, s] of sessions) {
     if (s.disposed || s.commandRunning || s.blocks) continue;
     if (isLeafAltScreen(leafId)) continue;
@@ -850,7 +860,19 @@ setInterval(() => {
     if (!slot || slot.currentLeafId !== leafId) continue;
     void saveTerminalSnapshot(leafId, slot.serializeAddon.serialize());
   }
-}, 20_000);
+}
+
+function ensureSnapshotTimer(): void {
+  if (snapshotTimer !== null) return;
+  snapshotTimer = setInterval(tickSnapshots, 20_000);
+}
+
+function stopSnapshotTimerIfIdle(): void {
+  if (sessions.size === 0 && snapshotTimer !== null) {
+    clearInterval(snapshotTimer);
+    snapshotTimer = null;
+  }
+}
 
 export function disposeSession(leafId: number): void {
   const s = sessions.get(leafId);
@@ -880,6 +902,7 @@ export function disposeSession(leafId: number): void {
   s.pty = null;
   s.pendingInput = "";
   sessions.delete(leafId);
+  stopSnapshotTimerIfIdle();
   blockViewportListeners.delete(leafId);
   readyLeaves.delete(leafId);
   const waiters = readyWaiters.get(leafId);

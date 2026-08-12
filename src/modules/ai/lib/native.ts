@@ -275,9 +275,6 @@ export type WebSearchCommandResult = {
   truncated: boolean;
   degraded: boolean;
   error: string | null;
-  /** Provider category/vertical (e.g. "news", "videos") when the search provider
-   *  supports one; null otherwise. Mirrors Rust WebSearchCommandResult (serde camelCase). */
-  category?: string | null;
 };
 
 export type AiHarnessEvent =
@@ -398,6 +395,28 @@ export const native = {
       source: "ai",
       workspace: currentWorkspaceEnv(),
     }),
+  createPptxStructured: (
+    path: string,
+    slides: {
+      title?: string;
+      bullets?: string[];
+      rich?: { text: string; bold?: boolean; italic?: boolean; underline?: boolean; strikethrough?: boolean; color?: string; font_size?: number; font?: string }[][];
+    }[],
+    widescreen?: boolean,
+  ) =>
+    invoke<number>("fs_create_pptx_structured", {
+      path,
+      slides,
+      widescreen,
+      source: "ai",
+      workspace: currentWorkspaceEnv(),
+    }),
+  docxToHtml: (path: string) =>
+    invoke<string>("fs_docx_to_html", {
+      path,
+      source: "ai",
+      workspace: currentWorkspaceEnv(),
+    }),
   createPdf: (path: string, lines: string[]) =>
     invoke<number>("fs_create_pdf", {
       path,
@@ -419,6 +438,13 @@ export const native = {
       source: "ai",
       workspace: currentWorkspaceEnv(),
     }),
+  editPdf: (path: string, replacements: string[][]) =>
+    invoke<number>("fs_edit_pdf", {
+      path,
+      replacements,
+      source: "ai",
+      workspace: currentWorkspaceEnv(),
+    }),
   editXlsx: (
     path: string,
     cells: { sheet: number; cell: string; kind?: string; value: string }[],
@@ -426,6 +452,12 @@ export const native = {
     invoke<number>("fs_edit_xlsx", {
       path,
       cells,
+      source: "ai",
+      workspace: currentWorkspaceEnv(),
+    }),
+  recalcXlsx: (path: string) =>
+    invoke<number>("fs_recalc_xlsx", {
+      path,
       source: "ai",
       workspace: currentWorkspaceEnv(),
     }),
@@ -450,6 +482,32 @@ export const native = {
       source: "ai",
       workspace: currentWorkspaceEnv(),
     }),
+  pdfPageCount: (path: string) =>
+    invoke<number>("fs_pdf_page_count", {
+      path,
+      source: "ai",
+      workspace: currentWorkspaceEnv(),
+    }),
+  fsToolResultWrite: (runId: string, toolUseId: string, content: string) =>
+    invoke<string>("fs_tool_result_write", { runId, toolUseId, content }),
+  fsToolResultRead: (path: string) =>
+    invoke<string>("fs_tool_result_read", { path }),
+  fsToolResultCleanup: (runId: string) =>
+    invoke<void>("fs_tool_result_cleanup", { runId }),
+  seedBuiltinSkills: (files: { fileName: string; content: string }[]) =>
+    invoke<number>("fs_seed_builtin_skills", { files }),
+  readSeededSkills: () =>
+    invoke<string[]>("fs_read_seeded_skills", {}),
+  runHook: (command: string, input: string, timeoutMs?: number) =>
+    invoke<string>("fs_run_hook", { command, input, timeoutMs: timeoutMs ?? null }),
+  readHooksConfig: () =>
+    invoke<string>("fs_read_hooks_config", {}),
+  errorsGetCounts: () =>
+    invoke<Record<string, number>>("errors_get_counts", {}),
+  errorsGetRecent: () =>
+    invoke<{ category: string; message: string; timestamp: number }[]>("errors_get_recent", {}),
+  errorsRecord: (message: string) =>
+    invoke<string>("errors_record", { message }),
   canonicalize: (path: string) =>
     invoke<string>("fs_canonicalize", {
       path,
@@ -855,6 +913,9 @@ export const native = {
     categories?: string[] | null;
     dateFrom?: string | null;
     dateTo?: string | null;
+    /** Provider category/vertical (e.g. "news", "videos") when the search provider
+     *  supports one; null otherwise. Mirrors Rust WebSearchCommandResult (serde camelCase). */
+    category?: string | null;
   }) =>
     invoke<WebSearchCommandResult>("web_search", {
       params: {
@@ -1101,4 +1162,10 @@ export const native = {
       provider: params.provider,
       size: params.size ?? null,
     }),
+
+  readImageBase64: (path: string) =>
+    invoke<{ base64: string; mime_type: string; size: number }>(
+      "fs_read_image_base64",
+      { path },
+    ),
 };

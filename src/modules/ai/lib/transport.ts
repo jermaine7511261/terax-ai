@@ -1,20 +1,30 @@
 import type { UIMessage } from "@ai-sdk/react";
 import type { CustomEndpoint } from "../config";
 import { runAgentStream, type AgentUsageDelta } from "./agent";
-import { isRetryableModelError } from "./resilience";
-import { usePreferencesStore } from "@/modules/settings/preferences";
 import type { ProviderKeys, CustomEndpointKeys } from "./keyring";
 import type { ThinkingLength } from "@/modules/settings/store";
 import { formatAiError } from "./errors";
 import { native } from "./native";
+import { appDataDir } from "@/platform";
 import type { ToolContext } from "../tools/tools";
 import {
   getSessionMemory,
   recallTop,
 } from "../store/memoryStore";
 import { useMcpStore } from "@/modules/mcp";
+import { useEditSnapshot } from "./editSnapshot";
+import {
+  DEFAULT_MEMORY_PREFS,
+  type MemoryPrefs,
+} from "./memoryPrefs";
+import {
+  compressMemory,
+  MEMORY_SUMMARY_PREFIX,
+} from "./memoryCompress";
 
 export const YAMET_MD_MAX_BYTES = 32 * 1024;
+/** memory.md injection cap (~2000 tokens of CJK). */
+export const MEMORY_MD_MAX_BYTES = 8 * 1024;
 type MemoryCacheEntry = { content: string | null; mtime: number };
 const projectMemoryCache = new Map<string, MemoryCacheEntry>();
 
@@ -42,7 +52,11 @@ function memoryPath(workspaceRoot: string): string {
 }
 
 function invalidateCache(workspaceRoot: string): void {
+  // readYametMd caches merged global+workspace under the workspace key (or
+  // "__global__" when no workspace), so memory-tool writes must invalidate
+  // BOTH keys — otherwise the next run reads a stale merged snapshot.
   projectMemoryCache.delete(workspaceRoot);
+  projectMemoryCache.delete("__global__");
 }
 
 export function renderEntry(e: { content: string }): string {
@@ -81,9 +95,18 @@ function capBytes(text: string): string {
     : text;
 }
 
-async function readMemoryFile(
+export async function readMemoryFile(
   workspaceRoot: string,
 ): Promise<{ content: string; path: string }> {
+  // Global memory.md (unified data dir) wins; falls back to the workspace
+  // YaMet.md (per-project memory). Memory tools (update/append/remove/list)
+  // then operate on whichever file is active, keeping one canonical source.
+  const mdPath = await memoryMdPath();
+  if (mdPath) {
+    const r = await native.readFile(mdPath).catch(() => null);
+    if (r && r.kind === "text") return { content: r.content, path: mdPath };
+    return { content: "", path: mdPath };
+  }
   const path = memoryPath(workspaceRoot);
   try {
     const r = await native.readFile(path);
@@ -91,6 +114,17 @@ async function readMemoryFile(
     return { content: "", path };
   } catch {
     return { content: "", path };
+  }
+}
+
+/** Resolve the global memory.md under the unified data dir, or null if it
+ *  can't be determined (web mode / no Tauri). */
+async function memoryMdPath(): Promise<string | null> {
+  try {
+    const dir = await appDataDir();
+    return `${dir.replace(/\\$/, "")}/memory.md`;
+  } catch {
+    return null;
   }
 }
 
@@ -164,6 +198,47 @@ export async function removeProjectMemory(
 }
 
 /**
+ * Round 32 auto-compression: when the ACTIVE memory file's managed block
+ * exceeds the configured threshold, merge the oldest `targetPct`% (minus the
+ * newest `protectRecent` entries) into one marked summary — preserving
+ * everything outside the managed block (replaces the old §3.5.1 block that
+ * rebuilt the file from scratch and targeted the workspace YaMet.md).
+ * Best-effort; no-op unless autoCompress is enabled.
+ */
+export async function maybeCompressActiveMemory(
+  workspaceRoot: string,
+  prefs: MemoryPrefs,
+): Promise<{ ok: boolean; compressed: number }> {
+  if (!prefs.autoCompress) return { ok: false, compressed: 0 };
+  try {
+    const { content, path } = await readMemoryFile(workspaceRoot);
+    const block = parseBlock(content);
+    const lines = block.lines
+      .map((l) => l.replace(/^-\s*/, "").trim())
+      .filter(Boolean)
+      .map((l) => ({
+        content: l,
+        summary: l.startsWith(MEMORY_SUMMARY_PREFIX),
+      }));
+    if (lines.length === 0) return { ok: false, compressed: 0 };
+    const res = compressMemory(lines, {
+      thresholdRatio: prefs.compressThreshold,
+      targetRatio: prefs.compressTarget,
+      protectRecent: prefs.protectRecent,
+    });
+    if (res.compressed === 0) return { ok: false, compressed: 0 };
+    const nextLines = res.kept.map((l) => renderEntry({ content: l.content }));
+    if (res.summary) nextLines.push(renderEntry({ content: res.summary }));
+    block.lines = nextLines;
+    await native.writeFile(path, capBytes(rebuildBlock(block)));
+    invalidateCache(workspaceRoot);
+    return { ok: true, compressed: res.compressed };
+  } catch {
+    return { ok: false, compressed: 0 };
+  }
+}
+
+/**
  * Merge the static YaMet.md content with this session's in-memory notes into a
  * single block for the system prompt. Dedups identical trimmed lines and caps
  * the total at YAMET_MD_MAX_BYTES to prevent the model from growing the prompt
@@ -191,26 +266,36 @@ export function mergeProjectMemory(
 }
 
 async function readYametMd(workspaceRoot: string | null): Promise<string | null> {
-  if (!workspaceRoot) return null;
-  const path = `${workspaceRoot.replace(/\/$/, "")}/YaMet.md`;
-  const cached = projectMemoryCache.get(workspaceRoot);
+  const cacheKey = workspaceRoot ?? "__global__";
+  const cached = projectMemoryCache.get(cacheKey);
   if (cached && Date.now() - cached.mtime < 30_000) return cached.content;
-  try {
-    const r = await native.readFile(path);
-    if (r.kind !== "text") {
-      projectMemoryCache.set(workspaceRoot, { content: null, mtime: Date.now() });
+
+  const readFile = async (path: string): Promise<string | null> => {
+    try {
+      const r = await native.readFile(path);
+      if (r.kind !== "text") return null;
+      const cap = path.endsWith("memory.md")
+        ? MEMORY_MD_MAX_BYTES
+        : YAMET_MD_MAX_BYTES;
+      return r.content.length > cap ? r.content.slice(0, cap) : r.content;
+    } catch {
       return null;
     }
-    const content =
-      r.content.length > YAMET_MD_MAX_BYTES
-        ? r.content.slice(0, YAMET_MD_MAX_BYTES)
-        : r.content;
-    projectMemoryCache.set(workspaceRoot, { content, mtime: Date.now() });
-    return content;
-  } catch {
-    projectMemoryCache.set(workspaceRoot, { content: null, mtime: Date.now() });
-    return null;
-  }
+  };
+
+  // Global memory.md (unified data dir) works without a workspace open and is
+  // the canonical source for the memory tools; the workspace YaMet.md
+  // (per-project memory) is MERGED in — not shadowed — so real project
+  // knowledge keeps flowing to the model even when the global file is empty
+  // or polluted by auto-settled narration.
+  const mdPath = await memoryMdPath();
+  const globalMd = mdPath ? await readFile(mdPath) : null;
+  const wsMd = workspaceRoot
+    ? await readFile(`${workspaceRoot.replace(/\/$/, "")}/YaMet.md`)
+    : null;
+  const merged = mergeProjectMemory(globalMd, wsMd);
+  projectMemoryCache.set(cacheKey, { content: merged, mtime: Date.now() });
+  return merged;
 }
 
 type LiveSnapshot = {
@@ -255,6 +340,8 @@ type Deps = {
   /** Skill-scoped tool allowlist for this session (undefined = full tools). */
   getToolAllowlist?: () => string[] | undefined;
   getThinkingLength?: () => ThinkingLength | undefined;
+  /** Memory configuration (Round 32). Absent → defaults (current behavior). */
+  getMemoryPrefs?: () => MemoryPrefs;
 };
 
 type SendOptions = {
@@ -309,35 +396,37 @@ export function sanitizeOrphanToolCalls(messages: UIMessage[]): UIMessage[] {
 
 export function createContextAwareTransport(deps: Deps) {
   const run = async (options: SendOptions) => {
+    // P0-1: open a snapshot scope for this run so mutating tools archive the
+    // files they touch, enabling one-click rollback.
+    useEditSnapshot.getState().beginRun(deps.toolContext.getSessionId() ?? "session");
     // Refresh the dynamic MCP tool registry before every run so newly
     // connected servers appear and dropped ones disappear from the toolset.
     await useMcpStore.getState().refresh().catch(() => {});
     const live = deps.getLive();
-    // P1-4 recall-based injection: instead of blindly splicing the full
-    // YaMet.md + full session memory, recall only the relevant lines for the
-    // latest user query and wrap them in an isolation marker (
-    // select_context + build_memory_context_block).
-    const staticMemory = await readYametMd(live.workspaceRoot);
+    // Round 32: memory injection honors the configured 持久记忆/记忆提供方/上下文
+    // 引擎/用户画像. Defaults reproduce the legacy behavior (recall top-8 from
+    // the active memory file + session memory).
+    const prefs = deps.getMemoryPrefs?.() ?? DEFAULT_MEMORY_PREFS;
+    const staticMemory =
+      prefs.memoryProvider === "session"
+        ? null
+        : await readYametMd(live.workspaceRoot);
     const sessionMemory = getSessionMemory(deps.toolContext.getSessionId());
     const query = lastUserText(options.messages);
-    const projectMemory = buildRecalledMemory(staticMemory, sessionMemory, query);
+    const projectMemory = await buildMemoryInjection(
+      prefs,
+      staticMemory,
+      sessionMemory,
+      query,
+    );
     const envBlock = formatEnvBlock(live);
     const cleanMessages = sanitizeOrphanToolCalls(options.messages);
     const messagesForRun = envBlock
       ? injectEnvIntoLastUser(cleanMessages, envBlock)
       : cleanMessages;
-    // R30 §2.1: cross-provider failover for the main chat stream. The first
-    // fullStream item is probed to trigger the HTTP request; a retryable
-    // failure (429/5xx/network) before any content is emitted transparently
-    // re-runs the whole agent stream against the next provider in the chain.
-    const fallbackChain = usePreferencesStore.getState().providerFallbackChain ?? [];
-    const fallbackOrder = Array.from(new Set([deps.getModelId(), ...fallbackChain]));
-    let fallbackErr: unknown;
-    for (const fallbackModelId of fallbackOrder) {
-      if (!(await native.resilienceAvailable(fallbackModelId))) continue;
-      const result = await runAgentStream({
+    const result = await runAgentStream({
       keys: deps.getKeys(),
-      modelId: fallbackModelId,
+      modelId: deps.getModelId(),
       customInstructions: deps.getCustomInstructions(),
       agentPersona: deps.getAgentPersona(),
       toolContext: deps.toolContext,
@@ -362,51 +451,10 @@ export function createContextAwareTransport(deps: Deps) {
       uiMessages: messagesForRun,
       abortSignal: options.abortSignal,
     });
-      if (!result.fullStream) {
-        return result.toUIMessageStream({
-          originalMessages: options.messages,
-          onError: formatAiError,
-        });
-      }
-      try {
-        const streamSrc = result.fullStream as unknown as AsyncIterable<unknown>;
-        const it = streamSrc[Symbol.asyncIterator]();
-        const first = await it.next();
-        if (first.done) {
-          return result.toUIMessageStream({
-            originalMessages: options.messages,
-            onError: formatAiError,
-          });
-        }
-        const fullStream = (async function* () {
-          yield first.value;
-          for (let n = await it.next(); !n.done; n = await it.next()) {
-            yield n.value;
-          }
-        })();
-        const merged = Object.create(Object.getPrototypeOf(result));
-        Object.assign(merged, result);
-        Object.defineProperty(merged, "fullStream", {
-          value: fullStream,
-          writable: true,
-          enumerable: true,
-          configurable: true,
-        });
-        void native.resilienceRecordSuccess(fallbackModelId);
-        return merged.toUIMessageStream({
-          originalMessages: options.messages,
-          onError: formatAiError,
-        });
-      } catch (e) {
-        fallbackErr = e;
-        void native.resilienceRecordFailure(fallbackModelId);
-        if (!isRetryableModelError(e)) throw e;
-        console.warn(
-          `[resilience] chat fallback: provider ${fallbackModelId} failed (${String(e)})`,
-        );
-      }
-    }
-    throw fallbackErr instanceof Error ? fallbackErr : new Error(String(fallbackErr));
+    return result.toUIMessageStream({
+      originalMessages: options.messages,
+      onError: formatAiError,
+    });
   };
 
   return {
@@ -431,16 +479,29 @@ function lastUserText(messages: UIMessage[]): string {
 }
 
 /**
- * P1-4 recall-based memory injection: rank the combined static YaMet.md lines
- * + session-memory entries against the user query, keep only the relevant hits,
- * and wrap them in an isolation marker. Returns null when nothing relevant (or
- * no memory exists) — keeping the prompt lean instead of splicing full memory.
+ * Round 32 memory injection. Composes the configured 用户画像 block + the
+ * memory section selected by 上下文引擎:
+ *  - off            → nothing injected (also gated by 持久记忆总闸)
+ *  - recall (default) → top-8 relevant lines via recallTop
+ *  - full           → inject the whole memory (bounded by the read caps)
+ *  - native         → Rust memory_recall (only when 记忆提供方 = native)
+ * provider=session  skips the file read (staticMd is already null then).
+ * Returns null when nothing should be injected — keeps the prompt lean.
  */
-function buildRecalledMemory(
+async function buildMemoryInjection(
+  prefs: MemoryPrefs,
   staticMd: string | null,
   sessionEntries: { content: string }[],
   query: string,
-): string | null {
+): Promise<string | null> {
+  if (!prefs.persistentMemory || prefs.contextEngine === "off") return null;
+
+  const blocks: string[] = [];
+  const profile = prefs.userProfile.trim();
+  if (profile) {
+    blocks.push(`<USER_PROFILE>\n${profile}\n</USER_PROFILE>`);
+  }
+
   const lines: string[] = [];
   if (staticMd) {
     lines.push(
@@ -451,13 +512,33 @@ function buildRecalledMemory(
     );
   }
   for (const e of sessionEntries) lines.push(`- ${e.content}`);
-  if (lines.length === 0) return null;
 
-  const recalled = query.trim()
-    ? recallTop(lines, query, { limit: 8, threshold: 0 })
-    : lines.slice(0, 8);
-  if (recalled.length === 0) return null;
-  return `${MEMORY_NOTE}\n${recalled.join("\n")}\n${MEMORY_NOTE_END}`;
+  let recalled: string | null = null;
+  if (prefs.contextEngine === "native" && prefs.memoryProvider === "native") {
+    const hits = await native
+      .memoryRecall({ query, limit: 8 })
+      .catch(() => []);
+    if (hits.length > 0) {
+      recalled = `${MEMORY_NOTE}\n${hits
+        .map((h) => h.content)
+        .join("\n")}\n${MEMORY_NOTE_END}`;
+    }
+  } else if (lines.length > 0) {
+    if (prefs.contextEngine === "full") {
+      recalled = `${MEMORY_NOTE}\n${lines.join("\n")}\n${MEMORY_NOTE_END}`;
+    } else {
+      // recall (default) — P1-4 relevance-ranked top-8.
+      const top = query.trim()
+        ? recallTop(lines, query, { limit: 8, threshold: 0 })
+        : lines.slice(0, 8);
+      if (top.length > 0) {
+        recalled = `${MEMORY_NOTE}\n${top.join("\n")}\n${MEMORY_NOTE_END}`;
+      }
+    }
+  }
+  if (recalled) blocks.push(recalled);
+
+  return blocks.length > 0 ? blocks.join("\n\n") : null;
 }
 
 function injectEnvIntoLastUser(

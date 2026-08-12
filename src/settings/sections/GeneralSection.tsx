@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { usePreferencesStore } from "@/modules/settings/preferences";
 import type { ThemePref } from "@/modules/settings/store";
 import {
+  setAdhdMode,
   setAgentNotifications,
   setAutostart,
   setDefaultWorkspaceEnv,
@@ -96,6 +97,7 @@ export function GeneralSection() {
   const terminalScrollback = usePreferencesStore((s) => s.terminalScrollback);
   const zoomLevel = usePreferencesStore((s) => s.zoomLevel);
   const agentNotifications = usePreferencesStore((s) => s.agentNotifications);
+  const adhdMode = usePreferencesStore((s) => s.adhdMode);
   const workspaceRoot = usePreferencesStore((s) => s.workspaceRoot);
 
   useEffect(() => {
@@ -510,6 +512,15 @@ export function GeneralSection() {
           <Switch
             checked={agentNotifications}
             onCheckedChange={(v) => void setAgentNotifications(v)}
+          />
+        </SettingRow>
+        <SettingRow
+          title="ADHD-friendly output"
+          description={t("settingsGeneral.adhdFormatting")}
+        >
+          <Switch
+            checked={adhdMode}
+            onCheckedChange={(v) => void setAdhdMode(v)}
           />
         </SettingRow>
       </div>

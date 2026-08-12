@@ -5,6 +5,7 @@ import {
 } from "@/modules/agents/lib/launcher";
 import {
   type AutocompleteProviderId,
+  type AuxTask,
   type CustomEndpoint,
   compatModelIdForEndpoint,
   DEFAULT_AUTOCOMPLETE_MODEL,
@@ -16,12 +17,19 @@ import {
   type ModelId,
   migrateLegacyCompatEndpoint,
   OPENAI_COMPATIBLE_DEFAULT_BASE_URL,
+  GROQ_STT_DEFAULT_BASE_URL,
+  OPENAI_COMPAT_STT_DEFAULT_BASE_URL,
   type SttProvider,
   WHISPERCPP_DEFAULT_BASE_URL,
 } from "@/modules/ai/config";
 import type { KeyBinding, ShortcutId } from "@/modules/shortcuts/shortcuts";
-import { emit, listen, type UnlistenFn } from "@/platform";
-import { createStorage } from "@/platform";
+import {
+  createStorage,
+  emit,
+  getCurrentWindow,
+  listen,
+  type UnlistenFn,
+} from "@/platform";
 
 export type ThemePref = "system" | "light" | "dark";
 
@@ -136,6 +144,7 @@ export type Preferences = {
    *  no explicit chain (runtime default order). */
   providerFallbackChain: string[];
   autostart: boolean;
+  adhdMode: boolean;
   restoreWindowState: boolean;
   autocompleteEnabled: boolean;
   autocompleteTrigger: AutocompleteTrigger;
@@ -151,6 +160,10 @@ export type Preferences = {
   sttProvider: SttProvider;
   groqSttModel: string;
   whispercppBaseURL: string;
+  openaiCompatibleSttBaseURL: string;
+  openaiCompatibleSttModel: string;
+  groqSttBaseURL: string;
+  auxModels: Partial<Record<AuxTask, string | null>>;
   favoriteModelIds: string[];
   recentModelIds: string[];
   selectedModelId: string | null;
@@ -196,7 +209,27 @@ export type Preferences = {
   /** P4: 双轨切换——AI 运行时走 Rust 原生 harness（true）还是前端 AI SDK（false）。
    *  逐系统验证后切换，避免一次性大爆炸重构。 */
   useNativeAi: boolean;
+  // ── 记忆配置（第 32 轮）——全部持久化到 yamet\data\yamet-settings.json ──
+  /** 持久记忆总闸：关 → 不注入记忆、记忆工具报禁用。 */
+  persistentMemory: boolean;
+  /** 用户画像：独立注入为 USER_PROFILE 块（上限 userProfileCharLimit）。 */
+  userProfile: string;
+  /** 记忆提供方：file（data\memory.md + 工作区 YaMet.md）/ native（Rust 三作用域）/ session（仅会话）。 */
+  memoryProvider: MemoryProvider;
+  /** 上下文引擎：recall（recallTop top-8）/ full（≤8KB 全量）/ native（Rust 召回，仅 provider=native）/ off。 */
+  contextEngine: ContextEngine;
+  /** 自动压缩：默认开启；条目数 > 上限 × 阈值时压缩。 */
+  autoCompress: boolean;
+  /** 压缩阈值（比例 0–1）：条目数 > MEMORY_CAP × thresholdRatio 触发（默认 0.5 = 50 条）。 */
+  compressThreshold: number;
+  /** 压缩目标（比例 0–1）：压缩后保留 ≈ MEMORY_CAP × targetRatio 条（默认 0.2 = 20 条）。 */
+  compressTarget: number;
+  /** 保护最近 N 条：按 createdAt 倒序，永不参与压缩（默认 20）。 */
+  protectRecent: number;
 };
+
+export type MemoryProvider = "file" | "native" | "session";
+export type ContextEngine = "recall" | "full" | "native" | "off";
 
 export type EditorFormatter =
   | "lsp"
@@ -236,6 +269,7 @@ const KEY_EDITOR_FONT_SIZE = "editorFontSize";
 const KEY_CUSTOM_INSTRUCTIONS = "customInstructions";
 const KEY_PROVIDER_FALLBACK_CHAIN = "providerFallbackChain";
 const KEY_AUTOSTART = "autostart";
+const KEY_ADHD_MODE = "adhdMode";
 const KEY_RESTORE_WINDOW = "restoreWindowState";
 export type AutocompleteTrigger = "auto" | "manual";
 
@@ -271,6 +305,10 @@ function parseThinkingLength(
 const KEY_STT_PROVIDER = "sttProvider";
 const KEY_GROQ_STT_MODEL = "groqSttModel";
 const KEY_WHISPERCPP_BASE_URL = "whispercppBaseURL";
+const KEY_OPENAI_COMPAT_STT_BASE_URL = "openaiCompatibleSttBaseURL";
+const KEY_OPENAI_COMPAT_STT_MODEL = "openaiCompatibleSttModel";
+const KEY_GROQ_STT_BASE_URL = "groqSttBaseURL";
+const KEY_AUX_MODELS = "auxModels";
 const KEY_FAVORITE_MODELS = "favoriteModelIds";
 const KEY_RECENT_MODELS = "recentModelIds";
 const KEY_SELECTED_MODEL = "selectedModelId";
@@ -307,6 +345,72 @@ const KEY_AUTO_APPROVE_PROJECT = "autoApproveProjectArmed";
 const KEY_HAS_ONBOARDED = "hasOnboarded";
 const KEY_WORKSPACE_ROOT = "workspaceRoot";
 const KEY_USE_NATIVE_AI = "useNativeAi";
+const KEY_PERSISTENT_MEMORY = "persistentMemory";
+const KEY_USER_PROFILE = "userProfile";
+const KEY_MEMORY_PROVIDER = "memoryProvider";
+const KEY_CONTEXT_ENGINE = "contextEngine";
+const KEY_AUTO_COMPRESS = "autoCompress";
+const KEY_COMPRESS_THRESHOLD = "compressThreshold";
+const KEY_COMPRESS_TARGET = "compressTarget";
+const KEY_PROTECT_RECENT = "protectRecent";
+
+/** 用户画像注入上限（≈500 token，对齐 Hermes user_char_limit）。 */
+export const USER_PROFILE_CHAR_LIMIT = 1375;
+
+export const MEMORY_PROVIDERS: readonly MemoryProvider[] = [
+  "file",
+  "native",
+  "session",
+];
+
+export const CONTEXT_ENGINES: readonly ContextEngine[] = [
+  "recall",
+  "full",
+  "native",
+  "off",
+];
+
+export const COMPRESS_THRESHOLD_MIN = 0.05;
+export const COMPRESS_THRESHOLD_MAX = 0.95;
+/** Clamp a 0–1 ratio to 2 decimals; legacy values (> 1, old entry-count /
+ *  percentage semantics) normalize ÷100 so existing installs keep behavior. */
+function clampRatio(v: number, min: number, max: number, fallback: number): number {
+  if (!Number.isFinite(v)) return fallback;
+  const normalized = v > 1 ? v / 100 : v;
+  if (!Number.isFinite(normalized)) return fallback;
+  const clamped = Math.min(max, Math.max(min, normalized));
+  return Math.round(clamped * 100) / 100;
+}
+function clampCompressThreshold(v: number): number {
+  return clampRatio(
+    v,
+    COMPRESS_THRESHOLD_MIN,
+    COMPRESS_THRESHOLD_MAX,
+    DEFAULT_PREFERENCES.compressThreshold,
+  );
+}
+function clampCompressTarget(v: number): number {
+  return clampRatio(
+    v,
+    0.05,
+    0.9,
+    DEFAULT_PREFERENCES.compressTarget,
+  );
+}
+function clampProtectRecent(v: number): number {
+  if (!Number.isFinite(v)) return DEFAULT_PREFERENCES.protectRecent;
+  return Math.min(100, Math.max(0, Math.round(v)));
+}
+function parseMemoryProvider(v: string | undefined): MemoryProvider {
+  return MEMORY_PROVIDERS.includes(v as MemoryProvider)
+    ? (v as MemoryProvider)
+    : DEFAULT_PREFERENCES.memoryProvider;
+}
+function parseContextEngine(v: string | undefined): ContextEngine {
+  return CONTEXT_ENGINES.includes(v as ContextEngine)
+    ? (v as ContextEngine)
+    : DEFAULT_PREFERENCES.contextEngine;
+}
 
 export const TERMINAL_FONT_SIZE_DEFAULT = 14;
 export const TERMINAL_FONT_SIZE_MIN = 8;
@@ -344,6 +448,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   customInstructions: "",
   providerFallbackChain: [],
   autostart: false,
+  adhdMode: false,
   restoreWindowState: true,
   autocompleteEnabled: false,
   autocompleteTrigger: "auto",
@@ -359,6 +464,10 @@ export const DEFAULT_PREFERENCES: Preferences = {
   sttProvider: DEFAULT_STT_PROVIDER,
   groqSttModel: "whisper-large-v3-turbo",
   whispercppBaseURL: WHISPERCPP_DEFAULT_BASE_URL,
+  openaiCompatibleSttBaseURL: OPENAI_COMPAT_STT_DEFAULT_BASE_URL,
+  openaiCompatibleSttModel: "whisper-1",
+  groqSttBaseURL: GROQ_STT_DEFAULT_BASE_URL,
+  auxModels: {},
   favoriteModelIds: [],
   recentModelIds: [],
   selectedModelId: null,
@@ -394,6 +503,14 @@ export const DEFAULT_PREFERENCES: Preferences = {
   hasOnboarded: false,
   workspaceRoot: null,
   useNativeAi: false,
+  persistentMemory: true,
+  userProfile: "",
+  memoryProvider: "file",
+  contextEngine: "recall",
+  autoCompress: true,
+  compressThreshold: 0.5,
+  compressTarget: 0.2,
+  protectRecent: 20,
 };
 
 const store = createStorage(STORE_PATH);
@@ -404,9 +521,22 @@ const store = createStorage(STORE_PATH);
 // window can listen.
 const PREFS_CHANGED_EVENT = "YaMet://prefs-changed";
 
+// Tauri emit broadcasts to every window including the writer's own. The
+// writer already sees the change via the local storage onChange, so tag the
+// event with its window label and have listeners skip events they caused —
+// otherwise the main window double-applies every settings write.
+function currentWindowLabel(): string {
+  try {
+    return getCurrentWindow().label;
+  } catch {
+    // Web / tests without a Tauri window — no cross-window dedupe needed.
+    return "";
+  }
+}
+
 async function writePref<T>(key: string, value: T): Promise<void> {
   await store.set(key, value);
-  await emit(PREFS_CHANGED_EVENT, { key, value });
+  await emit(PREFS_CHANGED_EVENT, { key, value, source: currentWindowLabel() });
 }
 
 export async function loadPreferences(): Promise<Preferences> {
@@ -474,6 +604,7 @@ export async function loadPreferences(): Promise<Preferences> {
       get<string[]>(KEY_PROVIDER_FALLBACK_CHAIN) ??
       DEFAULT_PREFERENCES.providerFallbackChain,
     autostart: get<boolean>(KEY_AUTOSTART) ?? DEFAULT_PREFERENCES.autostart,
+    adhdMode: get<boolean>(KEY_ADHD_MODE) ?? DEFAULT_PREFERENCES.adhdMode,
     restoreWindowState:
       get<boolean>(KEY_RESTORE_WINDOW) ??
       DEFAULT_PREFERENCES.restoreWindowState,
@@ -515,6 +646,19 @@ export async function loadPreferences(): Promise<Preferences> {
     whispercppBaseURL:
       get<string>(KEY_WHISPERCPP_BASE_URL) ??
       DEFAULT_PREFERENCES.whispercppBaseURL,
+    openaiCompatibleSttBaseURL:
+      get<string>(KEY_OPENAI_COMPAT_STT_BASE_URL) ??
+      DEFAULT_PREFERENCES.openaiCompatibleSttBaseURL,
+    openaiCompatibleSttModel:
+      get<string>(KEY_OPENAI_COMPAT_STT_MODEL) ??
+      DEFAULT_PREFERENCES.openaiCompatibleSttModel,
+    groqSttBaseURL:
+      get<string>(KEY_GROQ_STT_BASE_URL) ??
+      DEFAULT_PREFERENCES.groqSttBaseURL,
+    auxModels:
+      (get<Partial<Record<AuxTask, string | null>>>(KEY_AUX_MODELS) ?? {}) as Partial<
+        Record<AuxTask, string | null>
+      >,
     favoriteModelIds: (
       get<string[]>(KEY_FAVORITE_MODELS) ?? DEFAULT_PREFERENCES.favoriteModelIds
     ).filter(isLoadableModelId),
@@ -613,7 +757,58 @@ export async function loadPreferences(): Promise<Preferences> {
       get<string | null>(KEY_WORKSPACE_ROOT) ?? DEFAULT_PREFERENCES.workspaceRoot,
     useNativeAi:
       get<boolean>(KEY_USE_NATIVE_AI) ?? DEFAULT_PREFERENCES.useNativeAi,
+    persistentMemory:
+      get<boolean>(KEY_PERSISTENT_MEMORY) ??
+      DEFAULT_PREFERENCES.persistentMemory,
+    userProfile:
+      get<string>(KEY_USER_PROFILE) ?? DEFAULT_PREFERENCES.userProfile,
+    memoryProvider: parseMemoryProvider(get<string>(KEY_MEMORY_PROVIDER)),
+    contextEngine: parseContextEngine(get<string>(KEY_CONTEXT_ENGINE)),
+    autoCompress:
+      get<boolean>(KEY_AUTO_COMPRESS) ?? DEFAULT_PREFERENCES.autoCompress,
+    compressThreshold: clampCompressThreshold(
+      get<number>(KEY_COMPRESS_THRESHOLD) ??
+        DEFAULT_PREFERENCES.compressThreshold,
+    ),
+    compressTarget: clampCompressTarget(
+      get<number>(KEY_COMPRESS_TARGET) ?? DEFAULT_PREFERENCES.compressTarget,
+    ),
+    protectRecent: clampProtectRecent(
+      get<number>(KEY_PROTECT_RECENT) ?? DEFAULT_PREFERENCES.protectRecent,
+    ),
   };
+}
+
+export async function setPersistentMemory(value: boolean): Promise<void> {
+  await writePref(KEY_PERSISTENT_MEMORY, value);
+}
+
+export async function setUserProfile(value: string): Promise<void> {
+  await writePref(KEY_USER_PROFILE, value.slice(0, USER_PROFILE_CHAR_LIMIT));
+}
+
+export async function setMemoryProvider(value: MemoryProvider): Promise<void> {
+  await writePref(KEY_MEMORY_PROVIDER, value);
+}
+
+export async function setContextEngine(value: ContextEngine): Promise<void> {
+  await writePref(KEY_CONTEXT_ENGINE, value);
+}
+
+export async function setAutoCompress(value: boolean): Promise<void> {
+  await writePref(KEY_AUTO_COMPRESS, value);
+}
+
+export async function setCompressThreshold(value: number): Promise<void> {
+  await writePref(KEY_COMPRESS_THRESHOLD, clampCompressThreshold(value));
+}
+
+export async function setCompressTarget(value: number): Promise<void> {
+  await writePref(KEY_COMPRESS_TARGET, clampCompressTarget(value));
+}
+
+export async function setProtectRecent(value: number): Promise<void> {
+  await writePref(KEY_PROTECT_RECENT, clampProtectRecent(value));
 }
 
 export async function setHasOnboarded(): Promise<void> {
@@ -733,6 +928,10 @@ export async function setAutostart(value: boolean): Promise<void> {
   await writePref(KEY_AUTOSTART, value);
 }
 
+export async function setAdhdMode(value: boolean): Promise<void> {
+  await writePref(KEY_ADHD_MODE, value);
+}
+
 export async function setRestoreWindowState(value: boolean): Promise<void> {
   await writePref(KEY_RESTORE_WINDOW, value);
 }
@@ -802,6 +1001,31 @@ export async function setGroqSttModel(value: string): Promise<void> {
 
 export async function setWhispercppBaseURL(value: string): Promise<void> {
   await writePref(KEY_WHISPERCPP_BASE_URL, value.trim());
+}
+
+export async function setOpenaiCompatibleSttBaseURL(
+  value: string,
+): Promise<void> {
+  await writePref(KEY_OPENAI_COMPAT_STT_BASE_URL, value.trim());
+}
+
+export async function setOpenaiCompatibleSttModel(value: string): Promise<void> {
+  await writePref(KEY_OPENAI_COMPAT_STT_MODEL, value.trim());
+}
+
+export async function setGroqSttBaseURL(value: string): Promise<void> {
+  await writePref(KEY_GROQ_STT_BASE_URL, value.trim());
+}
+
+export async function setAuxModel(
+  task: AuxTask,
+  modelId: string | null,
+): Promise<void> {
+  const prefs = await loadPreferences();
+  const next = { ...(prefs.auxModels ?? {}) };
+  if (modelId?.trim()) next[task] = modelId.trim();
+  else delete next[task];
+  await writePref(KEY_AUX_MODELS, next);
 }
 
 export async function setFavoriteModelIds(value: string[]): Promise<void> {
@@ -1003,6 +1227,10 @@ export async function onPreferencesChange(
     [KEY_STT_PROVIDER]: "sttProvider",
     [KEY_GROQ_STT_MODEL]: "groqSttModel",
     [KEY_WHISPERCPP_BASE_URL]: "whispercppBaseURL",
+    [KEY_OPENAI_COMPAT_STT_BASE_URL]: "openaiCompatibleSttBaseURL",
+    [KEY_OPENAI_COMPAT_STT_MODEL]: "openaiCompatibleSttModel",
+    [KEY_GROQ_STT_BASE_URL]: "groqSttBaseURL",
+    [KEY_AUX_MODELS]: "auxModels",
     [KEY_FAVORITE_MODELS]: "favoriteModelIds",
     [KEY_RECENT_MODELS]: "recentModelIds",
     [KEY_SELECTED_MODEL]: "selectedModelId",
@@ -1038,19 +1266,32 @@ export async function onPreferencesChange(
     [KEY_WORKSPACE_ROOT]: "workspaceRoot",
     [KEY_USE_NATIVE_AI]: "useNativeAi",
   };
+  // Compile-time completeness: every PrefKey must appear in the map above.
+  // Adding a preference to Preferences and forgetting the key here now fails
+  // tsc (never-assignable-to-true) instead of silently never syncing it.
+  type _UncoveredPrefKey = {
+    [K in PrefKey as K extends keyof typeof map ? never : K]: true;
+  };
+  type _AllPrefsMapped = [keyof _UncoveredPrefKey] extends [never] ? true : false;
+  const _prefsMapComplete: _AllPrefsMapped = true;
+  void _prefsMapComplete;
+
   // Same-process writes still fire onChange immediately; cross-window writes
   // arrive via the Tauri event emitted by writePref().
   const unsubLocal = await store.onChange((key, value) => {
     const mapped = map[key];
     if (mapped) cb(mapped, value);
   });
-  const unsubEvent = await listen<{ key: string; value: unknown }>(
-    PREFS_CHANGED_EVENT,
-    (e) => {
-      const mapped = map[e.payload.key];
-      if (mapped) cb(mapped, e.payload.value);
-    },
-  );
+  const unsubEvent = await listen<{
+    key: string;
+    value: unknown;
+    source?: string;
+  }>(PREFS_CHANGED_EVENT, (e) => {
+    // Skip our own broadcast — the local onChange already fired for it.
+    if (e.payload.source === currentWindowLabel()) return;
+    const mapped = map[e.payload.key];
+    if (mapped) cb(mapped, e.payload.value);
+  });
   return () => {
     unsubLocal();
     unsubEvent();
